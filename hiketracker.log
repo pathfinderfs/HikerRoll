@@ -28,3 +28,100 @@
 2025/06/13 18:51:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T18:51:01Z
 2025/06/13 18:51:01 Participant joined hike: Jane Doe (Hike Join Code: O-oWs4UQeSLrftiC6fvUVQ==)
 2025/06/13 18:51:01 Participant status updated: UUID participant-uuid, Leader Code: O-oWs4UQeSLrftiC6fvUVQ==, New Status: completed
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-14T10:58:09-10:00
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Participant joined hike: Jane Doe (Hike Join Code: sEKoVEopIUXhAAfwkviopw==), Waiver Signed
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Participant joined hike: Default Joiner (Hike Join Code: dN9RKVu7ZNygpMeucZJJ5w==), Waiver Signed
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Hike closed: Name Test Hike
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Participant joined hike: Default Joiner (Hike Join Code: dYYpy2Bd9h6jhIoTN2ok4g==), Waiver Signed
+2025/06/13 10:58:09 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: dYYpy2Bd9h6jhIoTN2ok4g==, New Status: finished
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Participant joined hike: Waiver Participant (Hike Join Code: z0lcESS7BXUct7veK4FGdA==), Waiver Signed
+2025/06/13 10:58:09 Hike created: Test Hike by John Doe, starting at 2025-06-13T10:58:09-10:00
+2025/06/13 10:58:09 Participant joined hike: Default Joiner (Hike Join Code: hMwih1P1_8VB83XvU20AIg==), Waiver Signed
+2025/06/13 10:58:09 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: hMwih1P1_8VB83XvU20AIg==, New Status: completed
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-14T11:01:01-10:00
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Participant joined hike: Jane Doe (Hike Join Code: 6v8a9S-krgopZjyE-4JL4g==), Waiver Signed
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Participant joined hike: Default Joiner (Hike Join Code: PnyY3IMYSkvLQLm8aidB6Q==), Waiver Signed
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Hike closed: Name Test Hike
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Participant joined hike: Default Joiner (Hike Join Code: G7DbOsDf7pcB-tX9mtUO_A==), Waiver Signed
+2025/06/13 11:01:01 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: G7DbOsDf7pcB-tX9mtUO_A==, New Status: finished
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Participant joined hike: Waiver Participant (Hike Join Code: mLpGHN_mtqBxvA4h25tljg==), Waiver Signed
+2025/06/13 11:01:01 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:01:01-10:00
+2025/06/13 11:01:01 Participant joined hike: Default Joiner (Hike Join Code: qS6Ab3qZNnxFodLxEgrRHQ==), Waiver Signed
+2025/06/13 11:01:01 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: qS6Ab3qZNnxFodLxEgrRHQ==, New Status: completed
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-14T11:07:13-10:00
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Participant joined hike: Jane Doe (Hike Join Code: wweciyrnqeueMF5Tv8ooZg==), Waiver Signed
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Participant joined hike: Default Joiner (Hike Join Code: LbNdzna90Ghm5EOMlUKHAA==), Waiver Signed
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Hike closed: Name Test Hike
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Participant joined hike: Default Joiner (Hike Join Code: TaYhFnfn-DVXVu5EBKVH3A==), Waiver Signed
+2025/06/13 11:07:13 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: TaYhFnfn-DVXVu5EBKVH3A==, New Status: finished
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Participant joined hike: Waiver Participant (Hike Join Code: szNmjdPqoN6pqrpKf1d5Ow==), Waiver Signed
+2025/06/13 11:07:13 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:07:13-10:00
+2025/06/13 11:07:13 Participant joined hike: Default Joiner (Hike Join Code: Kg63cSCrv79C3UcPngM4ug==), Waiver Signed
+2025/06/13 11:07:13 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: Kg63cSCrv79C3UcPngM4ug==, New Status: completed
+2025/06/13 11:07:14 Hike created: E2E Test Hike by E2E Leader, starting at 2025-06-13T21:07:13Z
+2025/06/13 11:07:15 Participant joined hike: E2E Participant (Hike Join Code: 9g2zuW9KkevEo18V8utV9g==), Waiver Signed
+2025/06/13 11:07:30 Participant status updated: UUID 970f75cd-3e78-4f06-86d3-c872974aa366, Leader Code: 9g2zuW9KkevEo18V8utV9g==, New Status: finished
+2025/06/13 11:07:32 Hike closed: Name 
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-14T11:09:06-10:00
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Participant joined hike: Jane Doe (Hike Join Code: HVotXFaTuuWTTTXKTEF5_w==), Waiver Signed
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Participant joined hike: Default Joiner (Hike Join Code: yYaa2zRq599CES2yGhs2Dg==), Waiver Signed
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Hike closed: Name Test Hike
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Participant joined hike: Default Joiner (Hike Join Code: VOFcrO3AjDu3rK91eX7byg==), Waiver Signed
+2025/06/13 11:09:06 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: VOFcrO3AjDu3rK91eX7byg==, New Status: finished
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Participant joined hike: Waiver Participant (Hike Join Code: Ch5JFdgoOO-YecyJ06mhoA==), Waiver Signed
+2025/06/13 11:09:06 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:09:06-10:00
+2025/06/13 11:09:06 Participant joined hike: Default Joiner (Hike Join Code: fGcOQMj7jLOKy8LgEFJlEQ==), Waiver Signed
+2025/06/13 11:09:06 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: fGcOQMj7jLOKy8LgEFJlEQ==, New Status: completed
+2025/06/13 11:09:07 Hike created: E2E Test Hike by E2E Leader, starting at 2025-06-13T21:09:06Z
+2025/06/13 11:09:08 Participant joined hike: E2E Participant (Hike Join Code: enaUyyGRv9hauci0WDapnQ==), Waiver Signed
+2025/06/13 11:09:23 Participant status updated: UUID 91bff6f6-eb4b-4f81-97c9-320f2b1749d9, Leader Code: enaUyyGRv9hauci0WDapnQ==, New Status: finished
+2025/06/13 11:09:25 Hike closed: Name 
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-14T11:11:23-10:00
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Participant joined hike: Jane Doe (Hike Join Code: Sog_jwmf5_1R_F8hl7m2Og==), Waiver Signed
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Participant joined hike: Default Joiner (Hike Join Code: XgiJ8yvbHWrBqbVBmlCSUg==), Waiver Signed
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Hike closed: Name Test Hike
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Participant joined hike: Default Joiner (Hike Join Code: 7xUmGPvCILf14y5rEak-5w==), Waiver Signed
+2025/06/13 11:11:23 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: 7xUmGPvCILf14y5rEak-5w==, New Status: finished
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Participant joined hike: Waiver Participant (Hike Join Code: tnWC7qmkyIzEJtNcnBO-ag==), Waiver Signed
+2025/06/13 11:11:23 Hike created: Test Hike by John Doe, starting at 2025-06-13T11:11:23-10:00
+2025/06/13 11:11:23 Participant joined hike: Default Joiner (Hike Join Code: GAGfKcaCGUA3sJuya5VgHQ==), Waiver Signed
+2025/06/13 11:11:23 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: GAGfKcaCGUA3sJuya5VgHQ==, New Status: completed
+2025/06/13 11:11:24 Hike created: E2E Test Hike by E2E Leader, starting at 2025-06-13T21:11:23Z
+2025/06/13 11:11:24 Participant joined hike: E2E Participant (Hike Join Code: 4PsaO_zv0Kp5ke2rEEmwMQ==), Waiver Signed
+2025/06/13 11:11:40 Participant status updated: UUID ad7aedd7-35cf-4d58-9d3c-6f8f061d7693, Leader Code: 4PsaO_zv0Kp5ke2rEEmwMQ==, New Status: finished
+2025/06/13 11:11:42 Hike closed: Name 
