@@ -6,26 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestMain(m *testing.M) {
-	// Set up test database
-	initDB(":memory:") // Use in-memory database
-
-	defer db.Close()
-
-	// Run tests
-	code := m.Run()
-
-	// Tear down
-	os.Exit(code)
-}
 
 func setupTestMux() *http.ServeMux {
 	mux := http.NewServeMux()
