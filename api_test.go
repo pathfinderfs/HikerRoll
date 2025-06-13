@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -179,6 +181,203 @@ func TestGetHikeByCode(t *testing.T) {
 	assert.Equal(t, hike.JoinCode, response.JoinCode)
 }
 
+func TestTableCreation(t *testing.T) {
+	// initDB in TestMain should have already created tables.
+	// We query sqlite_master to be sure.
+	var tableName string
+	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='waiver_signatures'").Scan(&tableName)
+	require.NoError(t, err, "waiver_signatures table should exist")
+	assert.Equal(t, "waiver_signatures", tableName)
+
+	// Verify table schema
+	rows, err := db.Query("PRAGMA table_info(waiver_signatures)")
+	require.NoError(t, err, "Should be able to query table_info for waiver_signatures")
+	defer rows.Close()
+
+	expectedColumns := map[string]string{
+		"id":             "INTEGER",
+		"user_uuid":      "TEXT",
+		"hike_join_code": "TEXT",
+		"signed_at":      "DATETIME",
+		"user_agent":     "TEXT",
+		"ip_address":     "TEXT",
+		"waiver_text":    "TEXT",
+	}
+
+	foundColumns := 0
+	for rows.Next() {
+		var cid int
+		var name string
+		var dataType string // In SQLite, this is 'type'
+		var notnull bool
+		var dfltValue interface{}
+		var pk int
+		err := rows.Scan(&cid, &name, &dataType, &notnull, &dfltValue, &pk)
+		require.NoError(t, err, "Should be able to scan table_info row")
+
+		expectedType, ok := expectedColumns[name]
+		assert.True(t, ok, fmt.Sprintf("Column %s is not expected", name))
+		assert.Equal(t, expectedType, dataType, fmt.Sprintf("Column %s has type %s, expected %s", name, dataType, expectedType))
+		delete(expectedColumns, name) // Remove found column
+		foundColumns++
+	}
+	require.NoError(t, rows.Err(), "Error iterating over table_info rows")
+	assert.Empty(t, expectedColumns, "Not all expected columns were found")
+	assert.Equal(t, 7, foundColumns, "Should find exactly 7 columns")
+
+	// Check primary key for 'id'
+	rows, err = db.Query("PRAGMA table_info(waiver_signatures)")
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name string
+		var dataType string
+		var notnull bool
+		var dfltValue interface{}
+		var pk int
+		err := rows.Scan(&cid, &name, &dataType, &notnull, &dfltValue, &pk)
+		require.NoError(t, err)
+		if name == "id" {
+			assert.Equal(t, 1, pk, "Column 'id' should be the primary key")
+			assert.True(t, notnull, "Column 'id' should be NOT NULL") // Autoincrement implies NOT NULL
+		}
+	}
+	require.NoError(t, rows.Err())
+
+	// Note: Checking foreign keys with PRAGMA foreign_key_list(waiver_signatures) is more complex
+	// and might be overkill for this test, as SQLite's enforcement is the main thing.
+	// We trust that if go-sqlite3 doesn't error on the CREATE TABLE, the FKs are syntactically correct.
+}
+
+func TestJoinHikeRecordsWaiver(t *testing.T) {
+	// 1. Create dummy static/waiver.txt
+	waiverDir := "static"
+	waiverFilePath := waiverDir + "/waiver.txt"
+	sampleWaiverText := "This is a test waiver."
+
+	// Ensure static directory exists
+	if _, err := os.Stat(waiverDir); os.IsNotExist(err) {
+		err = os.Mkdir(waiverDir, 0755)
+		require.NoError(t, err, "Failed to create static directory")
+	}
+	err := os.WriteFile(waiverFilePath, []byte(sampleWaiverText), 0644)
+	require.NoError(t, err, "Failed to create dummy waiver.txt")
+	defer func() {
+		os.Remove(waiverFilePath)
+		// Try to remove static dir, will fail if not empty, which is fine.
+		// If we created it and it's empty, it will be removed.
+		os.Remove(waiverDir)
+	}()
+
+	// 2. Create a hike to get a valid hikeId (joinCode)
+	// Use a unique leader UUID for this test to avoid conflicts if tests run in parallel
+	// or if db is not perfectly clean (though :memory: should be clean each TestMain).
+	testHike := createTestHikeWithOptions(t, User{
+		UUID:  "leader-uuid-waivertest",
+		Name:  "Waiver Test Leader",
+		Phone: "1112223333",
+	})
+	require.NotEmpty(t, testHike.JoinCode, "Test hike should have a join code")
+
+	// 3. Prepare request for joinHikeHandler
+	participantUser := User{
+		UUID:             "participant-uuid-waivertest",
+		Name:             "Waiver Participant",
+		Phone:            "0001112222",
+		LicensePlate:     "WVRTEST",
+		EmergencyContact: "9998887777",
+	}
+	joinRequestPayload := struct {
+		User User `json:"user"`
+	}{User: participantUser}
+
+	body, err := json.Marshal(joinRequestPayload)
+	require.NoError(t, err)
+
+	reqURL := fmt.Sprintf("/api/hike/%s/participant", testHike.JoinCode)
+	req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(body))
+	require.NoError(t, err)
+
+	expectedUserAgent := "Test-Agent/1.0"
+	expectedIPAddress := "192.0.2.1" // Example IP from X-Forwarded-For
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", expectedUserAgent)
+	req.Header.Set("X-Forwarded-For", expectedIPAddress)
+
+	// 4. Execute request
+	rr := httptest.NewRecorder()
+	mux := setupTestMux() // Assumes db is already set up from TestMain
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Join hike request should succeed. Body: %s", rr.Body.String())
+
+	// 5. Query waiver_signatures table
+	var (
+		id             int
+		userUUID       string
+		hikeJoinCode   string
+		signedAtStr    string // Read as string, then parse if needed
+		userAgent      string
+		ipAddress      string
+		dbWaiverText   string
+	)
+	query := `SELECT id, user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text
+	          FROM waiver_signatures
+	          WHERE user_uuid = ? AND hike_join_code = ?`
+	row := db.QueryRow(query, participantUser.UUID, testHike.JoinCode)
+	err = row.Scan(&id, &userUUID, &hikeJoinCode, &signedAtStr, &userAgent, &ipAddress, &dbWaiverText)
+	require.NoError(t, err, "Failed to find waiver signature in DB. \nDB content for waiver_signatures:\n"+dumpTable(t, "waiver_signatures"))
+
+
+	// 6. Verify data
+	assert.Equal(t, participantUser.UUID, userUUID, "User UUID should match")
+	assert.Equal(t, testHike.JoinCode, hikeJoinCode, "Hike join code should match")
+	assert.Equal(t, expectedUserAgent, userAgent, "User agent should match")
+	assert.Equal(t, expectedIPAddress, ipAddress, "IP address should match")
+	assert.Equal(t, sampleWaiverText, dbWaiverText, "Waiver text should match")
+
+	// Verify signed_at is a valid timestamp (roughly now)
+	signedAt, err := time.Parse("2006-01-02 15:04:05", signedAtStr) // Default SQLite datetime format
+	require.NoError(t, err, "Failed to parse signed_at timestamp")
+	assert.WithinDuration(t, time.Now(), signedAt, 5*time.Second, "signed_at should be recent")
+}
+
+// Helper function to dump table content for debugging
+func dumpTable(t *testing.T, tableName string) string {
+	rows, err := db.Query(fmt.Sprintf("SELECT * FROM %s", tableName))
+	if err != nil {
+		return fmt.Sprintf("Error querying table %s: %v", tableName, err)
+	}
+	defer rows.Close()
+
+	var result strings.Builder
+	cols, _ := rows.Columns()
+	result.WriteString(fmt.Sprintf("Columns: %v\n", cols))
+
+	for rows.Next() {
+		vals := make([]interface{}, len(cols))
+		scanArgs := make([]interface{}, len(cols))
+		for i := range vals {
+			scanArgs[i] = &vals[i]
+		}
+		err = rows.Scan(scanArgs...)
+		if err != nil {
+			result.WriteString(fmt.Sprintf("Error scanning row: %v\n", err))
+			continue
+		}
+		result.WriteString(fmt.Sprintf("%v\n", vals))
+	}
+	if err = rows.Err(); err != nil {
+		result.WriteString(fmt.Sprintf("Error iterating rows: %v\n", err))
+	}
+	if result.Len() == 0 {
+		return fmt.Sprintf("Table %s is empty or does not exist.", tableName)
+	}
+	return result.String()
+}
+
+
 func TestUpdateParticipantStatus(t *testing.T) {
 	hike := createTestHike(t)
 	participant := joinTestHike(t, hike)
@@ -198,8 +397,8 @@ func TestUpdateParticipantStatus(t *testing.T) {
 func createTestHike(t *testing.T) Hike {
 	hike := Hike{
 		Name: "Test Hike",
-		Leader: User{
-			UUID:  "test-uuid",
+		Leader: User{ // Default leader if none provided
+			UUID:  "test-uuid-default",
 			Name:  "John Doe",
 			Phone: "1234567890",
 		},
@@ -215,36 +414,78 @@ func createTestHike(t *testing.T) Hike {
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
+	assert.Equal(t, http.StatusOK, rr.Code, "Failed to create test hike. Body: %s", rr.Body.String())
+
 	var response Hike
 	json.Unmarshal(rr.Body.Bytes(), &response)
 	return response
 }
 
-func joinTestHike(t *testing.T, hike Hike) Participant {
-	request := struct {
-		User User `json:"user"`
-	}{
-		User: User{
-			UUID:             "participant-uuid",
-			Name:             "Jane Doe",
-			Phone:            "9876543210",
-			LicensePlate:     "ABC123",
-			EmergencyContact: "5555555555",
-		},
+// createTestHikeWithOptions allows specifying the leader
+func createTestHikeWithOptions(t *testing.T, leader User) Hike {
+	hike := Hike{
+		Name:      "Test Hike for " + leader.UUID,
+		Leader:    leader,
+		Latitude:  40.7128,
+		Longitude: -74.0060,
+		StartTime: time.Now(),
 	}
-	body, _ := json.Marshal(request)
-	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant", hike.JoinCode), bytes.NewBuffer(body))
+	body, err := json.Marshal(hike)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
+	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
+	assert.Equal(t, http.StatusOK, rr.Code, "Failed to create test hike with options. Body: %s", rr.Body.String())
+
 	var response Hike
-	json.Unmarshal(rr.Body.Bytes(), &response)
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err, "Failed to unmarshal createTestHikeWithOptions response")
+	return response
+}
+
+func joinTestHike(t *testing.T, hike Hike) Participant {
+	// Default participant for generic join tests
+	defaultParticipantUser := User{
+		UUID:             "participant-uuid-defaultjoin",
+		Name:             "Default Joiner",
+		Phone:            "9876543210",
+		LicensePlate:     "DEFJOIN",
+		EmergencyContact: "5555555555",
+	}
+	return joinTestHikeWithOptions(t, hike, defaultParticipantUser)
+}
+
+func joinTestHikeWithOptions(t *testing.T, hike Hike, user User) Participant {
+	request := struct {
+		User User `json:"user"`
+	}{User: user}
+
+	body, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	reqURL := fmt.Sprintf("/api/hike/%s/participant", hike.JoinCode)
+	req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Failed to join test hike. Body: %s", rr.Body.String())
+
+	var responseHikeData Hike // This is the hike data returned by joinHikeHandler
+	err = json.Unmarshal(rr.Body.Bytes(), &responseHikeData)
+	require.NoError(t, err, "Failed to unmarshal joinTestHike response")
 
 	return Participant{
-		Hike: response,
-		User: request.User,
+		Hike: responseHikeData, // Use the returned hike data
+		User: user,             // Use the input user data
 	}
 }

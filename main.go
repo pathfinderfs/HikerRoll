@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -113,6 +114,18 @@ func initDB(databaseName string) {
 			PRIMARY KEY (hike_join_code, user_uuid),
 			FOREIGN KEY (hike_join_code) REFERENCES hikes(join_code),
 			FOREIGN KEY (user_uuid) REFERENCES users(uuid)
+		);
+
+		CREATE TABLE IF NOT EXISTS waiver_signatures (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_uuid TEXT,
+			hike_join_code TEXT,
+			signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			user_agent TEXT,
+			ip_address TEXT,
+			waiver_text TEXT,
+			FOREIGN KEY (user_uuid) REFERENCES users(uuid),
+			FOREIGN KEY (hike_join_code) REFERENCES hikes(join_code)
 		);
 	`)
 	if err != nil {
@@ -330,7 +343,48 @@ func joinHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logAction(fmt.Sprintf("Participant joined hike: %s (Hike Join Code: %s)", request.User.Name, hike.JoinCode))
+	// Read waiver text
+	waiverTextBytes, err := os.ReadFile("static/waiver.txt")
+	if err != nil {
+		// Log the error but proceed with joining the hike, as waiver signing is secondary
+		log.Printf("Error reading waiver.txt: %v", err)
+		// Potentially send a different response or log more critically depending on requirements
+	}
+	waiverText := string(waiverTextBytes)
+
+	// Get User-Agent
+	userAgent := r.UserAgent()
+	if userAgent == "" { // Fallback, though UserAgent() usually provides a value
+		userAgent = r.Header.Get("User-Agent")
+	}
+
+	// Get IP Address
+	ipAddress := r.Header.Get("X-Forwarded-For")
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr
+	} else {
+		// X-Forwarded-For can be a comma-separated list of IPs.
+		// The first IP is generally the client's IP.
+		ips := strings.Split(ipAddress, ",")
+		ipAddress = strings.TrimSpace(ips[0])
+	}
+
+	// Insert waiver signature
+	_, err = db.Exec(`
+		INSERT INTO waiver_signatures (user_uuid, hike_join_code, user_agent, ip_address, waiver_text)
+		VALUES (?, ?, ?, ?, ?)
+	`, request.User.UUID, joinCode, userAgent, ipAddress, waiverText)
+
+	if err != nil {
+		// Log the error but don't fail the entire join operation,
+		// as the user is already in hike_users.
+		// This could be escalated based on business rules.
+		log.Printf("Error inserting waiver signature: %v. User: %s, Hike: %s", err, request.User.UUID, joinCode)
+		// Potentially, you might want to roll back the hike_users insertion
+		// if waiver signing is absolutely critical, but that adds complexity.
+	}
+
+	logAction(fmt.Sprintf("Participant joined hike: %s (Hike Join Code: %s), Waiver Signed", request.User.Name, hike.JoinCode))
 	json.NewEncoder(w).Encode(hike)
 }
 
