@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hike Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #333;
+        }
+
+        button {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            width: 100%;
+            text-align: center;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        input[type="text"],
+        input[type="tel"],
+        input[type="datetime-local"] {
+            width: 100%;
+            padding: 12px 20px;
+            margin: 8px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        .hike-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .hike-item {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .participant-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .participant-item {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #4CD964;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .toggle-label {
+            margin-left: 10px;
+            margin-right: 10px;
+        }
+
+        .button-secondary {
+            background-color: #FF3B30;
+        }
+
+        .button-refresh {
+            background-color: #4CD964;
+        }
+
+        @media (hover: hover) {
+            button:hover {
+                background-color: #0056b3;
+            }
+
+            .button-secondary:hover {
+                background-color: #d63a2f;
+            }
+
+            .button-refresh:hover {
+                border: 3px solid #3cb371;
+                /* solves sticky problem */
+            }
+
+            .autocomplete-items div:hover {
+                background-color: #e9e9e9;
+            }
+
+            .flatpickr-input:hover {
+                background-color: #f0f0f0;
+            }
+
+            .participant-table tr:hover {
+                background-color: #f5f5f5;
+            }
+
+        }
+
+        .autocomplete-items {
+            position: absolute;
+            border: 1px solid #d4d4d4;
+            border-bottom: none;
+            border-top: none;
+            z-index: 99;
+            top: 100%;
+            left: 0;
+            right: 0;
+        }
+
+        .autocomplete-items div {
+            padding: 10px;
+            cursor: pointer;
+            background-color: #fff;
+            border-bottom: 1px solid #d4d4d4;
+        }
+
+        .autocomplete-active {
+            background-color: DodgerBlue !important;
+            color: #ffffff;
+        }
+
+        .autocomplete {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .flatpickr-input {
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        .date-time-picker-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .date-time-picker-container label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .date-time-picker-container::after {
+            content: "\1F4C5";
+            /* Calendar emoji */
+            position: absolute;
+            top: 35px;
+            right: 10px;
+            font-size: 20px;
+            pointer-events: none;
+        }
+
+        .participant-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .participant-table th,
+        .participant-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .participant-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        .participant-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        @media screen and (max-width: 600px) {
+            .participant-table {
+                font-size: 14px;
+            }
+
+            .participant-table th,
+            .participant-table td {
+                padding: 6px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="welcome-page" style="display:none;">
+            <h1>Welcome to Hike Tracker</h1>
+            <button onclick="showCreateHikePage()">Create New Hike</button>
+            <h2>Nearby Hikes</h2>
+            <button class="button-refresh" onclick="getNearbyHikes()">🔄 Refresh</button>
+            <ul id="nearby-hikes" class="hike-list"></ul>
+        </div>
+
+        <div id="create-hike-page" style="display:none;">
+            <h1>Create New Hike</h1>
+            <form id="create-hike-form">
+                <input type="text" id="hike-name" placeholder="Hike Name (e.g., Sunset Hike)" required>
+                <div class="autocomplete">
+                    <input type="text" id="trailhead-name" placeholder="Trailhead Name (Type to search)" required>
+                </div>
+                <input type="text" id="leader-name" placeholder="Your Name" required>
+                <input type="tel" id="leader-phone" placeholder="Your Phone (10 digits)" required maxlength="10"
+                    pattern="\d{3}-\d{3}-\d{4}">
+                <div class="date-time-picker-container">
+                    <label for="hike-startTime">Hike Start Date and Time:</label>
+                    <input type="text" id="hike-startTime" placeholder="Click to select date and time" required>
+                </div>
+                <button type="button" onclick="createHike()">Create Hike</button>
+                <button type="button" class="button-secondary" onclick="cancelCreateHike()">Cancel</button>
+            </form>
+        </div>
+
+        <div id="join-hike-page" style="display:none;">
+            <h1>Join Hike: <span id="join-hike-name"></span></h1>
+            <p>Trailhead: <span id="join-trailhead-name"></span></p>
+            <p>For your safety please fill out the following to join this hike.</p>
+            <form id="join-hike-form">
+                <input type="text" id="participant-name" placeholder="Your Name" required>
+                <input type="tel" id="participant-phone" placeholder="Your Phone (10 digits)" required maxlength="10"
+                    pattern="\d{3}-\d{3}-\d{4}">
+                <input type="text" id="participant-licensePlate" placeholder="License Plate (Optional)">
+                <input type="tel" id="participant-emergencyContact" placeholder="Emergency Contact (10 digits)"
+                    maxlength="10" pattern="\d{3}-\d{3}-\d{4}">
+                <button type="button" onclick="showWaiverPage()">Join Hike</button>
+                <button type="button" class="button-secondary" onclick="cancelJoinHike()">Cancel</button>
+            </form>
+        </div>
+
+        <div id="waiver-page" style="display:none;">
+            <h1>Waiver</h1>
+            <div id="waiver-content"></div>
+            <button onclick="joinHike()">Accept</button>
+            <button class="button-secondary" onclick="cancelWaiver()">Cancel</button>
+        </div>
+
+        <div id="hike-leader-page" style="display:none;">
+            <h1>Coordinator Console</h1>
+            <p>Hike Name: <span id="hike-name-display"></span></p>
+            <p>Trailhead: <span id="trailhead-name-display"></span></p>
+            <p>Join Hike Link: <a id="join-url" onclick="copyToClipboard(event)">Press to copy</a></p>
+            <p>Hike Coordinator Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
+            </p>
+            <h3>Participant List</h3>
+            <p id="last-refresh"></p>
+            <button class="button-refresh" onclick="refreshParticipants()">🔄 Refresh</button>
+            <div class="toggle-container">
+                <span class="toggle-label">Active</span>
+                <label class="switch">
+                    <input type="checkbox" id="participant-toggle" onchange="toggleParticipants()">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">All</span>
+            </div>
+            <p id="participant-count"></p>
+            <table id="participant-table" class="participant-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="participant-list">
+                    <!-- Participants will be dynamically added here -->
+                </tbody>
+            </table>
+            <button onclick="downloadParticipantList()">Download Participant List</button>
+            <button class="button-secondary" onclick="endHike()">End Hike</button>
+        </div>
+
+        <div id="hiking-page" style="display:none;">
+            <h1>Hiking: <span id="current-hike-name"></span></h1>
+            <p>Trailhead: <span id="current-trailhead-name"></span></p>
+            <p>Leader Name: <span id="leader-name-2"></span></p>
+            <p>Leader Phone: <a id="leader-phone-link" href=""></a></p>
+            <p>Start Time: <span id="hike-start-time-display"></span></p>
+            <p><a id="google-maps-link" href="#" target="_blank">View on Google Maps</a></p>
+            <button class="button-secondary" onclick="leaveHike()">Leave Hike</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize app state
+        let allParticipants = []; // used in hike-leader-page
+        let showAllParticipants = false; // used in hike-leader-page
+        let startTimeFlatpikr; // used in create-hike-page
+
+        let currentUser = JSON.parse(localStorage.getItem('currentUser')) || {
+            uuid: crypto.randomUUID(),
+            name: '',
+            phone: '',
+            licensePlate: '',
+            emergencyContact: ''
+        };
+
+        let currentHike = JSON.parse(localStorage.getItem('currentHike')) || emptyHike();
+
+        function emptyHike() {
+            return {
+                name: '',
+                trailheadName: '',
+                joinCode: '',
+                leader: currentUser,
+                startTime: new Date().toISOString(),
+                latitude: 0,
+                longitude: 0
+            };
+        }
+
+        function clearCurrentHike() {
+            currentHike = emptyHike();
+            localStorage.setItem('currentHike', JSON.stringify(currentHike));
+        }
+
+        // Initialize autocomplete and flatpickr on page load
+        document.addEventListener("DOMContentLoaded", () => {
+            autocomplete(document.getElementById("trailhead-name")); // Use the new ID for trailhead autocomplete
+            startTimeFlatpikr = flatpickr("#hike-startTime", {
+                enableTime: true,
+                altInput: true,
+                altFormat: "F j, Y at h:i K",
+                minDate: "today",
+                time_24hr: true
+            });
+            // Initialize the app
+            checkUserStatus();
+        });
+
+        function checkUserStatus() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinCode = urlParams.get('code');
+            const leaderCode = urlParams.get('leaderCode') || currentHike.leaderCode;
+
+            if (leaderCode) {
+                // Verify the hike is open and exists
+                // TODO: should we allow updating of leader info?
+                fetch(`/api/hike/${joinCode}?leaderCode=${leaderCode}`)
+                    .then(response => response.json())
+                    .then(hike => {
+                        currentHike = hike;
+                        currentHike.leaderCode = leaderCode;
+                        hike.leader = currentUser;
+                        localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                        showHikeLeaderPage();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('The hike may not exist or has already ended.');
+                        clearCurrentHike();
+                        showWelcomePage();
+                    });
+            } else if (currentHike.joinCode) {
+                // If currentHike already has a jointcode then the user is already in a hike so show the hiking page
+                // TODO: Do we want to verify the hike is still open and they are still a participant?
+                showHikingPage();
+            } else if (joinCode) {
+                showJoinHikePage(joinCode);
+            } else {
+                // User is not leading or participating in a hike so show the welcome page
+                showWelcomePage();
+            }
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.container > div').forEach(div => div.style.display = 'none');
+            document.getElementById(pageId).style.display = 'block';
+        }
+
+        function showWelcomePage() {
+            showPage('welcome-page');
+            getNearbyHikes();
+        }
+
+        function getNearbyHikes() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    fetch(`/api/hike?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`)
+                        .then(response => response.json())
+                        .then(hikes => {
+                            const hikesList = document.getElementById('nearby-hikes');
+                            hikesList.innerHTML = '';
+
+                            if (!hikes || hikes.length === 0) {
+                                const li = document.createElement('li');
+                                li.className = 'hike-item';
+                                li.textContent = "No nearby hikes currently.";
+                                hikesList.appendChild(li);
+                                return;
+                            }
+
+                            hikes.forEach(hike => {
+                                const li = document.createElement('li');
+                                li.className = 'hike-item';
+                                li.innerHTML = `
+                                    <h3>${hike.name}</h3>
+                                    <p>Trailhead: ${hike.trailheadName}</p>
+                                    <p>Leader: ${hike.leader.name}</p>
+                                    <p>Phone: ${formatPhoneNumber(hike.leader.phone)}</p>
+                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                                    <button onclick="showJoinHikePage('${hike.joinCode}')">Join Hike</button>
+                                `;
+                                hikesList.appendChild(li);
+                            });
+                        });
+                }, function (error) {
+                    console.error("Error getting location:", error);
+                    alert("GPS location is required to find nearby hikes. Please enable location services and try again.");
+                });
+            } else {
+                alert("Geolocation is not supported by this browser. You won't be able to see nearby hikes.");
+            }
+        }
+
+        function showJoinHikePage(joinCode) {
+            // Load currentUser into the form
+            document.getElementById('participant-name').value = currentUser.name;
+            document.getElementById('participant-phone').value = formatPhoneNumber(currentUser.phone);
+            document.getElementById('participant-licensePlate').value = currentUser.licensePlate;
+            document.getElementById('participant-emergencyContact').value = formatPhoneNumber(currentUser.emergencyContact);
+            fetch(`/api/hike/${joinCode}`)
+                .then(response => response.json())
+                .then(hike => {
+                    currentHike = hike;
+                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                    document.getElementById('join-hike-name').textContent = currentHike.name;
+                    document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
+                    showPage('join-hike-page');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to join hike. The hike may not exist or has already ended.');
+                    clearCurrentHike();
+                    showWelcomePage();
+                });
+        }
+
+        function showCreateHikePage() {
+            // Load currentUser into the form
+            document.getElementById('leader-name').value = currentUser.name;
+            document.getElementById('leader-phone').value = formatPhoneNumber(currentUser.phone);
+
+            // Clear form fields for new hike
+            document.getElementById('hike-name').value = '';
+            document.getElementById('trailhead-name').value = '';
+            currentHike.name = ''; // Clear hike name in state
+            currentHike.trailheadName = ''; // Clear trailhead name in state
+            currentHike.latitude = 0;
+            currentHike.longitude = 0;
+            localStorage.setItem('currentHike', JSON.stringify(currentHike)); // Save cleared state
+
+            document.getElementById('hike-name').focus(); // Focus on the custom hike name field first
+            startTimeFlatpikr.setDate(formatDate(new Date()));
+            showPage('create-hike-page');
+        }
+
+        // Function to format date for flatpickr
+        function formatDate(date) {
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+            const dd = String(date.getDate()).padStart(2, '0');
+            const hh = String(date.getHours()).padStart(2, '0');
+            const m = String(date.getMinutes()).padStart(2, '0');
+
+            return `${yyyy}-${mm}-${dd} ${hh}:${m}`;
+        };
+
+        // Save user data as it's entered into the join-hike-form
+        // This assumes all user fields are prefixed with 'participant-' in the formS
+        document.getElementById('join-hike-form').addEventListener('change', (e) => {
+            const { id, value } = e.target;
+            saveFieldChange(currentUser, 'currentUser', id, value, 'participant-');
+        });
+
+        // Save user and hike data as it's entered into the create-hike-form
+        // This assumes all user fields are prefixed with 'leader-' and hike fields are prefixed with 'hike-' in the form
+        document.getElementById('create-hike-form').addEventListener('change', (e) => {
+            const { id, value } = e.target;
+            saveFieldChange(currentUser, 'currentUser', id, value, 'leader-');
+            saveFieldChange(currentHike, 'currentHike', id, value, 'hike-');
+        });
+
+        function saveFieldChange(store, storeName, fieldID, fieldValue, idPrefix) {
+            const prop = fieldID.replace(idPrefix, '');
+            if (store.hasOwnProperty(prop)) {
+                store[prop] = fieldProcessors[prop]
+                    ? fieldProcessors[prop](fieldValue)
+                    : fieldValue;
+                localStorage.setItem(storeName, JSON.stringify(store));
+            }
+        }
+
+        // Functions to convert form values to correct format before saving
+        const fieldProcessors = {
+            phone: value => value.replace(/\D/g, ''), // Store only digits
+            licensePlate: value => value.toUpperCase(),
+            emergencyContact: value => value.replace(/\D/g, ''),
+            startTime: value => new Date(value).toISOString() // This is what SQLite expects
+        };
+
+        function showHikeLeaderPage() {
+            document.getElementById('hike-name-display').textContent = currentHike.name;
+            document.getElementById('trailhead-name-display').textContent = currentHike.trailheadName;
+            document.getElementById('participant-toggle').checked = showAllParticipants;
+            document.getElementById('join-url').href = generateLink('code', currentHike.joinCode);
+            document.getElementById('hike-leader-link').href = generateLink('leaderCode', currentHike.leaderCode);
+            showPage('hike-leader-page');
+            refreshParticipants();
+        }
+
+        function generateLink(codeType, code) {
+            return `${window.location.origin}?${codeType}=${code}`;
+        }
+
+        function showHikingPage() {
+            document.getElementById('current-hike-name').textContent = currentHike.name;
+            document.getElementById('current-trailhead-name').textContent = currentHike.trailheadName;
+            document.getElementById('leader-name-2').textContent = currentHike.leader.name;
+            const phoneLink = document.getElementById('leader-phone-link');
+            phoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
+            phoneLink.href = `tel:${currentHike.leader.phone}`;
+            document.getElementById('hike-start-time-display').textContent = new Date(currentHike.startTime).toLocaleString();
+            // Only add maplink if we have latitude and longitude
+            const mapLink = document.getElementById('google-maps-link');
+            if (currentHike.latitude === 0 || currentHike.longitude === 0) {
+                mapLink.style.display = 'none';
+            } else {
+                mapLink.style.display = '';
+                mapLink.href = `https://www.google.com/maps/search/?api=1&query=${currentHike.latitude},${currentHike.longitude}&query_place_id=${currentHike.name}`;
+                showPage('hiking-page');
+            }
+        }
+
+        function showWaiverPage() {
+            fetch('/waiver.txt')
+                .then(response => response.text())
+                .then(text => {
+                    document.getElementById('waiver-content').innerText = text;
+                })
+                .catch(error => {
+                    console.error('Error fetching waiver:', error);
+                    document.getElementById('waiver-content').innerText = 'Error loading waiver. Please try again.';
+                });
+            showPage('waiver-page');
+        }
+
+        function cancelWaiver() {
+            clearCurrentHike();
+            showWelcomePage();
+        }
+
+        function joinHike() {
+            fetch(`/api/hike/${currentHike.joinCode}/participant`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user: currentUser,
+                }),
+            })
+                .then(response => response.json())
+                .then(hike => {
+                    currentHike = hike;
+                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                    showHikingPage();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(`Failed to join hike: ${error.message}`);
+                    clearCurrentHike();
+                    showWelcomePage();
+                });
+        }
+
+        function createHike() {
+            // Get current location if not a predefined trail
+            if (currentHike.latitude === 0 || currentHike.longitude === 0) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    currentHike.latitude = position.coords.latitude;
+                    currentHike.longitude = position.coords.longitude;
+                }, error => {
+                    console.error("Error getting location:", error);
+                    alert("GPS location not found, participants will have to join via link code.");
+                });
+            }
+            fetch('/api/hike', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(currentHike),
+            })
+                .then(response => response.json())
+                .then(hike => {
+                    currentHike = hike
+                    currentHike.leader = currentUser;
+                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                    showHikeLeaderPage();
+                });
+        }
+
+        function endHike() {
+            if (!checkNetworkConnectivity()) {
+                alert("Network connectivity is required to end a hike. Please check your connection and try again.");
+                return;
+            }
+
+            fetch(`/api/hike/${currentHike.joinCode}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    leaderCode: currentHike.leaderCode
+                }),
+            })
+                .then(response => {
+                    if (response.ok) {
+                        clearCurrentHike();
+                        showWelcomePage();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("An error occurred while trying to end the hike. Please try again.");
+                });
+        }
+
+        function leaveHike() {
+            if (!checkNetworkConnectivity()) {
+                alert("Network connectivity is required to leave a hike. Please check your connection and try again.");
+                return;
+            }
+
+            toggleParticipantStatus(currentUser.uuid, 'finished');
+            clearCurrentHike();
+            showWelcomePage();
+        }
+
+        function cancelCreateHike() {
+            showWelcomePage();
+        }
+
+        function cancelJoinHike() {
+            clearCurrentHike();
+            showWelcomePage();
+        }
+
+        function formatPhoneNumber(phoneNumberString) {
+            const cleaned = ('' + phoneNumberString).replace(/\D/g, '');
+            const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
+            if (match) {
+                return match[1] + '-' + match[2] + '-' + match[3];
+            }
+            return null;
+        }
+
+        function checkNetworkConnectivity() {
+            return navigator.onLine;
+        }
+
+        // Add event listeners to format phone numbers as they are typed
+        document.querySelectorAll('input[type="tel"]').forEach(input => {
+            input.addEventListener('input', function (e) {
+                const cursorPosition = e.target.selectionStart;
+                const value = e.target.value.replace(/\D/g, '');
+                const formattedValue = formatPhoneNumber(value) || value;
+                e.target.value = formattedValue;
+
+                // Adjust cursor position
+                const newCursorPosition = cursorPosition + (formattedValue.length - value.length);
+                e.target.setSelectionRange(newCursorPosition, newCursorPosition);
+            });
+        });
+
+        function copyToClipboard(event) {
+            event.preventDefault(); // Prevent the link from navigating
+
+            const link = event.target.href;
+            navigator.clipboard.writeText(link)
+                .then(() => alert("Link copied to clipboard!"))
+                .catch(err => console.error("Failed to copy: ", err));
+        }
+
+        function toggleParticipants() {
+            const toggleCheckbox = document.getElementById('participant-toggle');
+            showAllParticipants = toggleCheckbox.checked;
+            renderParticipants();
+        }
+
+        function refreshParticipants() {
+            fetch(`/api/hike/${currentHike.joinCode}/participant?leaderCode=${currentHike.leaderCode}`)
+                .then(response => response.json())
+                .then(participants => {
+                    allParticipants = participants || [];
+                    renderParticipants();
+                    document.getElementById('last-refresh').textContent = `Last refreshed: ${new Date().toLocaleTimeString()}`;
+                });
+        }
+
+        function renderParticipants() {
+            const participantList = document.getElementById('participant-list');
+            participantList.innerHTML = '';
+
+            const participantsToShow = allParticipants.filter(participant => showAllParticipants || participant.status === 'active');
+
+            const countMessage = showAllParticipants
+                ? `Showing all participants (${participantsToShow.length})`
+                : `Showing active participants (${participantsToShow.length})`;
+
+            document.getElementById('participant-count').textContent = countMessage;
+
+            participantsToShow.forEach(participant => {
+                const row = document.createElement('tr');
+
+                // Name column
+                const nameCell = document.createElement('td');
+                const nameLink = document.createElement('a');
+                nameLink.href = '#';
+                nameLink.textContent = participant.user.name;
+                nameLink.onclick = (e) => {
+                    e.preventDefault();
+                    showParticipantDetails(participant);
+                };
+                nameCell.appendChild(nameLink);
+                row.appendChild(nameCell);
+
+                // Phone column
+                const phoneCell = document.createElement('td');
+                const phoneLink = document.createElement('a');
+                phoneLink.href = `tel:${participant.user.phone}`;
+                phoneLink.textContent = formatPhoneNumber(participant.user.phone);
+                phoneCell.appendChild(phoneLink);
+                row.appendChild(phoneCell);
+
+                // Status column
+                const statusCell = document.createElement('td');
+                const statusLink = document.createElement('a');
+                statusLink.href = '#'; statusLink.textContent = participant.status;
+                statusLink.onclick = (e) => {
+                    e.preventDefault();
+                    alert(participant.user.uuid);
+                    toggleParticipantStatus(participant.user.uuid, participant.status === 'active' ? 'finished' : 'active');
+                };
+                statusCell.appendChild(statusLink);
+                row.appendChild(statusCell);
+
+                participantList.appendChild(row);
+            });
+        }
+
+        function showParticipantDetails(participant) {
+            alert(`
+        Name: ${participant.user.name}
+        Phone: ${formatPhoneNumber(participant.user.phone)}
+        License Plate: ${participant.user.licensePlate || 'N/A'}
+        Emergency Contact: ${formatPhoneNumber(participant.user.emergencyContact) || 'N/A'}
+        Status: ${participant.status}
+    `);
+        }
+
+        function toggleParticipantStatus(userUUID, newStatus) {
+            fetch(`/api/hike/${currentHike.joinCode}/participant/${userUUID}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    status: newStatus
+                }),
+            })
+                .then(response => {
+                    if (response.ok) {
+                        refreshParticipants();
+                    } else {
+                        throw new Error('Failed to update participant status');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to update participant status. Please try again.');
+                });
+        }
+
+        function generateParticipantCSV() {
+            const headers = ['name', 'phone', 'licensePlate', 'emergencyContact', 'waiver'];
+            const csvRows = [headers.join(',')];
+
+            allParticipants.forEach(participant => {
+                const row = [
+                    participant.user.name,
+                    participant.user.phone,
+                    participant.user.licensePlate || '',
+                    participant.user.emergencyContact || '',
+                    'Y'
+                ];
+                csvRows.push(row.join(','));
+            });
+
+            return csvRows.join('\n');
+        }
+
+        function downloadCSV(content, fileName) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", fileName);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        function downloadParticipantList() {
+            refreshParticipants();
+            if (allParticipants.length === 0) {
+                alert("No participants to download.");
+                return;
+            }
+            const csvContent = generateParticipantCSV();
+            downloadCSV(csvContent, `hike_participants_${currentHike.joinCode}.csv`);
+        }
+
+
+        // Autocomplete function for trailhead name input
+        function autocomplete(inp) {
+            var currentFocus;
+            inp.addEventListener("input", function (e) {
+                var a, b, i, val = this.value;
+                closeAllLists();
+                if (!val) { return false; }
+                currentFocus = -1;
+                a = document.createElement("DIV");
+                a.setAttribute("id", this.id + "autocomplete-list");
+                a.setAttribute("class", "autocomplete-items");
+                this.parentNode.appendChild(a);
+
+                fetch(`/api/trailhead?q=${val}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            for (i = 0; i < data.length; i++) {
+                                b = document.createElement("DIV");
+                                const matchIndex = data[i].name.toLowerCase().indexOf(val.toLowerCase());
+                                if (matchIndex !== -1) {
+                                    b.innerHTML = data[i].name.substr(0, matchIndex);
+                                    b.innerHTML += "<strong>" + data[i].name.substr(matchIndex, val.length) + "</strong>";
+                                    b.innerHTML += data[i].name.substr(matchIndex + val.length);
+                                } else {
+                                    b.innerHTML = data[i].name;
+                                }
+                                // Store trailhead info in hidden input attributes
+                                b.innerHTML += "<input type='hidden' value='" + data[i].name + "' data-lat='" + data[i].latitude + "' data-lon='" + data[i].longitude + "'>";
+                                b.addEventListener("click", function (e) {
+                                    const selectedInput = this.getElementsByTagName("input")[0];
+                                    inp.value = selectedInput.value; // Set the input field value
+                                    // Update currentHike with trailhead info
+                                    currentHike.trailheadName = selectedInput.value;
+                                    currentHike.latitude = parseFloat(selectedInput.getAttribute("data-lat"));
+                                    currentHike.longitude = parseFloat(selectedInput.getAttribute("data-lon"));
+                                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                                    closeAllLists();
+                                });
+                                a.appendChild(b);
+                            }
+                        }
+                    });
+            });
+            inp.addEventListener("keydown", function (e) {
+                var x = document.getElementById(this.id + "autocomplete-list");
+                if (x) x = x.getElementsByTagName("div");
+                if (e.keyCode == 40) { // Down
+                    currentFocus++;
+                    addActive(x);
+                } else if (e.keyCode == 38) { // Up
+                    currentFocus--;
+                    addActive(x);
+                } else if (e.keyCode == 13) {  // Enter
+                    e.preventDefault();
+                    if (currentFocus > -1) {
+                        if (x) x[currentFocus].click();
+                    }
+                }
+            });
+            function addActive(x) {
+                if (!x) return false;
+                removeActive(x);
+                if (currentFocus >= x.length) currentFocus = 0;
+                if (currentFocus < 0) currentFocus = (x.length - 1);
+                x[currentFocus].classList.add("autocomplete-active");
+            }
+            function removeActive(x) {
+                for (const element of x) {
+                    element.classList.remove("autocomplete-active");
+                }
+            }
+            function closeAllLists(elmnt) {
+                var x = document.getElementsByClassName("autocomplete-items");
+                for (const element of x) {
+                    if (elmnt !== element && elmnt !== inp) {
+                        element.parentNode.removeChild(element);
+                    }
+                }
+            }
+            document.addEventListener("click", function (e) {
+                closeAllLists(e.target);
+            });
+        }
+
+
+    </script>
+</body>
+
+</html>
