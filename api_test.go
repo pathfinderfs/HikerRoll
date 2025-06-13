@@ -16,19 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) {
-	// Set up test database
-	initDB(":memory:") // Use in-memory database
-
-	defer db.Close()
-
-	// Run tests
-	code := m.Run()
-
-	// Tear down
-	os.Exit(code)
-}
-
 func setupTestMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	addRoutes(mux)
