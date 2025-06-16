@@ -48,12 +48,12 @@ type Hike struct {
 	TrailheadName string    `json:"trailheadName"`
 	Leader        User      `json:"leader"`
 	Latitude      float64   `json:"latitude"`
-	Longitude  float64   `json:"longitude"`
-	CreatedAt  time.Time `json:"-"` // don't send this field in JSON response
-	StartTime  time.Time `json:"startTime"`
-	Status     string    `json:"Status"`
-	JoinCode   string    `json:"joinCode"`
-	LeaderCode string    `json:"leaderCode"`
+	Longitude     float64   `json:"longitude"`
+	CreatedAt     time.Time `json:"-"` // don't send this field in JSON response
+	StartTime     time.Time `json:"startTime"`
+	Status        string    `json:"Status"`
+	JoinCode      string    `json:"joinCode"`
+	LeaderCode    string    `json:"leaderCode"`
 }
 
 // Keep in sync with participants table schema
@@ -179,6 +179,7 @@ func main() {
 func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	var hike Hike
 	err := json.NewDecoder(r.Body).Decode(&hike)
+	// fmt.Printf("%+v\n", hike)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -216,9 +217,9 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: If join or leader code already exist, generate new codes
 	_, err = db.Exec(`
-		INSERT INTO hikes (name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode)
+		INSERT INTO hikes (name, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, hike.Name, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -237,15 +238,15 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	var hike Hike
 	var err error
 	if leaderCode != "" {
-		err = db.QueryRow(`SELECT h.name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, leaderCode).Scan(&hike.Name, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
 	} else {
-		err = db.QueryRow(`SELECT h.name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 						   WHERE h.join_code = ? AND h.status = "open"
-		`, joinCode).Scan(&hike.Name, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, joinCode).Scan(&hike.Name, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -302,10 +303,10 @@ func joinHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if the hike exists and is open
 	var hike Hike
-	err = db.QueryRow(`SELECT h.status, h.name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+	err = db.QueryRow(`SELECT h.status, h.name, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
 					   FROM hikes AS h JOIN users AS u ON leader_uuid = uuid
 					   WHERE h.join_code = ?
-					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
 
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -285,7 +285,7 @@
             <form id="create-hike-form">
                 <input type="text" id="hike-name" placeholder="Hike Name (e.g., Sunset Hike)" required>
                 <div class="autocomplete">
-                    <input type="text" id="trailhead-name" placeholder="Trailhead Name (Type to search)" required>
+                    <input type="text" id="hike-trailheadName" placeholder="Trailhead Name (Type to search)" required>
                 </div>
                 <input type="text" id="leader-name" placeholder="Your Name" required>
                 <input type="tel" id="leader-phone" placeholder="Your Phone (10 digits)" required maxlength="10"
@@ -403,7 +403,7 @@
 
         // Initialize autocomplete and flatpickr on page load
         document.addEventListener("DOMContentLoaded", () => {
-            autocomplete(document.getElementById("trailhead-name")); // Use the new ID for trailhead autocomplete
+            autocomplete(document.getElementById("hike-trailheadName")); // Use the new ID for trailhead autocomplete
             startTimeFlatpikr = flatpickr("#hike-startTime", {
                 enableTime: true,
                 altInput: true,
@@ -530,7 +530,7 @@
 
             // Clear form fields for new hike
             document.getElementById('hike-name').value = '';
-            document.getElementById('trailhead-name').value = '';
+            document.getElementById('hike-trailheadName').value = '';
             currentHike.name = ''; // Clear hike name in state
             currentHike.trailheadName = ''; // Clear trailhead name in state
             currentHike.latitude = 0;

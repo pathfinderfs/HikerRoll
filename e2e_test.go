@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
-	//	"github.com/go-rod/rod/lib/input"
+	// "github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/launcher"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,8 @@ const baseServerURL = "http://localhost:8197"
 var testBrowser *rod.Browser
 
 func TestMain(m *testing.M) {
-	initDB(":memory:")
+	//initDB(":memory:")
+	initDB("./test.db")
 	defer func() {
 		if db != nil {
 			db.Close()
@@ -167,7 +168,7 @@ func TestHikeLifecycle(t *testing.T) {
 
 	assert.True(t, isElementVisible(t, leaderPage, "#create-hike-page", 5*time.Second), "Create hike page")
 	leaderPage.MustElement("#hike-name").MustInput("E2E Test Hike")
-	leaderPage.MustElement("#trailhead-name").MustInput("Ka")
+	leaderPage.MustElement("#hike-trailheadName").MustInput("Ka")
 	assert.True(t, isElementVisible(t, leaderPage, ".autocomplete-items", 3*time.Second), "Autocomplete items container")
 
 	leaderPage.MustElementByJS(`
@@ -177,7 +178,7 @@ func TestHikeLifecycle(t *testing.T) {
 		}
 	`).MustClick()
 	leaderPage.MustElement("#leader-name").MustInput("E2E Leader")
-	leaderPage.MustElement("#leader-phone").MustInput("123-456-7890")
+	leaderPage.MustElement("#leader-phone").MustInput("1234567890")
 
 	// tomorrow := time.Now().Add(24 * time.Hour)
 	// leaderPage.MustElement("input[placeholder='Click to select date and time']").MustClick()
@@ -219,9 +220,9 @@ func TestHikeLifecycle(t *testing.T) {
 
 	assert.True(t, isElementVisible(t, participantPage, "#join-hike-page", 10*time.Second), "Join hike page for participant")
 	participantPage.MustElement("#participant-name").MustInput("E2E Participant")
-	participantPage.MustElement("#participant-phone").MustInput("098-765-4321")
+	participantPage.MustElement("#participant-phone").MustInput("0987654321")
 	participantPage.MustElement("#participant-licensePlate").MustInput("E2E-PLATE")
-	participantPage.MustElement("#participant-emergencyContact").MustInput("555-555-5555")
+	participantPage.MustElement("#participant-emergencyContact").MustInput("5555555555")
 	participantPage.MustElement("#join-hike-form button[onclick='showWaiverPage()']").MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#waiver-page", 5*time.Second), "Waiver page")
