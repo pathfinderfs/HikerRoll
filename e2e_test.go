@@ -22,8 +22,8 @@ const baseServerURL = "http://localhost:8197"
 var testBrowser *rod.Browser
 
 func TestMain(m *testing.M) {
-	//initDB(":memory:")
-	initDB("./test.db")
+	initDB(":memory:")
+	//initDB("./test.db")
 	defer func() {
 		if db != nil {
 			db.Close()
