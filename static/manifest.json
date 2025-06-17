@@ -1,0 +1,27 @@
+{
+  "name": "Hike Tracker",
+  "short_name": "HikeTracker",
+  "description": "Application to track and coordinate hikes with offline capabilities.",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "favicon.ico", // Ideally, you'd have a larger icon for this
+      "sizes": "192x192",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "favicon.ico", // And an even larger, maskable one
+      "sizes": "512x512",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": "/index.html",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#007AFF",
+  "background_color": "#f0f0f0"
+}

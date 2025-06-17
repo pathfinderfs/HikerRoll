@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hike Tracker</title>
+    <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
@@ -271,6 +272,10 @@
 </head>
 
 <body>
+    <div id="status-indicators" style="position: fixed; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 5px;">
+      <div id="online-status-indicator" style="padding: 5px 10px; background-color: lightgray; border-radius: 5px; display: none;">Offline</div>
+      <div id="sync-status-indicator" style="padding: 5px 10px; background-color: lightblue; border-radius: 5px; display: none;">Syncing... (0)</div>
+    </div>
     <div class="container">
         <div id="welcome-page" style="display:none;">
             <h1>Welcome to Hike Tracker</h1>
@@ -638,14 +643,21 @@
         }
 
         function joinHike() {
-            fetch(`/api/hike/${currentHike.joinCode}/participant`, {
+            const joinUrl = `/api/hike/${currentHike.joinCode}/participant`;
+            const joinBody = JSON.stringify({ user: currentUser });
+            if (!navigator.onLine) {
+                addToRequestQueue(joinUrl, 'POST', joinBody);
+                alert("You are offline. Your request to join the hike will be processed when you're back online.");
+                // Consider also providing some UI feedback or redirecting, as the user won't see the hiking page immediately.
+                // For now, just returning to prevent fetch.
+                return;
+            }
+            fetch(joinUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    user: currentUser,
-                }),
+                body: joinBody,
             })
                 .then(response => response.json())
                 .then(hike => {
@@ -662,6 +674,13 @@
         }
 
         function createHike() {
+            if (!navigator.onLine) {
+                addToRequestQueue('/api/hike', 'POST', JSON.stringify(currentHike));
+                alert("You are offline. Your hike creation will be processed when you're back online.");
+                // Similar to joinHike, consider UI feedback or state change.
+                // For now, just returning.
+                return;
+            }
             // Get current location if not a predefined trail
             if (currentHike.latitude === 0 || currentHike.longitude === 0) {
                 navigator.geolocation.getCurrentPosition(position => {
@@ -689,19 +708,24 @@
         }
 
         function endHike() {
-            if (!checkNetworkConnectivity()) {
-                alert("Network connectivity is required to end a hike. Please check your connection and try again.");
+            const endHikeUrl = `/api/hike/${currentHike.joinCode}`;
+            const endHikeBody = JSON.stringify({
+                leaderCode: currentHike.leaderCode,
+                joinCode: currentHike.joinCode,
+                name: currentHike.name
+            });
+            if (!navigator.onLine) {
+                addToRequestQueue(endHikeUrl, 'PUT', endHikeBody);
+                alert("You are offline. Your request to end the hike will be processed when you're back online.");
+                // Consider UI feedback here as well
                 return;
             }
-
-            fetch(`/api/hike/${currentHike.joinCode}`, {
+            fetch(endHikeUrl, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    leaderCode: currentHike.leaderCode
-                }),
+                body: endHikeBody,
             })
                 .then(response => {
                     if (response.ok) {
@@ -716,11 +740,14 @@
         }
 
         function leaveHike() {
-            if (!checkNetworkConnectivity()) {
-                alert("Network connectivity is required to leave a hike. Please check your connection and try again.");
-                return;
-            }
-
+            // The offline check for toggleParticipantStatus will handle alerting the user
+            // if they are offline. If that function adds to queue, then these next two lines
+            // might run prematurely if offline. However, toggleParticipantStatus already calls
+            // refreshParticipants on success, which is an online operation.
+            // If offline, toggleParticipantStatus will return early.
+            // The current logic is: if offline, user is alerted for the status update,
+            // and they remain on the hiking page. If online, status is updated,
+            // then they are taken to welcome page. This seems acceptable.
             toggleParticipantStatus(currentUser.uuid, 'finished');
             clearCurrentHike();
             showWelcomePage();
@@ -742,10 +769,6 @@
                 return match[1] + '-' + match[2] + '-' + match[3];
             }
             return null;
-        }
-
-        function checkNetworkConnectivity() {
-            return navigator.onLine;
         }
 
         // Add event listeners to format phone numbers as they are typed
@@ -849,14 +872,20 @@
         }
 
         function toggleParticipantStatus(userUUID, newStatus) {
-            fetch(`/api/hike/${currentHike.joinCode}/participant/${userUUID}`, {
+            const toggleUrl = `/api/hike/${currentHike.joinCode}/participant/${userUUID}`;
+            const toggleBody = JSON.stringify({ status: newStatus });
+            if (!navigator.onLine) {
+                addToRequestQueue(toggleUrl, 'PUT', toggleBody);
+                alert("You are offline. The participant status update will be processed when you're back online.");
+                // Consider UI feedback
+                return;
+            }
+            fetch(toggleUrl, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    status: newStatus
-                }),
+                body: toggleBody,
             })
                 .then(response => {
                     if (response.ok) {
@@ -999,7 +1028,68 @@
             });
         }
 
+        // Online status indicator logic
+        const onlineStatusIndicator = document.getElementById('online-status-indicator');
+        const syncStatusIndicator = document.getElementById('sync-status-indicator');
 
+        function updateOnlineStatusIndicator() {
+          if (navigator.onLine) {
+            onlineStatusIndicator.style.display = 'none';
+          } else {
+            onlineStatusIndicator.textContent = 'Offline';
+            onlineStatusIndicator.style.backgroundColor = 'lightcoral'; // Ensure this is applied
+            onlineStatusIndicator.style.display = 'block';
+          }
+        }
+
+        // Set initial status
+        updateOnlineStatusIndicator();
+
+        window.addEventListener('online', updateOnlineStatusIndicator);
+        window.addEventListener('offline', updateOnlineStatusIndicator);
+
+        function updateSyncStatusIndicator() {
+          const queue = JSON.parse(localStorage.getItem('requestQueue')) || [];
+          if (queue.length > 0) {
+            syncStatusIndicator.textContent = `Pending sync: ${queue.length} item(s)`;
+            syncStatusIndicator.style.display = 'block';
+          } else {
+            syncStatusIndicator.style.display = 'none';
+          }
+        }
+
+        function addToRequestQueue(url, method, bodyString) { // bodyString is already JSON.stringified
+          const request = { url, method, body: bodyString, timestamp: new Date().toISOString() };
+          let queue = JSON.parse(localStorage.getItem('requestQueue')) || [];
+          queue.push(request);
+          localStorage.setItem('requestQueue', JSON.stringify(queue));
+          updateSyncStatusIndicator();
+
+          if ('serviceWorker' in navigator && 'SyncManager' in window) {
+            navigator.serviceWorker.ready.then(registration => {
+              registration.sync.register('hike-data-sync')
+                .then(() => console.log('Background sync registered for hike-data-sync'))
+                .catch(err => console.error('Background sync registration failed:', err));
+            }).catch(err => console.error('Service worker not ready for sync registration:', err));
+          } else {
+            console.log('Background sync not supported by this browser.');
+          }
+        }
+        // Call after definitions
+        updateSyncStatusIndicator();
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('Service Worker registered successfully with scope:', registration.scope);
+            })
+            .catch(error => {
+              console.log('Service Worker registration failed:', error);
+            });
+        });
+      }
     </script>
 </body>
 

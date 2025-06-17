@@ -1,0 +1,21 @@
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-18T21:55:49Z
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Participant joined hike: Jane Doe (Hike Join Code: LtluzjKvqGaZHIZTH0_G-w==), Waiver Signed
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Participant joined hike: Default Joiner (Hike Join Code: _mkx-JdW9KpkFyUXob3xzw==), Waiver Signed
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Hike closed: Name Test Hike
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Participant joined hike: Default Joiner (Hike Join Code: 2qKMgWrjFR6ORWAtHWU5SA==), Waiver Signed
+2025/06/17 21:55:49 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: 2qKMgWrjFR6ORWAtHWU5SA==, New Status: finished
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Participant joined hike: Waiver Participant (Hike Join Code: nln5nVvFEKO_voh8qLO4QQ==), Waiver Signed
+2025/06/17 21:55:49 Hike created: Test Hike by John Doe, starting at 2025-06-17T21:55:49Z
+2025/06/17 21:55:49 Participant joined hike: Default Joiner (Hike Join Code: FI4De1SncIm75ulrRQKHpA==), Waiver Signed
+2025/06/17 21:55:49 Participant status updated: UUID participant-uuid-defaultjoin, Leader Code: FI4De1SncIm75ulrRQKHpA==, New Status: completed
+2025/06/17 21:55:51 Hike created: E2E Test Hike by E2E Leader, starting at 2025-06-18T21:55:00Z
+2025/06/17 21:55:52 Participant joined hike: E2E Participant (Hike Join Code: n4bavM8qTjhf_jQoL1okLQ==), Waiver Signed
+2025/06/17 21:55:54 Participant status updated: UUID 8823104e-7123-41df-8c28-86e3c366081a, Leader Code: n4bavM8qTjhf_jQoL1okLQ==, New Status: finished
+2025/06/17 21:55:56 Hike closed: Name E2E Test Hike
