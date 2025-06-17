@@ -421,29 +421,76 @@
             const leaderCode = urlParams.get('leaderCode') || currentHike.leaderCode;
 
             if (leaderCode) {
-                // Verify the hike is open and exists
-                // TODO: should we allow updating of leader info?
                 fetch(`/api/hike/${joinCode}?leaderCode=${leaderCode}`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            // Not OK could be 404, 500, or network error simulated by non-ok
+                            if (!navigator.onLine) {
+                                const storedHike = JSON.parse(localStorage.getItem('currentHike'));
+                                if (storedHike && storedHike.leaderCode === leaderCode && storedHike.joinCode === joinCode) {
+                                    currentHike = storedHike;
+                                    showHikeLeaderPage();
+                                    alert('Offline: Displaying previously loaded hike data. Some features may be unavailable.');
+                                    return Promise.reject(new Error("OFFLINE_LOADED_CACHE")); // Special error to stop further processing
+                                }
+                                throw new Error("Offline: Hike data not in cache or mismatch.");
+                            }
+                            throw new Error(`Server error: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(hike => {
                         currentHike = hike;
                         currentHike.leaderCode = leaderCode;
-                        hike.leader = currentUser;
+                        hike.leader = currentUser; // Assuming leader details might be updated from currentUser if structure allows
                         localStorage.setItem('currentHike', JSON.stringify(currentHike));
                         showHikeLeaderPage();
                     })
                     .catch(error => {
-                        console.error('Error:', error);
-                        alert('The hike may not exist or has already ended.');
-                        clearCurrentHike();
-                        showWelcomePage();
+                        if (error.message === "OFFLINE_LOADED_CACHE") {
+                            return; // Gracefully exit
+                        }
+                        console.error('Error verifying leader status:', error);
+                        // If it's an offline error after attempting cache, or any other error
+                        if (!navigator.onLine) {
+                            alert('Offline: Could not verify hike details. Previously loaded data might be shown if available, or please connect to the internet.');
+                            // Attempt to show welcome page, or a limited leader page if currentHike is somewhat populated
+                            const storedHike = JSON.parse(localStorage.getItem('currentHike'));
+                            if (storedHike && storedHike.leaderCode === leaderCode) { // basic check
+                                currentHike = storedHike; // Use potentially stale data
+                                showHikeLeaderPage(); // Will show stale data, buttons should be disabled by showHikeLeaderPage's logic
+                            } else {
+                                clearCurrentHike();
+                                showWelcomePage();
+                            }
+                        } else {
+                            alert('The hike may not exist or has already ended. Please check the leader code.');
+                            clearCurrentHike();
+                            showWelcomePage();
+                        }
                     });
-            } else if (currentHike.joinCode) {
-                // If currentHike already has a jointcode then the user is already in a hike so show the hiking page
-                // TODO: Do we want to verify the hike is still open and they are still a participant?
+            } else if (currentHike.joinCode && !joinCode) { // Added !joinCode to ensure this path is not taken if a new joinCode is in URL
+                // User is already in a hike (participant) and not trying to join a new one or act as leader
                 showHikingPage();
-            } else if (joinCode) {
-                showJoinHikePage(joinCode);
+            } else if (joinCode) { // This is for joining a hike (participant)
+                // The fetch for this is in showJoinHikePage, handle offline there.
+                // For checkUserStatus, if there's a joinCode, we defer to showJoinHikePage.
+                // However, if showJoinHikePage itself fails due to network, it should handle it.
+                // Let's pre-emptively check network for the generic join path in checkUserStatus
+                if (!navigator.onLine) {
+                     // Try to load from currentHike if it matches the joinCode from URL
+                    const storedHike = JSON.parse(localStorage.getItem('currentHike'));
+                    if (storedHike && storedHike.joinCode === joinCode && storedHike.participant) { // Assuming participant status is stored
+                        currentHike = storedHike;
+                        showHikingPage(); // Show hiking page with cached data
+                        alert("Offline: Displaying cached hike information.");
+                    } else {
+                        alert("Offline: Could not fetch hike details to join. Please connect to the internet.");
+                        showWelcomePage(); // Redirect if no relevant cached data
+                    }
+                } else {
+                    showJoinHikePage(joinCode); // Proceeds to fetch, showJoinHikePage needs its own offline handling for that fetch
+                }
             } else {
                 // User is not leading or participating in a hike so show the welcome page
                 showWelcomePage();
@@ -461,13 +508,23 @@
         }
 
         function getNearbyHikes() {
+            const hikesList = document.getElementById('nearby-hikes');
+            if (!checkNetworkConnectivity()) {
+                hikesList.innerHTML = "<li class='hike-item'>Offline: Could not load nearby hikes. Please check your connection.</li>";
+                return;
+            }
+
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(position => {
                     fetch(`/api/hike?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`)
-                        .then(response => response.json())
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            return response.json();
+                        })
                         .then(hikes => {
-                            const hikesList = document.getElementById('nearby-hikes');
-                            hikesList.innerHTML = '';
+                            hikesList.innerHTML = ''; // Clear previous, even if it was an error message
 
                             if (!hikes || hikes.length === 0) {
                                 const li = document.createElement('li');
@@ -490,13 +547,26 @@
                                 `;
                                 hikesList.appendChild(li);
                             });
+                        })
+                        .catch(error => {
+                            console.error("Error fetching nearby hikes:", error);
+                            if (!checkNetworkConnectivity()) { // Double check, in case connection dropped during fetch
+                                hikesList.innerHTML = "<li class='hike-item'>Offline: Could not load nearby hikes. Please check your connection.</li>";
+                            } else {
+                                hikesList.innerHTML = "<li class='hike-item'>Error: Could not load nearby hikes. Please try again.</li>";
+                            }
                         });
                 }, function (error) {
                     console.error("Error getting location:", error);
-                    alert("GPS location is required to find nearby hikes. Please enable location services and try again.");
+                    // Don't overwrite potential "offline" message if that's the root cause
+                    if (checkNetworkConnectivity()) {
+                        alert("GPS location is required to find nearby hikes. Please enable location services and try again.");
+                        hikesList.innerHTML = "<li class='hike-item'>Could not get location. Please enable location services.</li>";
+                    }
                 });
             } else {
                 alert("Geolocation is not supported by this browser. You won't be able to see nearby hikes.");
+                hikesList.innerHTML = "<li class='hike-item'>Geolocation not supported by this browser.</li>";
             }
         }
 
@@ -506,8 +576,21 @@
             document.getElementById('participant-phone').value = formatPhoneNumber(currentUser.phone);
             document.getElementById('participant-licensePlate').value = currentUser.licensePlate;
             document.getElementById('participant-emergencyContact').value = formatPhoneNumber(currentUser.emergencyContact);
+
+            if (!checkNetworkConnectivity()) {
+                alert("Offline: Could not load details for this hike. Please connect to the internet and try again.");
+                showWelcomePage();
+                return;
+            }
+
             fetch(`/api/hike/${joinCode}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        // This will be caught by the .catch block below
+                        throw new Error(`HTTP error! status: ${response.status} for hike ${joinCode}`);
+                    }
+                    return response.json();
+                })
                 .then(hike => {
                     currentHike = hike;
                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
@@ -516,8 +599,12 @@
                     showPage('join-hike-page');
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    alert('Failed to join hike. The hike may not exist or has already ended.');
+                    console.error('Error fetching hike details for join page:', error);
+                    if (!checkNetworkConnectivity()) {
+                        alert("Offline: Could not load details for this hike. Please connect to the internet and try again.");
+                    } else {
+                        alert('Failed to load hike details. The hike may not exist or has already ended.');
+                    }
                     clearCurrentHike();
                     showWelcomePage();
                 });
@@ -592,8 +679,32 @@
             document.getElementById('participant-toggle').checked = showAllParticipants;
             document.getElementById('join-url').href = generateLink('code', currentHike.joinCode);
             document.getElementById('hike-leader-link').href = generateLink('leaderCode', currentHike.leaderCode);
+
+            const endHikeButton = document.querySelector('#hike-leader-page button[onclick="endHike()"]');
+            const downloadButton = document.querySelector('#hike-leader-page button[onclick="downloadParticipantList()"]');
+
+            if (!checkNetworkConnectivity()) {
+                if (endHikeButton) {
+                    endHikeButton.disabled = true;
+                    endHikeButton.textContent = "End Hike (Offline)";
+                }
+                if (downloadButton) {
+                    downloadButton.disabled = true;
+                    downloadButton.textContent = "Download Participant List (Offline)";
+                }
+            } else {
+                if (endHikeButton) {
+                    endHikeButton.disabled = false;
+                    endHikeButton.textContent = "End Hike";
+                }
+                if (downloadButton) {
+                    downloadButton.disabled = false;
+                    downloadButton.textContent = "Download Participant List";
+                }
+            }
+
             showPage('hike-leader-page');
-            refreshParticipants();
+            refreshParticipants(); // This will now handle online/offline loading
         }
 
         function generateLink(codeType, code) {
@@ -601,33 +712,73 @@
         }
 
         function showHikingPage() {
-            document.getElementById('current-hike-name').textContent = currentHike.name;
+            const pageTitleEl = document.querySelector('#hiking-page h1');
+            const originalTitleHTML = `Hiking: <span id="current-hike-name"></span>`; // Store original for online state
+
+            if (!checkNetworkConnectivity() && currentHike && currentHike.leader && currentHike.leader.name) {
+                pageTitleEl.innerHTML = `(Offline) ${originalTitleHTML}`;
+            } else {
+                pageTitleEl.innerHTML = originalTitleHTML;
+            }
+
+            document.getElementById('current-hike-name').textContent = currentHike.name; // This needs to be set after title update if id is within originalTitleHTML
             document.getElementById('current-trailhead-name').textContent = currentHike.trailheadName;
-            document.getElementById('leader-name-2').textContent = currentHike.leader.name;
-            const phoneLink = document.getElementById('leader-phone-link');
-            phoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
-            phoneLink.href = `tel:${currentHike.leader.phone}`;
+
+            // Ensure leader object and its properties exist before trying to access them
+            if (currentHike && currentHike.leader) {
+                document.getElementById('leader-name-2').textContent = currentHike.leader.name || 'N/A';
+                const phoneLink = document.getElementById('leader-phone-link');
+                phoneLink.textContent = formatPhoneNumber(currentHike.leader.phone) || 'N/A';
+                phoneLink.href = currentHike.leader.phone ? `tel:${currentHike.leader.phone}` : '#';
+            } else {
+                document.getElementById('leader-name-2').textContent = 'N/A';
+                const phoneLink = document.getElementById('leader-phone-link');
+                phoneLink.textContent = 'N/A';
+                phoneLink.href = '#';
+            }
+
             document.getElementById('hike-start-time-display').textContent = new Date(currentHike.startTime).toLocaleString();
-            // Only add maplink if we have latitude and longitude
+
             const mapLink = document.getElementById('google-maps-link');
             if (currentHike.latitude === 0 || currentHike.longitude === 0) {
                 mapLink.style.display = 'none';
             } else {
                 mapLink.style.display = '';
                 mapLink.href = `https://www.google.com/maps/search/?api=1&query=${currentHike.latitude},${currentHike.longitude}&query_place_id=${currentHike.name}`;
-                showPage('hiking-page');
             }
+            showPage('hiking-page'); // Moved to ensure page is always shown
         }
 
         function showWaiverPage() {
+            const waiverContentEl = document.getElementById('waiver-content');
+            const acceptButton = document.querySelector('#waiver-page button[onclick="joinHike()"]');
+
+            if (!checkNetworkConnectivity()) {
+                waiverContentEl.innerText = 'Offline: Could not load waiver content. Please connect to the internet to view and accept the waiver.';
+                if (acceptButton) acceptButton.disabled = true;
+                showPage('waiver-page');
+                return;
+            }
+
             fetch('/waiver.txt')
-                .then(response => response.text())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.text();
+                })
                 .then(text => {
-                    document.getElementById('waiver-content').innerText = text;
+                    waiverContentEl.innerText = text;
+                    if (acceptButton) acceptButton.disabled = false;
                 })
                 .catch(error => {
                     console.error('Error fetching waiver:', error);
-                    document.getElementById('waiver-content').innerText = 'Error loading waiver. Please try again.';
+                    if (!checkNetworkConnectivity()) {
+                        waiverContentEl.innerText = 'Offline: Could not load waiver content. Please connect to the internet to view and accept the waiver.';
+                    } else {
+                        waiverContentEl.innerText = 'Error loading waiver. Please try again.';
+                    }
+                    if (acceptButton) acceptButton.disabled = true;
                 });
             showPage('waiver-page');
         }
@@ -638,6 +789,10 @@
         }
 
         function joinHike() {
+            if (!checkNetworkConnectivity()) {
+                alert("Offline: Cannot join the hike. Please connect to the internet.");
+                return;
+            }
             fetch(`/api/hike/${currentHike.joinCode}/participant`, {
                 method: 'POST',
                 headers: {
@@ -662,6 +817,10 @@
         }
 
         function createHike() {
+            if (!checkNetworkConnectivity()) {
+                alert("Offline: Cannot create a new hike. Please connect to the internet.");
+                return;
+            }
             // Get current location if not a predefined trail
             if (currentHike.latitude === 0 || currentHike.longitude === 0) {
                 navigator.geolocation.getCurrentPosition(position => {
@@ -778,12 +937,79 @@
         }
 
         function refreshParticipants() {
+            const lastRefreshEl = document.getElementById('last-refresh');
+            const cacheKey = `cachedParticipants-${currentHike.joinCode}`;
+
+            if (!checkNetworkConnectivity()) {
+                lastRefreshEl.textContent = "Offline: Checking for cached data...";
+                const cachedData = localStorage.getItem(cacheKey);
+                if (cachedData) {
+                    try {
+                        const { participants, timestamp } = JSON.parse(cachedData);
+                        allParticipants = participants || [];
+                        renderParticipants();
+                        const friendlyTimestamp = new Date(timestamp).toLocaleString();
+                        lastRefreshEl.textContent = `Offline: Displaying cached data from ${friendlyTimestamp}.`;
+                    } catch (error) {
+                        console.error("Error parsing cached data:", error);
+                        allParticipants = [];
+                        renderParticipants(); // Clear display
+                        lastRefreshEl.textContent = "Offline: Error loading cached data. Please connect to refresh.";
+                    }
+                } else {
+                    allParticipants = [];
+                    renderParticipants(); // Clear display
+                    lastRefreshEl.textContent = "Offline: No cached data available. Please connect to refresh.";
+                }
+                return; // Stop further execution if offline
+            }
+
+            // Online: Proceed with fetch
             fetch(`/api/hike/${currentHike.joinCode}/participant?leaderCode=${currentHike.leaderCode}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(participants => {
                     allParticipants = participants || [];
+                    const cacheData = {
+                        participants: allParticipants,
+                        timestamp: new Date().toISOString()
+                    };
+                    try {
+                        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+                    } catch (error) {
+                        console.error("Error saving to localStorage:", error);
+                        // Potentially notify user if storage is full or saving failed
+                    }
                     renderParticipants();
-                    document.getElementById('last-refresh').textContent = `Last refreshed: ${new Date().toLocaleTimeString()}`;
+                    lastRefreshEl.textContent = `Last refreshed: ${new Date().toLocaleTimeString()}`;
+                })
+                .catch(error => {
+                    console.error("Error fetching participants:", error);
+                    lastRefreshEl.textContent = "Error fetching participants. Trying to load from cache...";
+                    // Attempt to load from cache as a fallback if fetch fails even when online
+                    const cachedData = localStorage.getItem(cacheKey);
+                    if (cachedData) {
+                        try {
+                            const { participants, timestamp } = JSON.parse(cachedData);
+                            allParticipants = participants || [];
+                            renderParticipants();
+                            const friendlyTimestamp = new Date(timestamp).toLocaleString();
+                            lastRefreshEl.textContent = `Error fetching: Displaying cached data from ${friendlyTimestamp}.`;
+                        } catch (parseError) {
+                            console.error("Error parsing cached data after fetch failure:", parseError);
+                            allParticipants = [];
+                            renderParticipants(); // Clear display
+                            lastRefreshEl.textContent = "Error fetching and loading cache. Please check connection.";
+                        }
+                    } else {
+                        allParticipants = [];
+                        renderParticipants(); // Clear display
+                        lastRefreshEl.textContent = "Error fetching participants. No cached data available.";
+                    }
                 });
         }
 
@@ -792,12 +1018,18 @@
             participantList.innerHTML = '';
 
             const participantsToShow = allParticipants.filter(participant => showAllParticipants || participant.status === 'active');
-
-            const countMessage = showAllParticipants
+            const participantCountEl = document.getElementById('participant-count');
+            let countMessage = showAllParticipants
                 ? `Showing all participants (${participantsToShow.length})`
                 : `Showing active participants (${participantsToShow.length})`;
 
-            document.getElementById('participant-count').textContent = countMessage;
+            if (!checkNetworkConnectivity()) {
+                const cacheKey = `cachedParticipants-${currentHike.joinCode}`;
+                if (localStorage.getItem(cacheKey)) { // Check if we are showing cached data
+                    countMessage = `[OFFLINE - Data may be outdated] ${countMessage}`;
+                }
+            }
+            participantCountEl.textContent = countMessage;
 
             participantsToShow.forEach(participant => {
                 const row = document.createElement('tr');
@@ -849,6 +1081,10 @@
         }
 
         function toggleParticipantStatus(userUUID, newStatus) {
+            if (!checkNetworkConnectivity()) {
+                alert("Offline: Cannot update participant status. Please connect to the internet.");
+                return;
+            }
             fetch(`/api/hike/${currentHike.joinCode}/participant/${userUUID}`, {
                 method: 'PUT',
                 headers: {
@@ -904,9 +1140,18 @@
         }
 
         function downloadParticipantList() {
-            refreshParticipants();
+            if (!checkNetworkConnectivity()) {
+                alert("Network connectivity is required to download the participant list. Please check your connection and try again.");
+                return;
+            }
+            // It's good practice to refresh before downloading, but refreshParticipants now handles offline state.
+            // If offline, it would have loaded from cache. If online, it fetches.
+            // Consider if a fresh fetch attempt is always desired here if online, or if cached online data is acceptable.
+            // For now, let's assume refreshParticipants has already been called or will be called appropriately by the user.
+            // refreshParticipants(); // Potentially remove if button states guide user to refresh first.
+
             if (allParticipants.length === 0) {
-                alert("No participants to download.");
+                alert("No participants to download. Try refreshing the list.");
                 return;
             }
             const csvContent = generateParticipantCSV();
@@ -921,6 +1166,14 @@
                 var a, b, i, val = this.value;
                 closeAllLists();
                 if (!val) { return false; }
+
+                if (!checkNetworkConnectivity()) {
+                    // Opted not to show a message here to keep it less intrusive.
+                    // Suggestions simply won't appear.
+                    closeAllLists();
+                    return false;
+                }
+
                 currentFocus = -1;
                 a = document.createElement("DIV");
                 a.setAttribute("id", this.id + "autocomplete-list");
