@@ -753,9 +753,16 @@
             const waiverContentEl = document.getElementById('waiver-content');
             const acceptButton = document.querySelector('#waiver-page button[onclick="joinHike()"]');
 
+            // Helper to set message and button state
+            const setWaiverState = (message, isButtonDisabled) => {
+                waiverContentEl.innerText = message;
+                if (acceptButton) {
+                    acceptButton.disabled = isButtonDisabled;
+                }
+            };
+
             if (!checkNetworkConnectivity()) {
-                waiverContentEl.innerText = 'Offline: Could not load waiver content. Please connect to the internet to view and accept the waiver.';
-                if (acceptButton) acceptButton.disabled = true;
+                setWaiverState('Offline: Could not load waiver content. Please connect to the internet to view and accept the waiver.', true);
                 showPage('waiver-page');
                 return;
             }
@@ -763,22 +770,38 @@
             fetch('/waiver.txt')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        // Pass status for more specific error handling in catch
+                        throw new Error(`Network response was not ok, status: ${response.status}`);
                     }
                     return response.text();
                 })
                 .then(text => {
-                    waiverContentEl.innerText = text;
-                    if (acceptButton) acceptButton.disabled = false;
+                    // Check if text is not empty and doesn't seem like one of our error messages
+                    const trimmedText = text ? text.trim() : "";
+                    const isLikelyErrorMessage = trimmedText.startsWith("Offline:") || trimmedText.startsWith("Error:");
+
+                    if (trimmedText.length > 0 && !isLikelyErrorMessage) {
+                        setWaiverState(trimmedText, false); // Valid waiver, enable button
+                    } else if (isLikelyErrorMessage) {
+                        // This case should ideally not happen if server sends proper error codes,
+                        // but as a fallback if server sends an error message with 200 OK.
+                        setWaiverState(trimmedText, true); // Display the server's error message, disable button
+                    }
+                    else {
+                        setWaiverState('Error: Waiver document appears to be empty or invalid.', true);
+                    }
                 })
                 .catch(error => {
                     console.error('Error fetching waiver:', error);
+                    let errorMessage = 'Error: Could not load waiver document. Please try again.'; // Default
                     if (!checkNetworkConnectivity()) {
-                        waiverContentEl.innerText = 'Offline: Could not load waiver content. Please connect to the internet to view and accept the waiver.';
-                    } else {
-                        waiverContentEl.innerText = 'Error loading waiver. Please try again.';
+                        errorMessage = 'Offline: Could not load waiver content. Please connect to the internet.';
+                    } else if (error.message && error.message.includes("status: 404")) {
+                        errorMessage = 'Error: Waiver document not found on server. Please contact support.';
                     }
-                    if (acceptButton) acceptButton.disabled = true;
+                    // Note: other server errors (500, etc.) will use the default message or the one from response.statusText
+
+                    setWaiverState(errorMessage, true);
                 });
             showPage('waiver-page');
         }
