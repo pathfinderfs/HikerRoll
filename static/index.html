@@ -942,7 +942,7 @@
                                     b.innerHTML = data[i].name;
                                 }
                                 // Store trailhead info in hidden input attributes
-                                b.innerHTML += "<input type='hidden' value='" + data[i].name + "' data-lat='" + data[i].latitude + "' data-lon='" + data[i].longitude + "'>";
+                                b.innerHTML += '<input type="hidden" value="' + data[i].name + '" data-lat="' + data[i].latitude + '" data-lon="' + data[i].longitude + '">';
                                 b.addEventListener("click", function (e) {
                                     const selectedInput = this.getElementsByTagName("input")[0];
                                     inp.value = selectedInput.value; // Set the input field value

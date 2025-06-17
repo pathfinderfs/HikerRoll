@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
-	// "github.com/go-rod/rod/lib/input"
+	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/launcher"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
@@ -42,10 +42,10 @@ func TestMain(m *testing.M) {
 			log.Fatalf("E2E Test server ListenAndServe error: %v", err)
 		}
 	}()
-	time.Sleep(2 * time.Second) // Server startup wait
+	time.Sleep(1 * time.Second) // Server startup wait
 
-	path, موجود := launcher.LookPath()
-	if !موجود {
+	path, found := launcher.LookPath()
+	if !found {
 		log.Println("Browser binary not found, attempting to download...")
 		ex, err := launcher.NewBrowser().Get()
 		if err != nil {
@@ -180,27 +180,30 @@ func TestHikeLifecycle(t *testing.T) {
 	leaderPage.MustElement("#leader-name").MustInput("E2E Leader")
 	leaderPage.MustElement("#leader-phone").MustInput("1234567890")
 
-	// tomorrow := time.Now().Add(24 * time.Hour)
-	// leaderPage.MustElement("input[placeholder='Click to select date and time']").MustClick()
-	// assert.True(t, isElementVisible(t, leaderPage, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar")
-	// yearEl := leaderPage.MustElement(".flatpickr-current-month .numInput.cur-year")
-	// yearEl.MustSelectAllText()
-	// yearEl.MustInput(fmt.Sprintf("%d", tomorrow.Year()))
-	// yearEl.MustType(input.Enter)
+	tomorrow := time.Now().Add(24 * time.Hour)
+	leaderPage.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
+	assert.True(t, isElementVisible(t, leaderPage, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar")
+	yearEl := leaderPage.MustElement(".flatpickr-current-month .numInput.cur-year")
+	yearEl.MustSelectAllText()
+	yearEl.MustInput(fmt.Sprintf("%d", tomorrow.Year()))
+	yearEl.MustType(input.Enter)
 
-	// leaderPage.MustElement(fmt.Sprintf(".flatpickr-monthDropdown-months .flatpickr-monthDropdown-month[value='%d']", int(tomorrow.Month())-1)).MustClick()
-	// daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
-	// assert.True(t, isElementVisible(t, leaderPage, daySelector, 5*time.Second), "Flatpickr day")
-	// leaderPage.MustElement(daySelector).MustClick()
-	// hourEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-hour")
-	// hourEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Hour()))
-	// minuteEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-minute")
-	// minuteEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Minute()))
-	// if okButton, errOk := leaderPage.Element(".flatpickr-time .flatpickr-confirm"); errOk == nil {
-	// 	if isVis, _ := okButton.Visible(); isVis {
-	// 		okButton.MustClick()
-	// 	}
-	// }
+	//leaderPage.MustElement(fmt.Sprintf(".flatpickr-monthDropdown-months .flatpickr-monthDropdown-month[value='%d']", int(tomorrow.Month())-1)).MustClick()
+	// monthSelector := leaderPage.MustElement("select.flatpickr-monthDropdown-months")
+	// t.Log("2.5")
+	// the following fails for some reason
+	// monthSelector.MustSelect(fmt.Sprintf("%d", (tomorrow.Month())-1))
+	// t.Log("2.7")
+	// leaderPage.MustElement("select.flatpickr-monthDropdown-months").Select([fmt.Sprintf("%d", tomorrow.Month()-1)], true, "test")
+	// t.Log("3")
+	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
+	assert.True(t, isElementVisible(t, leaderPage, daySelector, 5*time.Second), "Flatpickr day")
+	leaderPage.MustElement(daySelector).MustClick()
+	hourEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-hour")
+	hourEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Hour()))
+	minuteEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-minute")
+	minuteEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Minute()))
+	minuteEl.MustType(input.Enter)
 
 	leaderPage.MustElement("#create-hike-form button[onclick='createHike()']").MustClick()
 	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page")
