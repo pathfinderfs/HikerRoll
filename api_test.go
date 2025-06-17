@@ -13,21 +13,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
 )
-
-func TestMain(m *testing.M) {
-	// Setup code here, e.g., database connections
-	initDB(":memory:") // Use in-memory SQLite for tests
-
-	// Run the tests
-	exitCode := m.Run()
-
-	// Teardown code here, if necessary
-
-	// Exit with the same code as the test run
-	os.Exit(exitCode)
-}
 
 func setupTestMux() *http.ServeMux {
 	mux := http.NewServeMux()
