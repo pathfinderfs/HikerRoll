@@ -13,7 +13,21 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"os"
 )
+
+func TestMain(m *testing.M) {
+	// Setup code here, e.g., database connections
+	initDB(":memory:") // Use in-memory SQLite for tests
+
+	// Run the tests
+	exitCode := m.Run()
+
+	// Teardown code here, if necessary
+
+	// Exit with the same code as the test run
+	os.Exit(exitCode)
+}
 
 func setupTestMux() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -28,9 +42,10 @@ func TestCreateHike(t *testing.T) {
 			Name:  "John Doe",
 			Phone: "1234567890",
 		},
-		Latitude:  40.7128,
-		Longitude: -74.0060,
-		StartTime: time.Now().Add(24 * time.Hour),
+		TrailheadName: "Test Trailhead",
+		Latitude:      40.7128,
+		Longitude:     -74.0060,
+		StartTime:     time.Now().Add(24 * time.Hour),
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -48,6 +63,7 @@ func TestCreateHike(t *testing.T) {
 	assert.NotEmpty(t, response.LeaderCode)
 	assert.Equal(t, hike.Name, response.Name)
 	assert.Equal(t, hike.Leader.Name, response.Leader.Name)
+	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
 }
 
 func TestJoinHike(t *testing.T) {
@@ -165,6 +181,7 @@ func TestGetHikeByCode(t *testing.T) {
 	json.Unmarshal(rr.Body.Bytes(), &response)
 	assert.Equal(t, hike.Name, response.Name)
 	assert.Equal(t, hike.JoinCode, response.JoinCode)
+	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
 }
 
 func TestTableCreation(t *testing.T) {
@@ -351,9 +368,10 @@ func createTestHike(t *testing.T) Hike {
 			Name:  "John Doe",
 			Phone: "1234567890",
 		},
-		Latitude:  40.7128,
-		Longitude: -74.0060,
-		StartTime: time.Now(),
+		TrailheadName: "Test Trailhead",
+		Latitude:      40.7128,
+		Longitude:     -74.0060,
+		StartTime:     time.Now(),
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -373,11 +391,12 @@ func createTestHike(t *testing.T) Hike {
 // createTestHikeWithOptions allows specifying the leader
 func createTestHikeWithOptions(t *testing.T, leader User) Hike {
 	hike := Hike{
-		Name:      "Test Hike for " + leader.UUID,
-		Leader:    leader,
-		Latitude:  40.7128,
-		Longitude: -74.0060,
-		StartTime: time.Now(),
+		Name:          "Test Hike for " + leader.UUID,
+		Leader:        leader,
+		TrailheadName: "Test Trailhead for " + leader.UUID,
+		Latitude:      40.7128,
+		Longitude:     -74.0060,
+		StartTime:     time.Now(),
 	}
 	body, err := json.Marshal(hike)
 	require.NoError(t, err)
