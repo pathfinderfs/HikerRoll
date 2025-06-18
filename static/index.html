@@ -280,6 +280,11 @@
         <div id="welcome-page" style="display:none;">
             <h1>Welcome to Hike Tracker</h1>
             <button onclick="showCreateHikePage()">Create New Hike</button>
+
+            <h2>Your RSVPed Hikes</h2>
+            <button class="button-refresh" onclick="getRSVPedHikes()">🔄 Refresh</button>
+            <ul id="rsvped-hikes-list" class="hike-list"></ul>
+
             <h2>Nearby Hikes</h2>
             <button class="button-refresh" onclick="getNearbyHikes()">🔄 Refresh</button>
             <ul id="nearby-hikes" class="hike-list"></ul>
@@ -305,10 +310,10 @@
         </div>
 
         <div id="join-hike-page" style="display:none;">
-            <h1>Join Hike: <span id="join-hike-name"></span></h1>
+            <h1>RSVP to Hike: <span id="join-hike-name"></span></h1>
             <p>Trailhead: <span id="join-trailhead-name"></span></p>
             <p>Start Time: <span id="join-hike-start-time"></span></p>
-            <p>For your safety please fill out the following to join this hike.</p>
+            <p>Please fill out the following to RSVP for this hike.</p>
             <form id="join-hike-form">
                 <input type="text" id="participant-name" placeholder="Your Name" required>
                 <input type="tel" id="participant-phone" placeholder="Your Phone (10 digits)" required maxlength="10"
@@ -316,15 +321,15 @@
                 <input type="text" id="participant-licensePlate" placeholder="License Plate (Optional)">
                 <input type="tel" id="participant-emergencyContact" placeholder="Emergency Contact (10 digits)"
                     maxlength="10" pattern="\d{3}-\d{3}-\d{4}">
-                <button type="button" onclick="showWaiverPage()">Join Hike</button>
+                <button type="button" onclick="showWaiverPage()">Review Waiver & Continue RSVP</button>
                 <button type="button" class="button-secondary" onclick="cancelJoinHike()">Cancel</button>
             </form>
         </div>
 
         <div id="waiver-page" style="display:none;">
-            <h1>Waiver</h1>
+            <h1>Hike Waiver & RSVP Confirmation</h1>
             <div id="waiver-content"></div>
-            <button onclick="joinHike()">Accept</button>
+            <button onclick="joinHike()">Accept Waiver & Submit RSVP</button>
             <button class="button-secondary" onclick="cancelWaiver()">Cancel</button>
         </div>
 
@@ -468,6 +473,7 @@
         function showWelcomePage() {
             showPage('welcome-page');
             getNearbyHikes();
+            getRSVPedHikes(); // Added call
         }
 
         function getNearbyHikes() {
@@ -496,7 +502,7 @@
                                     <p>Leader: ${hike.leader.name}</p>
                                     <p>Phone: ${formatPhoneNumber(hike.leader.phone)}</p>
                                     <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
-                                    <button onclick="showJoinHikePage('${hike.joinCode}')">Join Hike</button>
+                                    <button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>
                                 `;
                                 hikesList.appendChild(li);
                             });
@@ -649,33 +655,38 @@
         }
 
         function joinHike() {
-            const joinUrl = `/api/hike/${currentHike.joinCode}/participant`;
-            const joinBody = JSON.stringify({ user: currentUser });
+            const rsvpUrl = `/api/hike/${currentHike.joinCode}/rsvp`; // Changed endpoint
+            const rsvpBody = JSON.stringify({ user: currentUser });
             if (!navigator.onLine) {
-                addToRequestQueue(joinUrl, 'POST', joinBody);
-                alert("You are offline. Your request to join the hike will be processed when you're back online.");
-                // Consider also providing some UI feedback or redirecting, as the user won't see the hiking page immediately.
+                addToRequestQueue(rsvpUrl, 'POST', rsvpBody);
+                alert("You are offline. Your RSVP will be processed when you're back online.");
+                // Consider also providing some UI feedback or redirecting.
                 // For now, just returning to prevent fetch.
                 return;
             }
-            fetch(joinUrl, {
+            fetch(rsvpUrl, { // Changed variable name
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: joinBody,
+                body: rsvpBody, // Changed variable name
             })
-                .then(response => response.json())
-                .then(hike => {
-                    currentHike = hike;
-                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                    showHikingPage();
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => { throw new Error(text || 'RSVP failed') });
+                    }
+                    return response.json();
+                })
+                .then(hike => { // hike object is returned on successful RSVP from backend
+                    alert('Successfully RSVPed to: ' + hike.name);
+                    clearCurrentHike(); // Clear hike details as user is not actively hiking yet
+                    showWelcomePage(); // Show welcome page which will refresh RSVP list
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert(`Failed to join hike: ${error.message}`);
-                    clearCurrentHike();
-                    showWelcomePage();
+                    alert(`Failed to RSVP to hike: ${error.message}`);
+                    // Do not clear currentHike here, user might want to retry
+                    // showWelcomePage(); // Optionally, still go to welcome page or stay on waiver/join page
                 });
         }
 
@@ -768,6 +779,172 @@
             showWelcomePage();
         }
 
+        // Placeholder for getRSVPedHikes
+        function getRSVPedHikes() {
+            const rsvpList = document.getElementById('rsvped-hikes-list');
+            if (!rsvpList) {
+                console.error("Element with ID 'rsvped-hikes-list' not found.");
+                return;
+            }
+            rsvpList.innerHTML = '<li>Loading RSVPed hikes...</li>'; // Placeholder
+
+            // Ensure currentUser and currentUser.uuid are available
+            if (!currentUser || !currentUser.uuid) {
+                console.log("Current user not available for fetching RSVPed hikes.");
+                rsvpList.innerHTML = '<li>Your RSVPed hikes will appear here.</li>';
+                return;
+            }
+
+            fetch(`/api/userhikes/${currentUser.uuid}?status=rsvp`) // Assumed endpoint
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 404) return []; // No RSVPed hikes is not an error for the user
+                        throw new Error(`Failed to fetch RSVPed hikes. Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(hikes => {
+                    rsvpList.innerHTML = ''; // Clear placeholder/previous
+                    if (!hikes || hikes.length === 0) {
+                        const li = document.createElement('li');
+                        li.className = 'hike-item';
+                        li.textContent = "You have not RSVPed to any hikes yet.";
+                        rsvpList.appendChild(li);
+                        return;
+                    }
+                    hikes.forEach(hike => {
+                        const li = document.createElement('li');
+                        li.className = 'hike-item';
+                        li.innerHTML = `
+                            <h3>${hike.name}</h3>
+                            <p>Trailhead: ${hike.trailheadName}</p>
+                            <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                            <button onclick="startHiking('${hike.joinCode}')">Start Hiking</button>
+                            <button class="button-secondary" onclick="unRSVP('${hike.joinCode}')">UnRSVP</button>
+                        `;
+                        rsvpList.appendChild(li);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching RSVPed hikes:', error);
+                    rsvpList.innerHTML = '<li>Error loading your RSVPed hikes. Please try refreshing.</li>';
+                });
+        }
+
+        function startHiking(joinCode) {
+            if (!currentUser || !currentUser.uuid) {
+                alert("User information not found. Please reload the page.");
+                return;
+            }
+
+            const startUrl = `/api/hike/${joinCode}/participant/${currentUser.uuid}/start`;
+
+            if (!navigator.onLine) {
+                // It's tricky to handle this offline as "starting a hike" implies an immediate state change
+                // and interaction. For now, we'll require online for this action.
+                alert("You must be online to start hiking.");
+                return;
+            }
+
+            fetch(startUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json', // Though no body is sent, this is good practice
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        // Try to parse error if JSON, otherwise use text
+                        try {
+                            const errData = JSON.parse(text);
+                            throw new Error(errData.error || text || 'Failed to start hike.');
+                        } catch (e) {
+                            throw new Error(text || 'Failed to start hike.');
+                        }
+                    });
+                }
+                // Backend should return the full hike object upon successful "start"
+                // For now, we assume the backend returns *at least* the basic hike details needed
+                // or we fetch them. The current backend returns 200 OK empty.
+                // So, we need to fetch the hike details AFTER successfully starting.
+                return fetch(`/api/hike/${joinCode}`); // Fetch full hike details
+            })
+            .then(response => { // This .then is for the fetch /api/hike/${joinCode}
+                if (!response.ok) {
+                    throw new Error('Failed to fetch hike details after starting.');
+                }
+                return response.json();
+            })
+            .then(hikeDetails => {
+                currentHike = hikeDetails; // Populate currentHike with details
+                 // If leader info is not in hikeDetails, we might need to supplement it
+                if (!currentHike.leader || !currentHike.leader.uuid) {
+                    // This is a fallback, ideally the /api/hike/{joinCode} includes full leader User object
+                    console.warn("Leader details not fully provided by /api/hike endpoint, attempting to use currentUser if leader.");
+                    // This assumption might be wrong if someone else is leader.
+                    // The backend's GET /api/hike/{joinCode} should return leader User details.
+                }
+                localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                showHikingPage();
+                getRSVPedHikes(); // Refresh RSVP list (the hike should be gone from there)
+            })
+            .catch(error => {
+                console.error('Error starting hike:', error);
+                alert(`Failed to start hike: ${error.message}`);
+            });
+        }
+
+        function unRSVP(joinCode) {
+            if (!currentUser || !currentUser.uuid) {
+                alert("User information not found. Please reload the page.");
+                return;
+            }
+
+            const unRSVPUrl = `/api/hike/${joinCode}/participant/${currentUser.uuid}/rsvp`;
+
+            if (!navigator.onLine) {
+                // Similar to starting a hike, unRSVPing implies an immediate state change.
+                // Requiring online for now. Could be queued, but adds complexity for UI feedback.
+                alert("You must be online to unRSVP.");
+                return;
+            }
+
+            if (!confirm("Are you sure you want to unRSVP from this hike?")) {
+                return;
+            }
+
+            fetch(unRSVPUrl, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json', // Good practice
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                     return response.text().then(text => {
+                        // Try to parse error if JSON, otherwise use text
+                        try {
+                            const errData = JSON.parse(text);
+                            throw new Error(errData.error || text || 'Failed to unRSVP.');
+                        } catch (e) {
+                            throw new Error(text || 'Failed to unRSVP.');
+                        }
+                    });
+                }
+                // Expect HTTP 200 OK with no body, or could return a success message
+                return response.text(); // Or response.json() if backend sends a json response
+            })
+            .then(responseText => { // If response.text() was used
+                alert("Successfully UnRSVPed.");
+                getRSVPedHikes(); // Refresh the list of RSVPed hikes
+            })
+            .catch(error => {
+                console.error('Error unRSVPing:', error);
+                alert(`Failed to unRSVP: ${error.message}`);
+            });
+        }
+
         function formatPhoneNumber(phoneNumberString) {
             const cleaned = ('' + phoneNumberString).replace(/\D/g, '');
             const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
@@ -820,12 +997,18 @@
             const participantList = document.getElementById('participant-list');
             participantList.innerHTML = '';
 
-            const participantsToShow = allParticipants.filter(participant => showAllParticipants || participant.status === 'active');
+            const participantsToShow = allParticipants.filter(participant =>
+                showAllParticipants || participant.status === 'active' || participant.status === 'rsvp'
+            );
 
-            const countMessage = showAllParticipants
-                ? `Showing all participants (${participantsToShow.length})`
-                : `Showing active participants (${participantsToShow.length})`;
-
+            let countMessage;
+            if (showAllParticipants) {
+                countMessage = `Showing all participants (${participantsToShow.length})`;
+            } else {
+                const rsvpCount = participantsToShow.filter(p => p.status === 'rsvp').length;
+                const activeCount = participantsToShow.filter(p => p.status === 'active').length;
+                countMessage = `Showing RSVP (${rsvpCount}) & Hiking (${activeCount}) participants. Total: ${participantsToShow.length}`;
+            }
             document.getElementById('participant-count').textContent = countMessage;
 
             participantsToShow.forEach(participant => {
@@ -854,12 +1037,27 @@
                 // Status column
                 const statusCell = document.createElement('td');
                 const statusLink = document.createElement('a');
-                statusLink.href = '#'; statusLink.textContent = participant.status;
-                statusLink.onclick = (e) => {
-                    e.preventDefault();
-                    alert(participant.user.uuid);
-                    toggleParticipantStatus(participant.user.uuid, participant.status === 'active' ? 'finished' : 'active');
-                };
+                statusLink.href = '#';
+                // Display 'Hiking' for 'active' status, otherwise the status itself.
+                let displayStatus = participant.status;
+                if (participant.status === 'active') {
+                    displayStatus = 'Hiking';
+                }
+                statusLink.textContent = displayStatus;
+
+                // Only allow toggling for 'active' (Hiking) or 'finished' statuses by leader
+                if (participant.status === 'active' || participant.status === 'finished') {
+                    statusLink.onclick = (e) => {
+                        e.preventDefault();
+                        // Determine the new status: if active -> finished, if finished -> active
+                        const targetStatus = participant.status === 'active' ? 'finished' : 'active';
+                        toggleParticipantStatus(participant.user.uuid, targetStatus, participant.status);
+                    };
+                } else if (participant.status === 'rsvp') {
+                    statusLink.style.cursor = 'default'; // Indicate non-interactive
+                    statusLink.style.textDecoration = 'none'; // Remove underline
+                    statusLink.onclick = (e) => e.preventDefault(); // Prevent any action
+                }
                 statusCell.appendChild(statusLink);
                 row.appendChild(statusCell);
 
@@ -868,16 +1066,28 @@
         }
 
         function showParticipantDetails(participant) {
+            let displayStatus = participant.status;
+            if (participant.status === 'active') {
+                displayStatus = 'Hiking';
+            }
             alert(`
         Name: ${participant.user.name}
         Phone: ${formatPhoneNumber(participant.user.phone)}
         License Plate: ${participant.user.licensePlate || 'N/A'}
         Emergency Contact: ${formatPhoneNumber(participant.user.emergencyContact) || 'N/A'}
-        Status: ${participant.status}
+        Status: ${displayStatus}
     `);
         }
 
-        function toggleParticipantStatus(userUUID, newStatus) {
+        function toggleParticipantStatus(userUUID, newStatus, currentStatus) { // Added currentStatus parameter
+            // Leader can only toggle between 'active' (Hiking) and 'finished'.
+            // RSVP status cannot be changed by the leader here.
+            if (currentStatus !== 'active' && currentStatus !== 'finished') {
+                // alert("This participant's status cannot be changed by the leader from its current state (" + currentStatus + "). RSVP status is managed by the participant.");
+                console.log("Leader attempted to toggle status for user " + userUUID + " with current status " + currentStatus + ". No action taken.");
+                return;
+            }
+
             const toggleUrl = `/api/hike/${currentHike.joinCode}/participant/${userUUID}`;
             const toggleBody = JSON.stringify({ status: newStatus });
             if (!navigator.onLine) {

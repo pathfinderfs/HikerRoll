@@ -153,13 +153,16 @@ func initDB(databaseName string) {
 func addRoutes(mux *http.ServeMux) {
 	// You must define most specific routes first
 	mux.HandleFunc("PUT /api/hike/{hikeId}/participant/{participantId}", updateParticipantStatusHandler)
-	mux.HandleFunc("POST /api/hike/{hikeId}/participant", joinHikeHandler)
+	mux.HandleFunc("POST /api/hike/{hikeId}/rsvp", rsvpToHikeHandler) // Renamed route
+	mux.HandleFunc("POST /api/hike/{hikeId}/participant/{userUUID}/start", startHikingHandler) // New route
+	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{userUUID}/rsvp", unRSVPHandler)      // New route
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike", getNearbyHikesHandler)
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
+	mux.HandleFunc("GET /api/userhikes/{userUUID}", getUserHikesByStatusHandler) // New route
 }
 
 func main() {
@@ -277,7 +280,7 @@ func endHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = db.Exec(`UPDATE hike_users SET status = 'finished'
-					  WHERE hike_join_code = ? AND status = 'active'
+					  WHERE hike_join_code = ? AND (status = 'active' OR status = 'rsvp')
 					 `, hike.JoinCode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -288,7 +291,7 @@ func endHikeHandler(w http.ResponseWriter, r *http.Request) {
 	logAction(fmt.Sprintf("Hike closed: Name %s", hike.Name))
 }
 
-func joinHikeHandler(w http.ResponseWriter, r *http.Request) {
+func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed function
 	joinCode := r.PathValue("hikeId")
 
 	var request struct {
@@ -335,8 +338,8 @@ func joinHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add the participant to the hike
 	_, err = db.Exec(`
-		INSERT OR REPLACE INTO hike_users (hike_join_code, user_uuid, joined_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
+		INSERT OR REPLACE INTO hike_users (hike_join_code, user_uuid, status, joined_at)
+		VALUES (?, ?, 'rsvp', CURRENT_TIMESTAMP)
 	`, joinCode, request.User.UUID)
 
 	if err != nil {
@@ -385,8 +388,147 @@ func joinHikeHandler(w http.ResponseWriter, r *http.Request) {
 		// if waiver signing is absolutely critical, but that adds complexity.
 	}
 
-	logAction(fmt.Sprintf("Participant joined hike: %s (Hike Join Code: %s), Waiver Signed", request.User.Name, hike.JoinCode))
+	logAction(fmt.Sprintf("Participant RSVPd to hike: %s (Hike Join Code: %s), Waiver Signed", request.User.Name, hike.JoinCode)) // Updated log message
 	json.NewEncoder(w).Encode(hike)
+}
+
+// startHikingHandler allows a user to change their status from 'rsvp' to 'active'
+func startHikingHandler(w http.ResponseWriter, r *http.Request) {
+	joinCode := r.PathValue("hikeId")
+	userUUID := r.PathValue("userUUID")
+
+	// Check if the hike exists and is open
+	var hikeStatus string
+	err := db.QueryRow(`SELECT status FROM hikes WHERE join_code = ?`, joinCode).Scan(&hikeStatus)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Hike not found", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if hikeStatus != "open" {
+		http.Error(w, "Hike is not open. Cannot start hiking.", http.StatusBadRequest)
+		return
+	}
+
+	// Update participant status from 'rsvp' to 'active'
+	result, err := db.Exec(`UPDATE hike_users
+							 SET status = 'active'
+							 WHERE hike_join_code = ? AND user_uuid = ? AND status = 'rsvp'`,
+		joinCode, userUUID)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Failed to check rows affected", http.StatusInternalServerError)
+		return
+	}
+
+	if rowsAffected == 0 {
+		// This could be because the user/hike combination doesn't exist, or status wasn't 'rsvp'
+		// Query current status to give a more specific error
+		var currentStatus string
+		err := db.QueryRow(`SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?`, joinCode, userUUID).Scan(&currentStatus)
+		if err == sql.ErrNoRows {
+			http.Error(w, "Participant not found for this hike.", http.StatusNotFound)
+		} else if err != nil {
+			http.Error(w, "Error fetching participant status: "+err.Error(), http.StatusInternalServerError)
+		} else if currentStatus != "rsvp" {
+			http.Error(w, fmt.Sprintf("Cannot start hiking. Participant status is '%s', not 'rsvp'.", currentStatus), http.StatusBadRequest)
+		} else {
+			// Should not happen if rowsAffected was 0 and status was 'rsvp'
+			http.Error(w, "Could not update participant status. Please ensure you have RSVPd.", http.StatusBadRequest)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	logAction(fmt.Sprintf("Participant %s started hiking for hike %s", userUUID, joinCode))
+}
+
+// unRSVPHandler allows a user to remove their RSVP if their status is 'rsvp'
+func unRSVPHandler(w http.ResponseWriter, r *http.Request) {
+	joinCode := r.PathValue("hikeId")
+	userUUID := r.PathValue("userUUID")
+
+	// Check if the hike exists and is open - users should be able to unRSVP even if hike is closed for new RSVPs,
+	// but perhaps not if it has already ended or started. For now, let's allow unRSVP as long as hike exists.
+	// However, the main check is participant status.
+
+	var currentStatus string
+	err := db.QueryRow(`SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?`, joinCode, userUUID).Scan(&currentStatus)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Participant not found for this hike.", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error fetching participant status: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if currentStatus != "rsvp" {
+		http.Error(w, fmt.Sprintf("Cannot unRSVP. Participant status is '%s', not 'rsvp'. Only users who RSVPd can unRSVP.", currentStatus), http.StatusBadRequest)
+		return
+	}
+
+	// Begin transaction
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "Failed to start transaction: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Delete from hike_users
+	result, err := tx.Exec(`DELETE FROM hike_users
+							 WHERE hike_join_code = ? AND user_uuid = ? AND status = 'rsvp'`,
+		joinCode, userUUID)
+	if err != nil {
+		tx.Rollback()
+		http.Error(w, "Failed to delete participant from hike: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		tx.Rollback()
+		http.Error(w, "Failed to check rows affected for hike_users deletion: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		tx.Rollback()
+		// This should ideally not happen if we've already checked the status above,
+		// but it's a good safeguard (e.g. race condition, though unlikely here)
+		http.Error(w, "Could not remove RSVP. Participant not found or status was not 'rsvp'.", http.StatusNotFound)
+		return
+	}
+
+	// Delete from waiver_signatures
+	_, err = tx.Exec(`DELETE FROM waiver_signatures
+					   WHERE hike_join_code = ? AND user_uuid = ?`,
+		joinCode, userUUID)
+	if err != nil {
+		tx.Rollback()
+		http.Error(w, "Failed to delete waiver signature: "+err.Error(), http.StatusInternalServerError)
+		// Note: Participant was already removed from hike_users. This is a partial failure.
+		// Depending on policy, might want to log this inconsistency.
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		http.Error(w, "Failed to commit transaction: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	logAction(fmt.Sprintf("Participant %s unRSVPd from hike %s", userUUID, joinCode))
 }
 
 // Given a leader code, return all participants of the hike
@@ -533,4 +675,59 @@ func logAction(action string) {
 
 	logger := log.New(f, "", log.LstdFlags)
 	logger.Println(action)
+}
+
+// getUserHikesByStatusHandler returns a list of hikes for a given user, filtered by status.
+func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
+	userUUID := r.PathValue("userUUID")
+	statusFilter := r.URL.Query().Get("status")
+
+	if statusFilter == "" {
+		http.Error(w, "Missing required 'status' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	query := `
+		SELECT h.name, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code,
+		       l.name AS leader_name, l.phone AS leader_phone
+		FROM hikes AS h
+		JOIN hike_users AS hu ON h.join_code = hu.hike_join_code
+		JOIN users AS l ON h.leader_uuid = l.uuid
+		WHERE hu.user_uuid = ? AND hu.status = ? AND h.status = 'open'
+		ORDER BY h.start_time DESC
+	`
+
+	rows, err := db.Query(query, userUUID, statusFilter)
+	if err != nil {
+		http.Error(w, "Database query error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var hikes []Hike
+	for rows.Next() {
+		var h Hike
+		// We need to scan into h.Leader.Name and h.Leader.Phone separately
+		// as h.Leader is a struct.
+		err := rows.Scan(
+			&h.Name, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode,
+			&h.Leader.Name, &h.Leader.Phone,
+		)
+		if err != nil {
+			http.Error(w, "Error scanning row: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// The userUUID for the leader is h.leader_uuid in the hikes table,
+		// but we don't explicitly fetch it into h.Leader.UUID here unless needed by frontend.
+		// The current Hike struct's Leader User field doesn't require UUID for this specific display.
+		hikes = append(hikes, h)
+	}
+
+	if err = rows.Err(); err != nil {
+		http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(hikes)
 }
