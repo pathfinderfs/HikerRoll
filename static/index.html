@@ -307,6 +307,7 @@
         <div id="join-hike-page" style="display:none;">
             <h1>Join Hike: <span id="join-hike-name"></span></h1>
             <p>Trailhead: <span id="join-trailhead-name"></span></p>
+            <p>Start Time: <span id="join-hike-start-time"></span></p>
             <p>For your safety please fill out the following to join this hike.</p>
             <form id="join-hike-form">
                 <input type="text" id="participant-name" placeholder="Your Name" required>
@@ -380,12 +381,16 @@
         let startTimeFlatpikr; // used in create-hike-page
 
         let currentUser = JSON.parse(localStorage.getItem('currentUser')) || {
-            uuid: crypto.randomUUID(),
+            uuid: '',
             name: '',
             phone: '',
             licensePlate: '',
             emergencyContact: ''
         };
+        if (!currentUser.uuid) {
+            currentUser.uuid = crypto.randomUUID()
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        }
 
         let currentHike = JSON.parse(localStorage.getItem('currentHike')) || emptyHike();
 
@@ -518,6 +523,7 @@
                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
                     document.getElementById('join-hike-name').textContent = currentHike.name;
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
+                    document.getElementById('join-hike-start-time').textContent = new Date(currentHike.startTime).toLocaleString();
                     showPage('join-hike-page');
                 })
                 .catch(error => {
