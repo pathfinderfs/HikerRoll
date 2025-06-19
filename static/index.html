@@ -909,10 +909,6 @@
                 return;
             }
 
-            if (!confirm("Are you sure you want to unRSVP from this hike?")) {
-                return;
-            }
-
             fetch(unRSVPUrl, {
                 method: 'DELETE',
                 headers: {
@@ -935,7 +931,6 @@
                 return response.text(); // Or response.json() if backend sends a json response
             })
             .then(responseText => { // If response.text() was used
-                alert("Successfully UnRSVPed.");
                 getRSVPedHikes(); // Refresh the list of RSVPed hikes
             })
             .catch(error => {
