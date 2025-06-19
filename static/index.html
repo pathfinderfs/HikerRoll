@@ -678,7 +678,6 @@
                     return response.json();
                 })
                 .then(hike => { // hike object is returned on successful RSVP from backend
-                    alert('Successfully RSVPed to: ' + hike.name);
                     clearCurrentHike(); // Clear hike details as user is not actively hiking yet
                     showWelcomePage(); // Show welcome page which will refresh RSVP list
                 })
@@ -1082,7 +1081,7 @@
         function toggleParticipantStatus(userUUID, newStatus, currentStatus) { // Added currentStatus parameter
             // Leader can only toggle between 'active' (Hiking) and 'finished'.
             // RSVP status cannot be changed by the leader here.
-            if (currentStatus !== 'active' && currentStatus !== 'finished') {
+            if (currentStatus !== undefined && currentStatus !== 'active' && currentStatus !== 'finished') {
                 // alert("This participant's status cannot be changed by the leader from its current state (" + currentStatus + "). RSVP status is managed by the participant.");
                 console.log("Leader attempted to toggle status for user " + userUUID + " with current status " + currentStatus + ". No action taken.");
                 return;
