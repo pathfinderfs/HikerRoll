@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 
 	l := launcher.New().Bin(path)
 	// Ensure E2E tests run in headless mode for CI/sandbox environments
-	l.Headless(false).NoSandbox(true)
+	l.Headless(true).NoSandbox(true)
 
 	controlURL, errLaunch := l.Launch()
 	if errLaunch != nil {
