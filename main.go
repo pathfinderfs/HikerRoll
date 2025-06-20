@@ -61,6 +61,7 @@ type Participant struct {
 	Hike     Hike      `json:"hike"`
 	User     User      `json:"user"`
 	Status   string    `json:"status"`
+	Waiver   time.Time `json:"waiver"`
 	JoinedAt time.Time `json:"joinedAt"`
 }
 
@@ -153,9 +154,9 @@ func initDB(databaseName string) {
 func addRoutes(mux *http.ServeMux) {
 	// You must define most specific routes first
 	mux.HandleFunc("PUT /api/hike/{hikeId}/participant/{participantId}", updateParticipantStatusHandler)
-	mux.HandleFunc("POST /api/hike/{hikeId}/rsvp", rsvpToHikeHandler) // Renamed route
+	mux.HandleFunc("POST /api/hike/{hikeId}/rsvp", rsvpToHikeHandler)                          // Renamed route
 	mux.HandleFunc("POST /api/hike/{hikeId}/participant/{userUUID}/start", startHikingHandler) // New route
-	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{userUUID}/rsvp", unRSVPHandler)      // New route
+	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{userUUID}/rsvp", unRSVPHandler)     // New route
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
@@ -375,9 +376,9 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 
 	// Insert waiver signature
 	_, err = db.Exec(`
-		INSERT INTO waiver_signatures (user_uuid, hike_join_code, user_agent, ip_address, waiver_text)
-		VALUES (?, ?, ?, ?, ?)
-	`, request.User.UUID, joinCode, userAgent, ipAddress, waiverText)
+		INSERT INTO waiver_signatures (user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, request.User.UUID, joinCode, time.Now(), userAgent, ipAddress, waiverText)
 
 	if err != nil {
 		// Log the error but don't fail the entire join operation,
@@ -537,10 +538,42 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 
 	var participants []Participant
 
-	rows, err := db.Query(`SELECT uuid, name, phone, license_plate, emergency_contact, status
-						   FROM hike_users JOIN users ON user_uuid = uuid
-						   WHERE hike_join_code = (SELECT join_code FROM hikes WHERE leader_code = ?)
-						  `, leaderCode)
+	// rows, err := db.Query(`SELECT uuid, name, phone, license_plate, emergency_contact, status
+	// 					   FROM hike_users JOIN users ON user_uuid = uuid
+	// 					   WHERE hike_join_code = (SELECT join_code FROM hikes WHERE leader_code = ?)
+	// 					  `, leaderCode)
+
+	rows, err := db.Query(`
+		SELECT
+		  u.uuid,
+		  u.name,
+		  u.phone,
+		  u.license_plate,
+		  u.emergency_contact,
+		  hu.status,
+		  ws.most_recent_waiver_date
+		FROM
+		  hike_users hu
+		  JOIN users u ON hu.user_uuid = u.uuid
+		  JOIN (
+			SELECT
+			  user_uuid,
+			  MAX(signed_at) AS most_recent_waiver_date
+			FROM
+			  waiver_signatures
+			GROUP BY
+			  user_uuid
+		  ) AS ws ON hu.user_uuid = ws.user_uuid
+		WHERE
+		  hu.hike_join_code = (
+			SELECT
+			  join_code
+			FROM
+			  hikes
+			WHERE
+			  leader_code = ?
+		)`, leaderCode)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -549,11 +582,13 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var p Participant
-		err := rows.Scan(&p.User.UUID, &p.User.Name, &p.User.Phone, &p.User.LicensePlate, &p.User.EmergencyContact, &p.Status)
+		var dateTimeString string
+		err := rows.Scan(&p.User.UUID, &p.User.Name, &p.User.Phone, &p.User.LicensePlate, &p.User.EmergencyContact, &p.Status, &dateTimeString)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		p.Waiver, err = time.Parse(time.RFC3339, dateTimeString)
 		participants = append(participants, p)
 	}
 

@@ -370,11 +370,10 @@
 
         <div id="hiking-page" style="display:none;">
             <h1>Hiking: <span id="current-hike-name"></span></h1>
-            <p>Trailhead: <span id="current-trailhead-name"></span></p>
+            <p>Trailhead: <a id="current-trailhead-name" href="" target="_blank"></a></p>
             <p>Leader Name: <span id="leader-name-2"></span></p>
             <p>Leader Phone: <a id="leader-phone-link" href=""></a></p>
             <p>Start Time: <span id="hike-start-time-display"></span></p>
-            <p><a id="google-maps-link" href="#" target="_blank">View on Google Maps</a></p>
             <button class="button-secondary" onclick="leaveHike()">Leave Hike</button>
         </div>
     </div>
@@ -407,7 +406,7 @@
                 leader: currentUser,
                 startTime: new Date().toISOString(),
                 latitude: 0,
-                longitude: 0
+                longitude: 0,
             };
         }
 
@@ -617,23 +616,26 @@
             return `${window.location.origin}?${codeType}=${code}`;
         }
 
+        function makeTrailheadURL() {
+           return `https://www.google.com/maps/search/?api=1&query=${currentHike.latitude},${currentHike.longitude}&query_place_id=${currentHike.name}`;
+        }
+
         function showHikingPage() {
             document.getElementById('current-hike-name').textContent = currentHike.name;
-            document.getElementById('current-trailhead-name').textContent = currentHike.trailheadName;
+
+            const trailheadLink = document.getElementById('current-trailhead-name');
+            trailheadLink.textContent = currentHike.trailheadName;
+            trailheadLink.href = makeTrailheadURL();
+
             document.getElementById('leader-name-2').textContent = currentHike.leader.name;
+
             const phoneLink = document.getElementById('leader-phone-link');
             phoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
             phoneLink.href = `tel:${currentHike.leader.phone}`;
+
             document.getElementById('hike-start-time-display').textContent = new Date(currentHike.startTime).toLocaleString();
-            // Only add maplink if we have latitude and longitude
-            const mapLink = document.getElementById('google-maps-link');
-            if (currentHike.latitude === 0 || currentHike.longitude === 0) {
-                mapLink.style.display = 'none';
-            } else {
-                mapLink.style.display = '';
-                mapLink.href = `https://www.google.com/maps/search/?api=1&query=${currentHike.latitude},${currentHike.longitude}&query_place_id=${currentHike.name}`;
-                showPage('hiking-page');
-            }
+
+            showPage('hiking-page');
         }
 
         function showWaiverPage() {
@@ -819,7 +821,7 @@
                         li.className = 'hike-item';
                         li.innerHTML = `
                             <h3>${hike.name}</h3>
-                            <p>Trailhead: ${hike.trailheadName}</p>
+                            <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
                             <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
                             <button onclick="startHiking('${hike.joinCode}')">Start Hiking</button>
                             <button class="button-secondary" onclick="unRSVP('${hike.joinCode}')">UnRSVP</button>
@@ -1114,7 +1116,7 @@
         }
 
         function generateParticipantCSV() {
-            const headers = ['name', 'phone', 'licensePlate', 'emergencyContact', 'waiver'];
+            const headers = ['name', 'phone', 'licensePlate', 'emergencyContact', 'status', 'waiver'];
             const csvRows = [headers.join(',')];
 
             allParticipants.forEach(participant => {
@@ -1123,7 +1125,8 @@
                     participant.user.phone,
                     participant.user.licensePlate || '',
                     participant.user.emergencyContact || '',
-                    'Y'
+                    participant.status || '',
+                    participant.waiver || ''
                 ];
                 csvRows.push(row.join(','));
             });
