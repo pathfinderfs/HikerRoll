@@ -588,7 +588,10 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		p.Waiver, err = time.Parse(time.RFC3339, dateTimeString)
+		p.Waiver, err = time.Parse("2006-01-02 15:04:05.000000000-07:00", dateTimeString)
+		if err != nil {
+			logAction(fmt.Sprintf("Error parsing date: %s", err.Error()))
+		}
 		participants = append(participants, p)
 	}
 
