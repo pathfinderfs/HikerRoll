@@ -278,7 +278,7 @@
     </div>
     <div class="container">
         <div id="welcome-page" style="display:none;">
-            <h1>Welcome to Hike Tracker</h1>
+            <h1>Hiker Roll Call</h1>
             <button onclick="showCreateHikePage()">Create New Hike</button>
 
             <h2>Your RSVPed Hikes</h2>
@@ -291,7 +291,7 @@
         </div>
 
         <div id="create-hike-page" style="display:none;">
-            <h1>Create New Hike</h1>
+            <h1>Create Hike</h1>
             <form id="create-hike-form">
                 <input type="text" id="hike-name" placeholder="Hike Name (e.g., Sunset Hike)" required>
                 <div class="autocomplete">
@@ -655,6 +655,9 @@
         }
 
         function joinHike() {
+            // The following two lines are because mobile browsers don't always trigger the change event
+            currentUser.phone = document.getElementById('participant-phone').value.replace(/\D/g, '');
+            currentUser.emergencyContact = document.getElementById('participant-emergencyContact').value.replace(/\D/g, '');
             const rsvpUrl = `/api/hike/${currentHike.joinCode}/rsvp`; // Changed endpoint
             const rsvpBody = JSON.stringify({ user: currentUser });
             if (!navigator.onLine) {
