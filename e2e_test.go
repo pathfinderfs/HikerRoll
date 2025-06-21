@@ -175,7 +175,7 @@ func TestHikeLifecycle(t *testing.T) {
 	leaderPage.MustElementByJS(`
 		() => {
 			const items = document.querySelectorAll('.autocomplete-items div');
-			for (let item of items) { if (item.textContent.includes("Ka'ena Point Trailhead")) return item; } return null;
+			for (let item of items) { if (item.textContent.includes("Ka'au Crater")) return item; } return null;
 		}
 	`).MustClick()
 	leaderPage.MustElement("#leader-name").MustInput("E2E Leader")
