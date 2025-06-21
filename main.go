@@ -89,6 +89,7 @@ var predefinedTrailheads = []Trailhead{
 	{Name: "Ualakaa", Latitude: 21.31645, Longitude: -157.82037},
 	{Name: "Wa'ahila Ridge", Latitude: 21.30729, Longitude: -157.79765},
 	{Name: "Wahiawa Hills", Latitude: 21.50846, Longitude: -157.98648},
+	{Name: "Waiau (parking)", Latitude: 21.41257, Longitude: -157.93985},
 	{Name: "Wailupe Valley (Hao)", Latitude: 21.29861, Longitude: -157.75663},
 	{Name: "Wailupe Valley (Mona)", Latitude: 21.29999, Longitude: -157.75466},
 	{Name: "Waimalu Ditch", Latitude: 21.39888, Longitude: -157.91763},
