@@ -31,6 +31,7 @@ var predefinedTrailheads = []Trailhead{
 	{Name: "Crouching Lion (Manamana)", Latitude: 21.55816, Longitude: -157.86619},
 	{Name: "Diamond Head Crater (Le'ahi)", Latitude: 21.26360, Longitude: -157.80603},
 	{Name: "Ehukai Pillbox (Sunset Pillbox)", Latitude: 21.66465, Longitude: -158.04936},
+	{Name: "Friendship Garden", Latitude: 21.40622, Longitude: -157.77751},
 	{Name: "Haha'ione", Latitude: 21.310139, Longitude: -157.712835},
 	{Name: "Hau'ula Loop", Latitude: 21.60980, Longitude: -157.91544},
 	{Name: "Hawaii Loa Ridge", Latitude: 21.29749, Longitude: -157.74593},
@@ -56,7 +57,7 @@ var predefinedTrailheads = []Trailhead{
 	{Name: "Koko Head (Hanauma)", Latitude: 21.27532, Longitude: -157.69363},
 	{Name: "Koloa Gulch", Latitude: 21.62817, Longitude: -157.923531},
 	{Name: "Kuliʻouʻou Ridge", Latitude: 21.30343, Longitude: -157.72426},
-	{Name: "Kūlepeamoa Ridge", Latitude: 21.29218, Longitude: -157.74093},
+	{Name: "Kulepeamoa Ridge", Latitude: 21.29218, Longitude: -157.74093},
 	{Name: "Laie Falls (parking)", Latitude: 21.65053, Longitude: -157.93147},
 	{Name: "Lanipo", Latitude: 21.29787, Longitude: -157.78574},
 	{Name: "Likeke Falls (First Pres)", Latitude: 21.37281, Longitude: -157.79209},
@@ -64,7 +65,7 @@ var predefinedTrailheads = []Trailhead{
 	{Name: "Makapu'u Point Lighthouse", Latitude: 21.30499, Longitude: -157.65480},
 	{Name: "Makiki Valley Loop (Nature Center)", Latitude: 21.31717, Longitude: -157.82700},
 	{Name: "Manana Ridge", Latitude: 21.43038, Longitude: -157.93889},
-	{Name: "Mānoa Falls", Latitude: 21.33255, Longitude: -157.80055},
+	{Name: "Manoa Falls", Latitude: 21.33255, Longitude: -157.80055},
 	{Name: "Maunawili Falls", Latitude: 21.35929, Longitude: -157.76355},
 	{Name: "Maunawili Demonstration (Pali)", Latitude: 21.36496, Longitude: -157.77998},
 	{Name: "Maunawili Ditch (Wakupanaha)", Latitude: 21.34294, Longitude: -157.74341},
@@ -78,6 +79,7 @@ var predefinedTrailheads = []Trailhead{
 	{Name: "Olomana", Latitude: 21.36845, Longitude: -157.76097},
 	{Name: "Pali Notches", Latitude: 21.36670, Longitude: -157.79322},
 	{Name: "Pali Puka", Latitude: 21.36682, Longitude: -157.79417},
+	{Name: "Puʻu Māʻeliʻel", Latitude: 21.43429, Longitude: -157.82463},
 	{Name: "Pu'u Manamana", Latitude: 21.55410, Longitude: -157.85579},
 	{Name: "Pu'u Ohia", Latitude: 21.33109, Longitude: -157.81465},
 	{Name: "Pu'u O Hulu (Pink Pillbox)", Latitude: 21.40478, Longitude: -158.17268},
@@ -736,7 +738,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.Query("SELECT id, name, latitude, longitude FROM trailheads WHERE name LIKE ? LIMIT 5", "%"+query+"%")
+	rows, err := db.Query("SELECT id, name, latitude, longitude FROM trailheads WHERE REPLACE(name, '''', '') LIKE ? LIMIT 5", "%"+query+"%")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
