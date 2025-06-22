@@ -22,34 +22,71 @@ func setupTestMux() *http.ServeMux {
 }
 
 func TestCreateHike(t *testing.T) {
-	hike := Hike{
-		Name: "Test Hike",
-		Leader: User{
-			Name:  "John Doe",
-			Phone: "1234567890",
+	tests := []struct {
+		name             string
+		organization     string
+		expectOrganization string
+	}{
+		{
+			name: "With Organization",
+			organization:     "Test Organization",
+			expectOrganization: "Test Organization",
 		},
-		TrailheadName: "Test Trailhead",
-		Latitude:      40.7128,
-		Longitude:     -74.0060,
-		StartTime:     time.Now().Add(24 * time.Hour),
+		{
+			name: "Without Organization (empty string)",
+			organization:     "",
+			expectOrganization: "",
+		},
 	}
-	body, _ := json.Marshal(hike)
-	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
 
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			hike := Hike{
+				Name: "Test Hike",
+				Leader: User{
+					UUID:  "leader-uuid-create-" + strings.ReplaceAll(tc.name, " ", ""),
+					Name:  "John Doe",
+					Phone: "1234567890",
+				},
+				TrailheadName: "Test Trailhead",
+				Latitude:      40.7128,
+				Longitude:     -74.0060,
+				StartTime:     time.Now().Add(24 * time.Hour),
+				Organization:  tc.organization,
+			}
+			body, _ := json.Marshal(hike)
+			req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+			rr := httptest.NewRecorder()
+			mux := setupTestMux()
+			mux.ServeHTTP(rr, req)
 
-	var response Hike
-	json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NotEmpty(t, response.JoinCode)
-	assert.NotEmpty(t, response.LeaderCode)
-	assert.Equal(t, hike.Name, response.Name)
-	assert.Equal(t, hike.Leader.Name, response.Leader.Name)
-	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
+			assert.Equal(t, http.StatusOK, rr.Code, "Response code should be OK")
+
+			var response Hike
+			err := json.Unmarshal(rr.Body.Bytes(), &response)
+			require.NoError(t, err, "Should unmarshal response successfully")
+
+			assert.NotEmpty(t, response.JoinCode, "JoinCode should not be empty")
+			assert.NotEmpty(t, response.LeaderCode, "LeaderCode should not be empty")
+			assert.Equal(t, hike.Name, response.Name, "Name should match")
+			assert.Equal(t, hike.Leader.Name, response.Leader.Name, "Leader name should match")
+			assert.Equal(t, hike.TrailheadName, response.TrailheadName, "TrailheadName should match")
+			assert.Equal(t, tc.expectOrganization, response.Organization, "Organization should match")
+
+			// Verify in DB
+			var dbOrganization sql.NullString
+			err = db.QueryRow("SELECT organization FROM hikes WHERE join_code = ?", response.JoinCode).Scan(&dbOrganization)
+			require.NoError(t, err, "Should query organization from DB successfully")
+			if tc.expectOrganization == "" {
+				assert.False(t, dbOrganization.Valid, "DB organization should be NULL or empty if input was empty")
+			} else {
+				assert.True(t, dbOrganization.Valid, "DB organization should be valid if input was provided")
+				assert.Equal(t, tc.expectOrganization, dbOrganization.String, "DB organization should match expected")
+			}
+		})
+	}
 }
 
 func TestRSVPToHike_Success(t *testing.T) {
@@ -365,8 +402,14 @@ func TestUnRSVP_HikeClosed(t *testing.T) {
 // Tests for getUserHikesByStatusHandler
 func TestGetUserHikes_StatusRSVP(t *testing.T) {
 	user := User{UUID: "user-gethikes-rsvp", Name: "GetHikes RSVP"}
-	hike1 := createTestHikeWithOptions(t, User{UUID: "leader1-rsvp", Name: "Leader One"})
-	hike2 := createTestHikeWithOptions(t, User{UUID: "leader2-rsvp", Name: "Leader Two"})
+	// Hike with organization
+	hike1Leader := User{UUID: "leader1-rsvp-org", Name: "Leader One Org"}
+	hike1 := createTestHikeWithOptionsAndOrg(t, hike1Leader, "Org For Hike 1")
+
+	// Hike without organization
+	hike2Leader := User{UUID: "leader2-rsvp-no-org", Name: "Leader Two No Org"}
+	hike2 := createTestHikeWithOptionsAndOrg(t, hike2Leader, "") // Empty organization
+
 	_ = createTestHikeWithOptions(t, User{UUID: "leader3-rsvp", Name: "Leader Three"}) // Another hike user is not part of
 
 	joinTestHikeWithOptions(t, hike1, user) // RSVPs to hike1
@@ -389,11 +432,13 @@ func TestGetUserHikes_StatusRSVP(t *testing.T) {
 	for _, h := range hikes {
 		if h.JoinCode == hike1.JoinCode {
 			foundHike1 = true
-			assert.Equal(t, "Leader One", h.Leader.Name)
+			assert.Equal(t, hike1Leader.Name, h.Leader.Name)
+			assert.Equal(t, "Org For Hike 1", h.Organization)
 		}
 		if h.JoinCode == hike2.JoinCode {
 			foundHike2 = true
-			assert.Equal(t, "Leader Two", h.Leader.Name)
+			assert.Equal(t, hike2Leader.Name, h.Leader.Name)
+			assert.Equal(t, "", h.Organization)
 		}
 	}
 	assert.True(t, foundHike1, "Hike 1 not found in RSVP list")
@@ -402,8 +447,11 @@ func TestGetUserHikes_StatusRSVP(t *testing.T) {
 
 func TestGetUserHikes_StatusActive(t *testing.T) {
 	user := User{UUID: "user-gethikes-active", Name: "GetHikes Active"}
-	hike1 := createTestHikeWithOptions(t, User{UUID: "leader1-active", Name: "Leader Active One"})
-	hike2Closed := createTestHikeWithOptions(t, User{UUID: "leader2-active-closed", Name: "Leader Active Two Closed"})
+	hike1Leader := User{UUID: "leader1-active-org", Name: "Leader Active One Org"}
+	hike1 := createTestHikeWithOptionsAndOrg(t, hike1Leader, "Active Org") // With org
+
+	hike2ClosedLeader := User{UUID: "leader2-active-closed-no-org", Name: "Leader Active Two Closed No Org"}
+	hike2Closed := createTestHikeWithOptionsAndOrg(t, hike2ClosedLeader, "") // No org
 
 	joinTestHikeWithOptions(t, hike1, user) // RSVPs
 	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hike1.JoinCode, user.UUID)
@@ -428,7 +476,8 @@ func TestGetUserHikes_StatusActive(t *testing.T) {
 	assert.Len(t, hikes, 1, "Should return 1 active hike for the user from an open hike")
 	if len(hikes) == 1 {
 		assert.Equal(t, hike1.JoinCode, hikes[0].JoinCode)
-		assert.Equal(t, "Leader Active One", hikes[0].Leader.Name)
+		assert.Equal(t, hike1Leader.Name, hikes[0].Leader.Name)
+		assert.Equal(t, "Active Org", hikes[0].Organization)
 	}
 }
 
@@ -573,18 +622,91 @@ func TestUpdateParticipantStatus_PreventRSVPChange(t *testing.T) {
 }
 
 func TestNearbyHikes(t *testing.T) {
-	createTestHike(t)
+	// Clean up any existing hikes to prevent interference
+	_, err := db.Exec("DELETE FROM hikes")
+	require.NoError(t, err)
+	_, err = db.Exec("DELETE FROM users") // Delete users to satisfy foreign key constraints if leaders are new
+	require.NoError(t, err)
+
+
+	// Create a hike with an organization
+	hikeWithOrg := Hike{
+		Name:          "Nearby Hike With Org",
+		Leader:        User{UUID: "leader-nearby-org", Name: "Org Leader", Phone: "111"},
+		TrailheadName: "Trail A",
+		Latitude:      40.7128, // Target lat
+		Longitude:     -74.0060, // Target lon
+		StartTime:     time.Now().Add(30 * time.Minute), // Within 1 hour window
+		Organization:  "Nearby Org Yes",
+	}
+	createTestHikeFromDefinition(t, hikeWithOrg)
+
+	// Create a hike without an organization
+	hikeWithoutOrg := Hike{
+		Name:          "Nearby Hike No Org",
+		Leader:        User{UUID: "leader-nearby-no-org", Name: "No Org Leader", Phone: "222"},
+		TrailheadName: "Trail B",
+		Latitude:      40.7129, // Slightly different, but still nearby
+		Longitude:     -74.0061,
+		StartTime:     time.Now().Add(15 * time.Minute), // Within 1 hour window
+		Organization:  "", // Explicitly empty
+	}
+	createTestHikeFromDefinition(t, hikeWithoutOrg)
+
+	// Create a hike that is too far
+	hikeFarAway := Hike{
+		Name:          "Far Hike",
+		Leader:        User{UUID: "leader-far", Name: "Far Leader", Phone: "333"},
+		TrailheadName: "Trail Far",
+		Latitude:      50.0,
+		Longitude:     -80.0,
+		StartTime:     time.Now().Add(30 * time.Minute),
+		Organization:  "Far Org",
+	}
+	createTestHikeFromDefinition(t, hikeFarAway)
+
+	// Create a hike that is too early / late
+	hikeWrongTime := Hike{
+		Name:          "Wrong Time Hike",
+		Leader:        User{UUID: "leader-wrongtime", Name: "Time Leader", Phone: "444"},
+		TrailheadName: "Trail Time",
+		Latitude:      40.7128,
+		Longitude:     -74.0060,
+		StartTime:     time.Now().Add(2 * time.Hour), // Outside 1 hour window
+		Organization:  "Time Org",
+	}
+	createTestHikeFromDefinition(t, hikeWrongTime)
+
 
 	req, _ := http.NewRequest("GET", "/api/hike?latitude=40.7128&longitude=-74.0060", nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code, "Response code should be OK. Body: %s", rr.Body.String())
 
-	var hikes []Hike
-	json.Unmarshal(rr.Body.Bytes(), &hikes)
-	assert.GreaterOrEqual(t, len(hikes), 1)
+	var responseHikes []Hike
+	err = json.Unmarshal(rr.Body.Bytes(), &responseHikes)
+	require.NoError(t, err, "Should unmarshal response successfully")
+
+	assert.Len(t, responseHikes, 2, "Should find 2 nearby hikes that are open and within time window")
+
+	foundWithOrg := false
+	foundWithoutOrg := false
+
+	for _, h := range responseHikes {
+		if h.Name == "Nearby Hike With Org" {
+			foundWithOrg = true
+			assert.Equal(t, "Nearby Org Yes", h.Organization, "Organization should match for hike with org")
+		}
+		if h.Name == "Nearby Hike No Org" {
+			foundWithoutOrg = true
+			assert.Equal(t, "", h.Organization, "Organization should be empty for hike without org")
+		}
+	}
+
+	assert.True(t, foundWithOrg, "Hike with organization was not found in nearby results")
+	assert.True(t, foundWithoutOrg, "Hike without organization was not found in nearby results")
 }
 
 func TestHikeParticipants(t *testing.T) {
@@ -646,20 +768,75 @@ func TestTrailheadSuggestions(t *testing.T) {
 }
 
 func TestGetHikeByCode(t *testing.T) {
-	hike := createTestHike(t)
+	tests := []struct {
+		name               string
+		organization       string
+		expectOrganization string
+		leaderCode         string // To test retrieval with leader code
+	}{
+		{
+			name: "With Organization - Join Code",
+			organization:       "Org XYZ",
+			expectOrganization: "Org XYZ",
+		},
+		{
+			name: "Without Organization - Join Code",
+			organization:       "",
+			expectOrganization: "",
+		},
+		{
+			name: "With Organization - Leader Code",
+			organization:       "Org ABC",
+			expectOrganization: "Org ABC",
+			leaderCode:         "leader123", // Placeholder, will be replaced by actual
+		},
+		{
+			name: "Without Organization - Leader Code",
+			organization:       "",
+			expectOrganization: "",
+			leaderCode:         "leader456", // Placeholder
+		},
+	}
 
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s", hike.JoinCode), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a hike with the specified organization
+			leaderUUID := "leader-gethike-" + strings.ReplaceAll(tc.name, " ", "")
+			createdHike := createTestHikeWithOptionsAndOrg(t, User{UUID: leaderUUID, Name: "Test Leader"}, tc.organization)
+			require.NotEmpty(t, createdHike.JoinCode, "Created hike must have a join code")
+			require.NotEmpty(t, createdHike.LeaderCode, "Created hike must have a leader code")
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+			var req *http.Request
+			var err error
 
-	var response Hike
-	json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.Equal(t, hike.Name, response.Name)
-	assert.Equal(t, hike.JoinCode, response.JoinCode)
-	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
+			if strings.Contains(tc.name, "Leader Code") {
+				req, err = http.NewRequest("GET", fmt.Sprintf("/api/hike/%s?leaderCode=%s", createdHike.JoinCode, createdHike.LeaderCode), nil)
+				require.NoError(t, err)
+			} else {
+				req, err = http.NewRequest("GET", fmt.Sprintf("/api/hike/%s", createdHike.JoinCode), nil)
+				require.NoError(t, err)
+			}
+
+			rr := httptest.NewRecorder()
+			mux := setupTestMux()
+			mux.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code, "Response code should be OK. Body: %s", rr.Body.String())
+
+			var responseHike Hike
+			err = json.Unmarshal(rr.Body.Bytes(), &responseHike)
+			require.NoError(t, err, "Should unmarshal response successfully")
+
+			assert.Equal(t, createdHike.Name, responseHike.Name, "Name should match")
+			assert.Equal(t, createdHike.JoinCode, responseHike.JoinCode, "JoinCode should match")
+			assert.Equal(t, createdHike.TrailheadName, responseHike.TrailheadName, "TrailheadName should match")
+			assert.Equal(t, tc.expectOrganization, responseHike.Organization, "Organization should match")
+			if strings.Contains(tc.name, "Leader Code") {
+				// When fetching with leader code, the leader code itself is not returned in the Hike struct in the response.
+				// The check is that we *used* the leader code to fetch and got the correct hike.
+			}
+		})
+	}
 }
 
 func TestTableCreation(t *testing.T) {
@@ -850,6 +1027,7 @@ func createTestHike(t *testing.T) Hike {
 		Latitude:      40.7128,
 		Longitude:     -74.0060,
 		StartTime:     time.Now(),
+		Organization:  "Default Org", // Add a default org for the basic helper
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -868,6 +1046,39 @@ func createTestHike(t *testing.T) Hike {
 
 // createTestHikeWithOptions allows specifying the leader
 func createTestHikeWithOptions(t *testing.T, leader User) Hike {
+	return createTestHikeWithOptionsAndOrg(t, leader, "Default Test Org for Options")
+}
+
+// createTestHikeFromDefinition is a helper to create a hike from a full Hike struct
+func createTestHikeFromDefinition(t *testing.T, hikeDefinition Hike) Hike {
+	// Ensure leader UUID is set if not provided, to prevent DB constraint errors if multiple test users have empty UUIDs
+	if hikeDefinition.Leader.UUID == "" {
+		hikeDefinition.Leader.UUID = "leader-" + strings.ToLower(strings.ReplaceAll(hikeDefinition.Name, " ", "-"))
+	}
+
+
+	body, err := json.Marshal(hikeDefinition)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Failed to create test hike from definition '%s'. Body: %s", hikeDefinition.Name, rr.Body.String())
+
+	var response Hike
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err, "Failed to unmarshal createTestHikeFromDefinition response for hike '%s'", hikeDefinition.Name)
+	return response
+}
+
+
+// createTestHikeWithOptionsAndOrg allows specifying the leader and organization
+func createTestHikeWithOptionsAndOrg(t *testing.T, leader User, organization string) Hike {
 	hike := Hike{
 		Name:          "Test Hike for " + leader.UUID,
 		Leader:        leader,
@@ -875,6 +1086,7 @@ func createTestHikeWithOptions(t *testing.T, leader User) Hike {
 		Latitude:      40.7128,
 		Longitude:     -74.0060,
 		StartTime:     time.Now(),
+		Organization:  organization,
 	}
 	body, err := json.Marshal(hike)
 	require.NoError(t, err)
