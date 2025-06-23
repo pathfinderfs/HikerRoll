@@ -253,9 +253,13 @@ func TestHikeLifecycle(t *testing.T) {
 	// This assumes getRSVPedHikes will show the organization, which will be tested separately.
 	// For now, just ensure the flow to get to hiking page.
 	assert.True(t, isElementVisible(t, participantPage, "#welcome-page", 10*time.Second), "Welcome page after RSVP")
-	rsvpSelector := fmt.Sprintf("//ul[@id='rsvped-hikes-list']//li[contains(., 'E2E Test Hike')]//button[contains(@onclick, \"startHiking('%s')\")]", joinCode)
-	assert.True(t, isElementVisible(t, participantPage, rsvpSelector, 5*time.Second), "Start Hiking button for RSVPed hike")
-	participantPage.MustElementX(rsvpSelector).MustClick()
+	// More robust selector for the "Start Hiking" button:
+	hikeNameForSelector := "E2E Test Hike"
+	// Find the list item that contains an h3 with the hike name, and also the specific organization
+	liBaseSelector := fmt.Sprintf("//ul[@id='rsvped-hikes-list']//li[.//h3[normalize-space(text())='%s'] and .//p[contains(normalize-space(.), 'E2E Test Organization')]]", hikeNameForSelector)
+	startHikingButtonSelector := liBaseSelector + "//button[normalize-space(text())='Start Hiking']"
+	assert.True(t, isElementVisible(t, participantPage, startHikingButtonSelector, 10*time.Second), "Start Hiking button for RSVPed hike '"+hikeNameForSelector+"'")
+	participantPage.MustElementX(startHikingButtonSelector).MustClick()
 
 
 	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for participant")
@@ -423,9 +427,16 @@ func TestHikeLifecycle_NoOrganization(t *testing.T) {
 	participantPage.MustElement("#waiver-page button[onclick='joinHike()']").MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#welcome-page", 10*time.Second), "Welcome page after RSVP for NoOrg hike")
-	rsvpSelector := fmt.Sprintf("//ul[@id='rsvped-hikes-list']//li[contains(., 'E2E NoOrg Hike')]//button[contains(@onclick, \"startHiking('%s')\")]", joinCode)
-	assert.True(t, isElementVisible(t, participantPage, rsvpSelector, 5*time.Second), "Start Hiking button for NoOrg RSVPed hike")
-	participantPage.MustElementX(rsvpSelector).MustClick()
+	hikeNameNoOrgForSelector := "E2E NoOrg Hike"
+	// Find the list item that contains an h3 with the hike name. Organization is not checked here.
+	liBaseSelectorNoOrg := fmt.Sprintf("//ul[@id='rsvped-hikes-list']//li[.//h3[normalize-space(text())='%s']]", hikeNameNoOrgForSelector)
+	// Ensure no organization paragraph is present for this item, as an additional check of test setup
+	noOrgListItemElement := participantPage.MustElementX(liBaseSelectorNoOrg)
+	assert.False(t, noOrgListItemElement.MustHas("p:contains('Organization:')"), "NoOrg Hike in RSVPed list should not have an organization paragraph for this specific test.")
+
+	startHikingButtonSelectorNoOrg := liBaseSelectorNoOrg + "//button[normalize-space(text())='Start Hiking']"
+	assert.True(t, isElementVisible(t, participantPage, startHikingButtonSelectorNoOrg, 10*time.Second), "Start Hiking button for NoOrg RSVPed hike '"+hikeNameNoOrgForSelector+"'")
+	participantPage.MustElementX(startHikingButtonSelectorNoOrg).MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for NoOrg participant")
 	// Verify Organization is NOT displayed on hiking page
@@ -473,7 +484,8 @@ func TestOrganizationDisplayOnWelcomePage(t *testing.T) {
 	// Hike with Organization
 	leaderOrgPage := testBrowser.MustPage(baseServerURL).MustWaitLoad()
 	defer leaderOrgPage.MustClose()
-	createHikeE2E(t, leaderOrgPage, "Org Hike Welcome", "E2E Welcome Org", "Dia", "Diamond Head Crater", "LdrWelcomeOrg", "1010101010", 26)
+	// Corrected trailheadFullName to include "(Le'ahi)"
+	createHikeE2E(t, leaderOrgPage, "Org Hike Welcome", "E2E Welcome Org", "Dia", "Diamond Head Crater (Le'ahi)", "LdrWelcomeOrg", "1010101010", 26)
 	// leaderOrgPage is now on the leader console for "Org Hike Welcome"
 	joinURLElementOrg := leaderOrgPage.MustElement("#join-url")
 	joinURLStringOrg, _ := joinURLElementOrg.Attribute("href")
@@ -505,11 +517,17 @@ func TestOrganizationDisplayOnWelcomePage(t *testing.T) {
 	// This is a best-effort for CI. If geolocation fails, nearby hikes might not load as expected.
 	// For more robust E2E, mocking geolocation or ensuring test server returns these hikes regardless of actual geo might be needed.
 	go func() {
-		dialog, err := participantPage.HandleDialog()
-		if err == nil {
-			t.Logf("Dialog '%s' appeared, accepting.", dialog.Message)
-			dialog.MustAccept()
-		}
+		// MustHandleDialog() returns a function to wait for the dialog, and another function to handle it.
+		waitDialog, handleDialogAction := participantPage.MustHandleDialog()
+
+		// This goroutine will block until a dialog appears.
+		dialogEvent := waitDialog() // Call the first function to get the dialog event.
+		t.Logf("Dialog '%s' with type '%s' appeared.", dialogEvent.Message, dialogEvent.Type)
+
+		// Call the second function to handle the dialog (e.g., accept it).
+		// The arguments are (accept bool, promptText string).
+		handleDialogAction(true, "") // true to accept, "" for prompt text if it's a prompt dialog.
+		t.Log("Dialog handled (accepted).")
 	}()
 	participantPage.MustEval(`() => {
 		navigator.permissions.query = navigator.permissions.query || function(descriptor) {
@@ -614,8 +632,10 @@ func createHikeE2E(t *testing.T, page *rod.Page, hikeName, organization, trailhe
 		page.MustElement("#hike-organization").MustInput(organization)
 	}
 	page.MustElement("#hike-trailheadName").MustInput(trailheadQuery)
-	autocompleteSelector := fmt.Sprintf("//div[@class='autocomplete-items']//div[contains(., \"%s\")]", trailheadFullName)
-	assert.True(t, isElementVisible(t, page, autocompleteSelector, 5*time.Second), fmt.Sprintf("Autocomplete item for %s", trailheadFullName))
+	// Using normalize-space(.) to match the full, cleaned-up text content of the div,
+	// which should be robust against internal highlighting tags like <strong>.
+	autocompleteSelector := fmt.Sprintf("//div[@class='autocomplete-items']/div[normalize-space(.)='%s']", trailheadFullName)
+	assert.True(t, isElementVisible(t, page, autocompleteSelector, 7*time.Second), fmt.Sprintf("Autocomplete item for '%s' (query: '%s')", trailheadFullName, trailheadQuery))
 	page.MustElementX(autocompleteSelector).MustClick()
 
 	page.MustElement("#leader-name").MustInput(leaderName)

@@ -287,10 +287,16 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: If join or leader code already exist, generate new codes
+	var orgArg interface{}
+	if hike.Organization == "" {
+		orgArg = nil // This will be inserted as NULL
+	} else {
+		orgArg = hike.Organization
+	}
 	_, err = db.Exec(`
 		INSERT INTO hikes (name, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code, organization)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.Organization)
+	`, hike.Name, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode, orgArg)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

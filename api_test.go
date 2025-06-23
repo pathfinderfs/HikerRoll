@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"database/sql" // Added for sql.NullString
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -960,8 +961,10 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 	// assert.Equal(t, sampleWaiverText, dbWaiverText, "Waiver text should match")
 
 	// Verify signed_at is a valid timestamp (roughly now)
-	signedAt, err := time.Parse("2006-01-02T15:04:05.000000000-07:00", signedAtStr) // Default SQLite datetime format
-	require.NoError(t, err, "Failed to parse signed_at timestamp")
+	// SQLite stores DATETIME as TEXT in UTC (by default with CURRENT_TIMESTAMP) using ISO8601 format.
+	// The 'Z' indicates UTC. time.RFC3339Nano handles this.
+	signedAt, err := time.Parse(time.RFC3339Nano, signedAtStr)
+	require.NoError(t, err, "Failed to parse signed_at timestamp from DB value: "+signedAtStr)
 	assert.WithinDuration(t, time.Now(), signedAt, 5*time.Second, "signed_at should be recent")
 }
 
