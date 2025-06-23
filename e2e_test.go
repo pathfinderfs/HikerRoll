@@ -240,6 +240,16 @@ func TestHikeLifecycle(t *testing.T) {
 	participantPage.MustElement("#participant-phone").MustInput("0987654321")
 	participantPage.MustElement("#participant-licensePlate").MustInput("E2E-PLATE")
 	participantPage.MustElement("#participant-emergencyContact").MustInput("5555555555")
+
+	// Add dialog handler before clicking the button that might cause a hang
+	go func() {
+		waitDialog, handleDialogAction := participantPage.MustHandleDialog()
+		dialogEvent := waitDialog()
+		t.Logf("Org Test: Dialog '%s' with type '%s' appeared during RSVP flow. Accepting.", dialogEvent.Message, dialogEvent.Type)
+		handleDialogAction(true, "") // Accept the dialog
+		t.Log("Org Test: Dialog handled (accepted) during RSVP flow.")
+	}()
+
 	participantPage.MustElement("#join-hike-form button[onclick='showWaiverPage()']").MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#waiver-page", 5*time.Second), "Waiver page")
@@ -421,6 +431,16 @@ func TestHikeLifecycle_NoOrganization(t *testing.T) {
 
 	participantPage.MustElement("#participant-name").MustInput("E2E NoOrg Participant")
 	participantPage.MustElement("#participant-phone").MustInput("2233445566")
+
+	// Add dialog handler before clicking the button that might cause a hang
+	go func() {
+		waitDialog, handleDialogAction := participantPage.MustHandleDialog()
+		dialogEvent := waitDialog()
+		t.Logf("NoOrg Test: Dialog '%s' with type '%s' appeared during RSVP flow. Accepting.", dialogEvent.Message, dialogEvent.Type)
+		handleDialogAction(true, "") // Accept the dialog
+		t.Log("NoOrg Test: Dialog handled (accepted) during RSVP flow.")
+	}()
+
 	participantPage.MustElement("#join-hike-form button[onclick='showWaiverPage()']").MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#waiver-page", 5*time.Second), "Waiver page")

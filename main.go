@@ -117,9 +117,9 @@ type Hike struct {
 	CreatedAt     time.Time `json:"-"` // don't send this field in JSON response
 	StartTime     time.Time `json:"startTime"`
 	Status        string    `json:"Status"`
-	JoinCode      string    `json:"joinCode"`
-	LeaderCode    string    `json:"leaderCode"`
-	Organization  string    `json:"organization"`
+	JoinCode      string         `json:"joinCode"`
+	LeaderCode    string         `json:"leaderCode"`
+	Organization  sql.NullString `json:"organization"`
 }
 
 // Keep in sync with participants table schema
@@ -287,23 +287,54 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: If join or leader code already exist, generate new codes
-	var orgArg interface{}
-	if hike.Organization == "" {
-		orgArg = nil // This will be inserted as NULL
-	} else {
-		orgArg = hike.Organization
+
+	// Adjust hike.Organization: if JSON sent "" (empty string), it unmarshals to Valid=true, String="".
+	// We want empty string to be stored as NULL in DB, so set Valid=false.
+	if hike.Organization.Valid && hike.Organization.String == "" {
+		hike.Organization.Valid = false
 	}
+
 	_, err = db.Exec(`
 		INSERT INTO hikes (name, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code, organization)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode, orgArg)
+	`, hike.Name, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.Organization) // Pass hike.Organization directly
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(hike)
+	// Prepare JSON response with string for organization
+	orgJSONValue := ""
+	if hike.Organization.Valid {
+		orgJSONValue = hike.Organization.String
+	}
+	jsonResponse := struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		// CreatedAt is not sent in JSON response
+		StartTime    time.Time `json:"startTime"`
+		Status       string    `json:"Status"`
+		JoinCode     string    `json:"joinCode"`
+		LeaderCode   string    `json:"leaderCode"`
+		Organization string    `json:"organization"`
+	}{
+		Name:          hike.Name,
+		TrailheadName: hike.TrailheadName,
+		Leader:        hike.Leader,
+		Latitude:      hike.Latitude,
+		Longitude:     hike.Longitude,
+		StartTime:     hike.StartTime,
+		Status:        hike.Status,
+		JoinCode:      hike.JoinCode,
+		LeaderCode:    hike.LeaderCode,
+		Organization:  orgJSONValue,
+	}
+
+	json.NewEncoder(w).Encode(jsonResponse)
 	logAction(fmt.Sprintf("Hike created: %s by %s, starting at %s", hike.Name, hike.Leader.Name, hike.StartTime.Format(time.RFC3339)))
 }
 
@@ -334,7 +365,34 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(hike)
+	// Prepare JSON response
+	orgJSONValue := ""
+	if hike.Organization.Valid {
+		orgJSONValue = hike.Organization.String
+	}
+	jsonResponse := struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		// LeaderCode is not sent here for security
+		Organization string `json:"organization"`
+		// Status is also part of the Hike struct but not explicitly in SELECT for getHikeHandler,
+		// it's implicitly 'open' due to WHERE clause. If needed, add to SELECT and struct.
+	}{
+		Name:          hike.Name,
+		TrailheadName: hike.TrailheadName,
+		Leader:        hike.Leader,
+		Latitude:      hike.Latitude,
+		Longitude:     hike.Longitude,
+		StartTime:     hike.StartTime,
+		JoinCode:      hike.JoinCode,
+		Organization:  orgJSONValue,
+	}
+	json.NewEncoder(w).Encode(jsonResponse)
 }
 
 // End a hike and mark all participants as finished
@@ -463,7 +521,34 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 	}
 
 	logAction(fmt.Sprintf("Participant RSVPd to hike: %s (Hike Join Code: %s), Waiver Signed", request.User.Name, hike.JoinCode)) // Updated log message
-	json.NewEncoder(w).Encode(hike)
+
+	// Prepare JSON response (similar to getHikeHandler)
+	orgJSONValue := ""
+	if hike.Organization.Valid { // hike here is the one fetched from DB, with Organization as sql.NullString
+		orgJSONValue = hike.Organization.String
+	}
+	jsonResponse := struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"`
+		Status        string    `json:"Status"` // Include status as it's part of the fetched hike
+	}{
+		Name:          hike.Name,
+		TrailheadName: hike.TrailheadName,
+		Leader:        hike.Leader,
+		Latitude:      hike.Latitude,
+		Longitude:     hike.Longitude,
+		StartTime:     hike.StartTime,
+		JoinCode:      hike.JoinCode,
+		Organization:  orgJSONValue,
+		Status:        hike.Status,
+	}
+	json.NewEncoder(w).Encode(jsonResponse)
 }
 
 // startHikingHandler allows a user to change their status from 'rsvp' to 'active'
@@ -727,7 +812,7 @@ func getNearbyHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 	var hikes []Hike
 	for rows.Next() {
-		var h Hike
+		var h Hike // h.Organization is sql.NullString
 		err := rows.Scan(&h.JoinCode, &h.Name, &h.Leader.Name, &h.Leader.Phone, &h.Latitude, &h.Longitude, &h.StartTime, &h.Organization)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -736,7 +821,35 @@ func getNearbyHikesHandler(w http.ResponseWriter, r *http.Request) {
 		hikes = append(hikes, h)
 	}
 
-	json.NewEncoder(w).Encode(hikes)
+	// Prepare JSON response
+	type NearbyHikeResponse struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"` // Note: TrailheadName is not in current SELECT, add if needed
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"`
+	}
+	responseHikes := make([]NearbyHikeResponse, 0, len(hikes))
+	for _, h := range hikes {
+		orgJSONValue := ""
+		if h.Organization.Valid {
+			orgJSONValue = h.Organization.String
+		}
+		responseHikes = append(responseHikes, NearbyHikeResponse{
+			Name:          h.Name,
+			// TrailheadName: h.TrailheadName, // Add to SELECT if this field is desired
+			Leader:        h.Leader, // Assumes h.Leader is populated correctly
+			Latitude:      h.Latitude,
+			Longitude:     h.Longitude,
+			StartTime:     h.StartTime,
+			JoinCode:      h.JoinCode,
+			Organization:  orgJSONValue,
+		})
+	}
+	json.NewEncoder(w).Encode(responseHikes)
 }
 
 // Given a query string, return a list of trailhead suggestions
@@ -821,7 +934,7 @@ func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
 		// We need to scan into h.Leader.Name and h.Leader.Phone separately
 		// as h.Leader is a struct.
 		err := rows.Scan(
-			&h.Name, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode, &h.Organization,
+			&h.Name, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode, &h.Organization, // h.Organization is sql.NullString
 			&h.Leader.Name, &h.Leader.Phone,
 		)
 		if err != nil {
@@ -839,6 +952,35 @@ func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Prepare JSON response
+	type UserHikeResponse struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"`
+		Leader        User      `json:"leader"`
+	}
+	responseHikes := make([]UserHikeResponse, 0, len(hikes))
+	for _, h := range hikes {
+		orgJSONValue := ""
+		if h.Organization.Valid {
+			orgJSONValue = h.Organization.String
+		}
+		responseHikes = append(responseHikes, UserHikeResponse{
+			Name:          h.Name,
+			TrailheadName: h.TrailheadName,
+			Latitude:      h.Latitude,
+			Longitude:     h.Longitude,
+			StartTime:     h.StartTime,
+			JoinCode:      h.JoinCode,
+			Organization:  orgJSONValue,
+			Leader:        h.Leader,
+		})
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(hikes)
+	json.NewEncoder(w).Encode(responseHikes)
 }

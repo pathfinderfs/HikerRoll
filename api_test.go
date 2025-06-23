@@ -53,8 +53,9 @@ func TestCreateHike(t *testing.T) {
 				Latitude:      40.7128,
 				Longitude:     -74.0060,
 				StartTime:     time.Now().Add(24 * time.Hour),
-				Organization:  tc.organization,
+				Organization:  sql.NullString{String: tc.organization, Valid: tc.organization != ""}, // Correctly init sql.NullString
 			}
+			// Marshal the main.Hike struct for the request. JSON marshaller handles sql.NullString.
 			body, _ := json.Marshal(hike)
 			req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
@@ -65,7 +66,19 @@ func TestCreateHike(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, rr.Code, "Response code should be OK")
 
-			var response Hike
+			// Define a struct that matches the JSON response from createHikeHandler
+			var response struct {
+				Name          string    `json:"name"`
+				TrailheadName string    `json:"trailheadName"`
+				Leader        User      `json:"leader"`
+				Latitude      float64   `json:"latitude"`
+				Longitude     float64   `json:"longitude"`
+				StartTime     time.Time `json:"startTime"`
+				Status        string    `json:"Status"`
+				JoinCode      string    `json:"joinCode"`
+				LeaderCode    string    `json:"leaderCode"`
+				Organization  string    `json:"organization"` // Expecting string from JSON
+			}
 			err := json.Unmarshal(rr.Body.Bytes(), &response)
 			require.NoError(t, err, "Should unmarshal response successfully")
 
@@ -74,7 +87,7 @@ func TestCreateHike(t *testing.T) {
 			assert.Equal(t, hike.Name, response.Name, "Name should match")
 			assert.Equal(t, hike.Leader.Name, response.Leader.Name, "Leader name should match")
 			assert.Equal(t, hike.TrailheadName, response.TrailheadName, "TrailheadName should match")
-			assert.Equal(t, tc.expectOrganization, response.Organization, "Organization should match")
+			assert.Equal(t, tc.expectOrganization, response.Organization, "Organization in JSON response should match expected string")
 
 			// Verify in DB
 			var dbOrganization sql.NullString
@@ -114,11 +127,22 @@ func TestRSVPToHike_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code, "RSVP request failed: %s", rr.Body.String())
 
-	var responseHikeData Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &responseHikeData)
+	var jsonResp struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"`
+		Status        string    `json:"Status"`
+	}
+	err := json.Unmarshal(rr.Body.Bytes(), &jsonResp)
 	require.NoError(t, err, "Failed to unmarshal response from RSVP")
-	// Basic check on returned hike data, more detailed checks can be elsewhere
-	assert.Equal(t, hike.Name, responseHikeData.Name)
+	// Basic check on returned hike data
+	assert.Equal(t, hike.Name, jsonResp.Name) // hike is main.Hike from createTestHike
+	// If tc.expectOrganization were available here, we'd check jsonResp.Organization
 
 	// Verify participant status is 'rsvp' in hike_users table
 	var participantStatus string
@@ -422,7 +446,17 @@ func TestGetUserHikes_StatusRSVP(t *testing.T) {
 	mux.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var hikes []Hike
+	// Define a struct slice that matches the JSON response from getUserHikesByStatusHandler
+	var hikes []struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"` // Expecting string
+		Leader        User      `json:"leader"`
+	}
 	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
 	require.NoError(t, err)
 	assert.Len(t, hikes, 2, "Should return 2 hikes the user RSVPd to")
@@ -470,7 +504,17 @@ func TestGetUserHikes_StatusActive(t *testing.T) {
 	mux.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var hikes []Hike
+	// Define a struct slice that matches the JSON response from getUserHikesByStatusHandler
+	var hikes []struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"` // Expecting string
+		Leader        User      `json:"leader"`
+	}
 	err = json.Unmarshal(rr.Body.Bytes(), &hikes)
 	require.NoError(t, err)
 	// Only open hikes should be returned
@@ -478,7 +522,7 @@ func TestGetUserHikes_StatusActive(t *testing.T) {
 	if len(hikes) == 1 {
 		assert.Equal(t, hike1.JoinCode, hikes[0].JoinCode)
 		assert.Equal(t, hike1Leader.Name, hikes[0].Leader.Name)
-		assert.Equal(t, "Active Org", hikes[0].Organization)
+		assert.Equal(t, "Active Org", hikes[0].Organization) // This assertion is now string vs string
 	}
 }
 
@@ -500,7 +544,17 @@ func TestGetUserHikes_UserNotFoundOrNoHikes(t *testing.T) {
 	mux.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var hikes []Hike
+	// Define a struct slice that matches the JSON response from getUserHikesByStatusHandler
+	var hikes []struct { // Using the same struct as above, or a more minimal one if fields differ
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"`
+		Leader        User      `json:"leader"`
+	}
 	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
 	require.NoError(t, err)
 	assert.Empty(t, hikes, "Should return an empty list for a user with no RSVPd hikes")
@@ -510,6 +564,7 @@ func TestGetUserHikes_UserNotFoundOrNoHikes(t *testing.T) {
 	rrNotFound := httptest.NewRecorder()
 	mux.ServeHTTP(rrNotFound, reqNotFound)
 	assert.Equal(t, http.StatusOK, rrNotFound.Code)
+	// hikes var already declared with the correct struct type
 	err = json.Unmarshal(rrNotFound.Body.Bytes(), &hikes)
 	require.NoError(t, err)
 	assert.Empty(t, hikes, "Should return an empty list for a non-existent user")
@@ -686,7 +741,17 @@ func TestNearbyHikes(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Response code should be OK. Body: %s", rr.Body.String())
 
-	var responseHikes []Hike
+	// Define a struct slice that matches the JSON response from getNearbyHikesHandler
+	var responseHikes []struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"` // Expecting string from JSON
+	}
 	err = json.Unmarshal(rr.Body.Bytes(), &responseHikes)
 	require.NoError(t, err, "Should unmarshal response successfully")
 
@@ -698,11 +763,11 @@ func TestNearbyHikes(t *testing.T) {
 	for _, h := range responseHikes {
 		if h.Name == "Nearby Hike With Org" {
 			foundWithOrg = true
-			assert.Equal(t, "Nearby Org Yes", h.Organization, "Organization should match for hike with org")
+			assert.Equal(t, "Nearby Org Yes", h.Organization, "Organization in JSON response should match for hike with org")
 		}
 		if h.Name == "Nearby Hike No Org" {
 			foundWithoutOrg = true
-			assert.Equal(t, "", h.Organization, "Organization should be empty for hike without org")
+			assert.Equal(t, "", h.Organization, "Organization in JSON response should be empty for hike without org")
 		}
 	}
 
@@ -824,14 +889,24 @@ func TestGetHikeByCode(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, rr.Code, "Response code should be OK. Body: %s", rr.Body.String())
 
-			var responseHike Hike
+			// Define a struct that matches the JSON response from getHikeHandler
+			var responseHike struct {
+				Name          string    `json:"name"`
+				TrailheadName string    `json:"trailheadName"`
+				Leader        User      `json:"leader"`
+				Latitude      float64   `json:"latitude"`
+				Longitude     float64   `json:"longitude"`
+				StartTime     time.Time `json:"startTime"`
+				JoinCode      string    `json:"joinCode"`
+				Organization  string    `json:"organization"` // Expecting string from JSON
+			}
 			err = json.Unmarshal(rr.Body.Bytes(), &responseHike)
 			require.NoError(t, err, "Should unmarshal response successfully")
 
 			assert.Equal(t, createdHike.Name, responseHike.Name, "Name should match")
 			assert.Equal(t, createdHike.JoinCode, responseHike.JoinCode, "JoinCode should match")
 			assert.Equal(t, createdHike.TrailheadName, responseHike.TrailheadName, "TrailheadName should match")
-			assert.Equal(t, tc.expectOrganization, responseHike.Organization, "Organization should match")
+			assert.Equal(t, tc.expectOrganization, responseHike.Organization, "Organization in JSON response should match expected string")
 			if strings.Contains(tc.name, "Leader Code") {
 				// When fetching with leader code, the leader code itself is not returned in the Hike struct in the response.
 				// The check is that we *used* the leader code to fetch and got the correct hike.
@@ -1018,10 +1093,19 @@ func TestUpdateParticipantStatus(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-func createTestHike(t *testing.T) Hike {
-	hike := Hike{
+func createTestHike(t *testing.T) Hike { // Returns main.Hike
+	// Data for the request body
+	requestBody := struct {
+		Name          string    `json:"name"`
+		Leader        User      `json:"leader"`
+		TrailheadName string    `json:"trailheadName"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		Organization  string    `json:"organization"`
+	}{
 		Name: "Test Hike",
-		Leader: User{ // Default leader if none provided
+		Leader: User{
 			UUID:  "test-uuid-default",
 			Name:  "John Doe",
 			Phone: "1234567890",
@@ -1030,9 +1114,9 @@ func createTestHike(t *testing.T) Hike {
 		Latitude:      40.7128,
 		Longitude:     -74.0060,
 		StartTime:     time.Now(),
-		Organization:  "Default Org", // Add a default org for the basic helper
+		Organization:  "Default Org", // Client sends string
 	}
-	body, _ := json.Marshal(hike)
+	body, _ := json.Marshal(requestBody)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -1042,25 +1126,72 @@ func createTestHike(t *testing.T) Hike {
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Failed to create test hike. Body: %s", rr.Body.String())
 
-	var response Hike
-	json.Unmarshal(rr.Body.Bytes(), &response)
-	return response
+	// Unmarshal to the specific JSON response struct of createHikeHandler
+	var jsonResp struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		Status        string    `json:"Status"`
+		JoinCode      string    `json:"joinCode"`
+		LeaderCode    string    `json:"leaderCode"`
+		Organization  string    `json:"organization"`
+	}
+	err := json.Unmarshal(rr.Body.Bytes(), &jsonResp)
+	require.NoError(t, err, "Failed to unmarshal createTestHike response")
+
+	// Construct and return a main.Hike based on the response
+	return Hike{
+		Name:          jsonResp.Name,
+		TrailheadName: jsonResp.TrailheadName,
+		Leader:        jsonResp.Leader,
+		Latitude:      jsonResp.Latitude,
+		Longitude:     jsonResp.Longitude,
+		StartTime:     jsonResp.StartTime,
+		Status:        jsonResp.Status,
+		JoinCode:      jsonResp.JoinCode,
+		LeaderCode:    jsonResp.LeaderCode,
+		Organization:  sql.NullString{String: jsonResp.Organization, Valid: jsonResp.Organization != ""},
+	}
 }
 
 // createTestHikeWithOptions allows specifying the leader
-func createTestHikeWithOptions(t *testing.T, leader User) Hike {
-	return createTestHikeWithOptionsAndOrg(t, leader, "Default Test Org for Options")
+func createTestHikeWithOptions(t *testing.T, leader User) Hike { // Returns main.Hike
+	return createTestHikeWithOptionsAndOrg(t, leader, "Default Test Org for Options") // organizationValue is string
 }
 
-// createTestHikeFromDefinition is a helper to create a hike from a full Hike struct
-func createTestHikeFromDefinition(t *testing.T, hikeDefinition Hike) Hike {
-	// Ensure leader UUID is set if not provided, to prevent DB constraint errors if multiple test users have empty UUIDs
+// createTestHikeFromDefinition is a helper to create a hike from a full Hike struct (main.Hike with sql.NullString)
+func createTestHikeFromDefinition(t *testing.T, hikeDefinition Hike /* main.Hike */) Hike { // Returns main.Hike
 	if hikeDefinition.Leader.UUID == "" {
 		hikeDefinition.Leader.UUID = "leader-" + strings.ToLower(strings.ReplaceAll(hikeDefinition.Name, " ", "-"))
 	}
 
+	// For the request body, Organization needs to be a string.
+	orgStr := ""
+	if hikeDefinition.Organization.Valid {
+		orgStr = hikeDefinition.Organization.String
+	}
+	requestBodyHike := struct {
+		Name          string    `json:"name"`
+		Leader        User      `json:"leader"`
+		TrailheadName string    `json:"trailheadName"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		Organization  string    `json:"organization"`
+	}{
+		Name:          hikeDefinition.Name,
+		Leader:        hikeDefinition.Leader,
+		TrailheadName: hikeDefinition.TrailheadName,
+		Latitude:      hikeDefinition.Latitude,
+		Longitude:     hikeDefinition.Longitude,
+		StartTime:     hikeDefinition.StartTime,
+		Organization:  orgStr,
+	}
 
-	body, err := json.Marshal(hikeDefinition)
+	body, err := json.Marshal(requestBodyHike)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -1080,18 +1211,26 @@ func createTestHikeFromDefinition(t *testing.T, hikeDefinition Hike) Hike {
 }
 
 
-// createTestHikeWithOptionsAndOrg allows specifying the leader and organization
-func createTestHikeWithOptionsAndOrg(t *testing.T, leader User, organization string) Hike {
-	hike := Hike{
+// createTestHikeWithOptionsAndOrg allows specifying the leader and organization string
+func createTestHikeWithOptionsAndOrg(t *testing.T, leader User, organizationValue string) Hike { // Returns main.Hike
+	requestBody := struct {
+		Name          string    `json:"name"`
+		Leader        User      `json:"leader"`
+		TrailheadName string    `json:"trailheadName"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		Organization  string    `json:"organization"`
+	}{
 		Name:          "Test Hike for " + leader.UUID,
 		Leader:        leader,
 		TrailheadName: "Test Trailhead for " + leader.UUID,
 		Latitude:      40.7128,
 		Longitude:     -74.0060,
 		StartTime:     time.Now(),
-		Organization:  organization,
+		Organization:  organizationValue, // Use the passed string
 	}
-	body, err := json.Marshal(hike)
+	body, err := json.Marshal(requestBody)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -1104,13 +1243,36 @@ func createTestHikeWithOptionsAndOrg(t *testing.T, leader User, organization str
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Failed to create test hike with options. Body: %s", rr.Body.String())
 
-	var response Hike
-	err = json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err, "Failed to unmarshal createTestHikeWithOptions response")
-	return response
+	var jsonResp struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		Status        string    `json:"Status"`
+		JoinCode      string    `json:"joinCode"`
+		LeaderCode    string    `json:"leaderCode"`
+		Organization  string    `json:"organization"`
+	}
+	err = json.Unmarshal(rr.Body.Bytes(), &jsonResp)
+	require.NoError(t, err, "Failed to unmarshal createTestHikeWithOptionsAndOrg response")
+
+	return Hike{ // main.Hike
+		Name:          jsonResp.Name,
+		TrailheadName: jsonResp.TrailheadName,
+		Leader:        jsonResp.Leader,
+		Latitude:      jsonResp.Latitude,
+		Longitude:     jsonResp.Longitude,
+		StartTime:     jsonResp.StartTime,
+		Status:        jsonResp.Status,
+		JoinCode:      jsonResp.JoinCode,
+		LeaderCode:    jsonResp.LeaderCode,
+		Organization:  sql.NullString{String: jsonResp.Organization, Valid: jsonResp.Organization != ""},
+	}
 }
 
-func joinTestHike(t *testing.T, hike Hike) Participant {
+func joinTestHike(t *testing.T, hike Hike) Participant { // hike is main.Hike
 	// Default participant for generic join tests
 	defaultParticipantUser := User{
 		UUID:             "participant-uuid-defaultjoin",
@@ -1141,12 +1303,37 @@ func joinTestHikeWithOptions(t *testing.T, hike Hike, user User) Participant {
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Failed to join test hike. Body: %s", rr.Body.String())
 
-	var responseHikeData Hike // This is the hike data returned by joinHikeHandler
-	err = json.Unmarshal(rr.Body.Bytes(), &responseHikeData)
+	var jsonResp struct {
+		Name          string    `json:"name"`
+		TrailheadName string    `json:"trailheadName"`
+		Leader        User      `json:"leader"`
+		Latitude      float64   `json:"latitude"`
+		Longitude     float64   `json:"longitude"`
+		StartTime     time.Time `json:"startTime"`
+		JoinCode      string    `json:"joinCode"`
+		Organization  string    `json:"organization"`
+		Status        string    `json:"Status"`
+	}
+	err = json.Unmarshal(rr.Body.Bytes(), &jsonResp)
 	require.NoError(t, err, "Failed to unmarshal joinTestHike response")
 
+	// Construct main.Hike for the Participant struct
+	participantHike := Hike{
+		Name:          jsonResp.Name,
+		TrailheadName: jsonResp.TrailheadName,
+		Leader:        jsonResp.Leader,
+		Latitude:      jsonResp.Latitude,
+		Longitude:     jsonResp.Longitude,
+		StartTime:     jsonResp.StartTime,
+		JoinCode:      jsonResp.JoinCode,
+		Organization:  sql.NullString{String: jsonResp.Organization, Valid: jsonResp.Organization != ""},
+		Status:        jsonResp.Status,
+		// LeaderCode is not part of this response, so it will be empty.
+		// CreatedAt is also not part of this response.
+	}
+
 	return Participant{
-		Hike: responseHikeData, // Use the returned hike data
-		User: user,             // Use the input user data
+		Hike: participantHike,
+		User: user, // Use the input user data
 	}
 }
