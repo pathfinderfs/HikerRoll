@@ -23,7 +23,8 @@ func setupTestMux() *http.ServeMux {
 
 func TestCreateHike(t *testing.T) {
 	hike := Hike{
-		Name: "Test Hike",
+		Name:         "Test Hike",
+		Organization: "Test Organization",
 		Leader: User{
 			Name:  "John Doe",
 			Phone: "1234567890",
@@ -48,6 +49,7 @@ func TestCreateHike(t *testing.T) {
 	assert.NotEmpty(t, response.JoinCode)
 	assert.NotEmpty(t, response.LeaderCode)
 	assert.Equal(t, hike.Name, response.Name)
+	assert.Equal(t, hike.Organization, response.Organization)
 	assert.Equal(t, hike.Leader.Name, response.Leader.Name)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
 }
@@ -840,7 +842,8 @@ func TestUpdateParticipantStatus(t *testing.T) {
 
 func createTestHike(t *testing.T) Hike {
 	hike := Hike{
-		Name: "Test Hike",
+		Name:         "Test Hike",
+		Organization: "Test Organization",
 		Leader: User{ // Default leader if none provided
 			UUID:  "test-uuid-default",
 			Name:  "John Doe",

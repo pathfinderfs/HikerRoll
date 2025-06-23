@@ -293,6 +293,7 @@
             <h1>Create Hike</h1>
             <form id="create-hike-form">
                 <input type="text" id="hike-name" placeholder="Hike Name (e.g., Sunset Hike)" required>
+                <input type="text" id="hike-organization" placeholder="Organization">
                 <div class="autocomplete">
                     <input type="text" id="hike-trailheadName" placeholder="Trailhead Name (Type to search)" required>
                 </div>
@@ -310,6 +311,7 @@
 
         <div id="join-hike-page" style="display:none;">
             <h1>RSVP to Hike: <span id="join-hike-name"></span></h1>
+            <p>Organization: <span id="join-hike-organization"></span></p>
             <p>Trailhead: <span id="join-trailhead-name"></span></p>
             <p>Start Time: <span id="join-hike-start-time"></span></p>
             <p>Please fill out the following to RSVP for this hike.</p>
@@ -335,6 +337,7 @@
         <div id="hike-leader-page" style="display:none;">
             <h1>Coordinator Console</h1>
             <p>Hike Name: <span id="hike-name-display"></span></p>
+            <p>Organization: <span id="hike-organization-display"></span></p>
             <p>Trailhead: <span id="trailhead-name-display"></span></p>
             <p>Join Hike Link: <a id="join-url" onclick="copyToClipboard(event)">Press to copy</a></p>
             <p>Hike Coordinator Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
@@ -369,6 +372,7 @@
 
         <div id="hiking-page" style="display:none;">
             <h1>Hiking: <span id="current-hike-name"></span></h1>
+            <p>Organization: <span id="current-hike-organization"></span></p>
             <p>Trailhead: <a id="current-trailhead-name" href="" target="_blank"></a></p>
             <p>Leader Name: <span id="leader-name-2"></span></p>
             <p>Leader Phone: <a id="leader-phone-link" href=""></a></p>
@@ -400,6 +404,7 @@
         function emptyHike() {
             return {
                 name: '',
+                organization: '',
                 trailheadName: '',
                 joinCode: '',
                 leader: currentUser,
@@ -496,6 +501,7 @@
                                 li.className = 'hike-item';
                                 li.innerHTML = `
                                     <h3>${hike.name}</h3>
+                                    <p>Organization: ${hike.organization}</p>
                                     <p>Trailhead: ${hike.trailheadName}</p>
                                     <p>Leader: ${hike.leader.name}</p>
                                     <p>Phone: ${formatPhoneNumber(hike.leader.phone)}</p>
@@ -526,6 +532,7 @@
                     currentHike = hike;
                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
                     document.getElementById('join-hike-name').textContent = currentHike.name;
+                    document.getElementById('join-hike-organization').textContent = currentHike.organization;
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
                     document.getElementById('join-hike-start-time').textContent = new Date(currentHike.startTime).toLocaleString();
                     showPage('join-hike-page');
@@ -545,6 +552,7 @@
 
             // Clear form fields for new hike
             document.getElementById('hike-name').value = '';
+            document.getElementById('hike-organization').value = '';
             document.getElementById('hike-trailheadName').value = '';
             currentHike.name = ''; // Clear hike name in state
             currentHike.trailheadName = ''; // Clear trailhead name in state
@@ -603,6 +611,7 @@
 
         function showHikeLeaderPage() {
             document.getElementById('hike-name-display').textContent = currentHike.name;
+            document.getElementById('hike-organization-display').textContent = currentHike.organization;
             document.getElementById('trailhead-name-display').textContent = currentHike.trailheadName;
             document.getElementById('participant-toggle').checked = showAllParticipants;
             document.getElementById('join-url').href = generateLink('code', currentHike.joinCode);
@@ -820,6 +829,7 @@
                         li.className = 'hike-item';
                         li.innerHTML = `
                             <h3>${hike.name}</h3>
+                            <p>Organization: ${hike.organization}</p>
                             <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
                             <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
                             <button onclick="startHiking('${hike.joinCode}')">Start Hiking</button>

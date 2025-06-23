@@ -169,6 +169,7 @@ func TestHikeLifecycle(t *testing.T) {
 
 	assert.True(t, isElementVisible(t, leaderPage, "#create-hike-page", 5*time.Second), "Create hike page")
 	leaderPage.MustElement("#hike-name").MustInput("E2E Test Hike")
+	leaderPage.MustElement("#hike-organization").MustInput("E2E Test Organization")
 	leaderPage.MustElement("#hike-trailheadName").MustInput("Ka")
 	assert.True(t, isElementVisible(t, leaderPage, ".autocomplete-items", 3*time.Second), "Autocomplete items container")
 

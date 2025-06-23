@@ -114,6 +114,7 @@ type User struct {
 // Keep in sync with hikes table schema
 type Hike struct {
 	Name          string    `json:"name"` // Custom name for the hike event
+	Organization  string    `json:"organization"`
 	TrailheadName string    `json:"trailheadName"`
 	Leader        User      `json:"leader"`
 	Latitude      float64   `json:"latitude"`
@@ -163,7 +164,8 @@ func initDB(databaseName string) {
 		);
 
 		CREATE TABLE IF NOT EXISTS hikes (
-			name TEXT,
+			name TEXT NOT NULL,
+            organization TEXT,
 			trailhead_name TEXT,
 			leader_uuid TEXT,
 			latitude REAL,
@@ -290,9 +292,9 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: If join or leader code already exist, generate new codes
 	_, err = db.Exec(`
-		INSERT INTO hikes (name, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode)
+		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -311,15 +313,15 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	var hike Hike
 	var err error
 	if leaderCode != "" {
-		err = db.QueryRow(`SELECT h.name, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
 	} else {
-		err = db.QueryRow(`SELECT h.name, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 						   WHERE h.join_code = ? AND h.status = "open"
-		`, joinCode).Scan(&hike.Name, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -376,10 +378,10 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 
 	// Check if the hike exists and is open
 	var hike Hike
-	err = db.QueryRow(`SELECT h.status, h.name, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+	err = db.QueryRow(`SELECT h.status, h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
 					   FROM hikes AS h JOIN users AS u ON leader_uuid = uuid
 					   WHERE h.join_code = ?
-					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -707,7 +709,7 @@ func getNearbyHikesHandler(w http.ResponseWriter, r *http.Request) {
 	//	lonRange = .25 / (69 * math.Cos(latitude*(math.Pi/180)))
 
 	rows, err := db.Query(`
-		SELECT h.join_code, h.name, u.name, u.phone, h.latitude, h.longitude, h.start_time
+		SELECT h.join_code, h.name, h.organization, u.name, u.phone, h.latitude, h.longitude, h.start_time
 		FROM hikes AS h JOIN users AS u ON leader_uuid = uuid
 		WHERE h.latitude - ? <= 0.003623
 		AND h.longitude - ? <= 0.003896
@@ -724,7 +726,7 @@ func getNearbyHikesHandler(w http.ResponseWriter, r *http.Request) {
 	var hikes []Hike
 	for rows.Next() {
 		var h Hike
-		err := rows.Scan(&h.JoinCode, &h.Name, &h.Leader.Name, &h.Leader.Phone, &h.Latitude, &h.Longitude, &h.StartTime)
+		err := rows.Scan(&h.JoinCode, &h.Name, &h.Organization, &h.Leader.Name, &h.Leader.Phone, &h.Latitude, &h.Longitude, &h.StartTime)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -795,7 +797,7 @@ func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := `
-		SELECT h.name, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code,
+		SELECT h.name, h.organization, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code,
 		       l.name AS leader_name, l.phone AS leader_phone
 		FROM hikes AS h
 		JOIN hike_users AS hu ON h.join_code = hu.hike_join_code
@@ -817,7 +819,7 @@ func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
 		// We need to scan into h.Leader.Name and h.Leader.Phone separately
 		// as h.Leader is a struct.
 		err := rows.Scan(
-			&h.Name, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode,
+			&h.Name, &h.Organization, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode,
 			&h.Leader.Name, &h.Leader.Phone,
 		)
 		if err != nil {
