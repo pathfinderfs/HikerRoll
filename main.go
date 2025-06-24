@@ -17,7 +17,6 @@ import (
 
 // Keep in sync with trailheads table schema
 type Trailhead struct {
-	ID        int64   `json:"id"`
 	Name      string  `json:"name"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
@@ -137,27 +136,19 @@ type Participant struct {
 
 var db *sql.DB
 
-// Database initialization should be in its own function so that it can be called from tests rather than in init()
-func initDB(databaseName string) {
-	var err error
-	db, err = sql.Open("sqlite3", databaseName)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func createTables() {
 	// Create tables if they don't exist
 	// Note to self: Foreign key declarations must be at the end of the table creation statement
-	_, err = db.Exec(`
+	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS trailheads (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT,
-			latitude REAL,
-			longitude REAL
+			name TEXT PRIMARY KEY,
+			latitude REAL NOT NULL,
+			longitude REAL NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS users (
 			uuid TEXT PRIMARY KEY,
-			name TEXT,
+			name TEXT NOT NULL,
 			phone TEXT,
 			license_plate TEXT,
 			emergency_contact TEXT
@@ -167,11 +158,11 @@ func initDB(databaseName string) {
 			name TEXT NOT NULL,
             organization TEXT,
 			trailhead_name TEXT,
-			leader_uuid TEXT,
+			leader_uuid TEXT NOT NULL,
 			latitude REAL,
 			longitude REAL,
-			created_at DATETIME,
-			start_time DATETIME,
+			created_at DATETIME NOT NULL,
+			start_time DATETIME NOT NULL,
 			status TEXT DEFAULT 'open',
 			join_code TEXT PRIMARY KEY,
 			leader_code TEXT UNIQUE,
@@ -179,11 +170,12 @@ func initDB(databaseName string) {
 		);
 
 		CREATE TABLE IF NOT EXISTS hike_users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hike_join_code TEXT,
 			user_uuid TEXT,
 			status TEXT DEFAULT 'active',
 			joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (hike_join_code, user_uuid),
+            UNIQUE (hike_join_code, user_uuid),
 			FOREIGN KEY (hike_join_code) REFERENCES hikes(join_code),
 			FOREIGN KEY (user_uuid) REFERENCES users(uuid)
 		);
@@ -193,9 +185,9 @@ func initDB(databaseName string) {
 			user_uuid TEXT,
 			hike_join_code TEXT,
 			signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			user_agent TEXT,
-			ip_address TEXT,
-			waiver_text TEXT,
+			user_agent TEXT NOT NULL,
+			ip_address TEXT NOT NULL,
+			waiver_text TEXT NOT NULL,
 			FOREIGN KEY (user_uuid) REFERENCES users(uuid),
 			FOREIGN KEY (hike_join_code) REFERENCES hikes(join_code)
 		);
@@ -203,10 +195,12 @@ func initDB(databaseName string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
 
-	// Populate trailheads table if empty
+func populateTrailheads() {
+	// Load trailheads if they haven't been loaded yet
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM trailheads").Scan(&count)
+	err := db.QueryRow("SELECT COUNT(*) FROM trailheads").Scan(&count)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -221,20 +215,31 @@ func initDB(databaseName string) {
 	}
 }
 
+// Database initialization should be in its own function so that it can be called from tests rather than in init()
+func initDB(databaseName string) {
+	var err error
+	db, err = sql.Open("sqlite3", databaseName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	createTables()
+	populateTrailheads()
+}
+
 // Add routes to ServeMux (sparate function so it can be used in testing)
 func addRoutes(mux *http.ServeMux) {
 	// You must define most specific routes first
 	mux.HandleFunc("PUT /api/hike/{hikeId}/participant/{participantId}", updateParticipantStatusHandler)
-	mux.HandleFunc("POST /api/hike/{hikeId}/rsvp", rsvpToHikeHandler)                          // Renamed route
-	mux.HandleFunc("POST /api/hike/{hikeId}/participant/{userUUID}/start", startHikingHandler) // New route
-	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{userUUID}/rsvp", unRSVPHandler)     // New route
+	mux.HandleFunc("POST /api/hike/{hikeId}/rsvp", rsvpToHikeHandler) // pass in User
+	mux.HandleFunc("POST /api/hike/{hikeId}/participant/{userUUID}/start", startHikingHandler)
+	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{userUUID}/rsvp", unRSVPHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike", getNearbyHikesHandler)
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
-	mux.HandleFunc("GET /api/userhikes/{userUUID}", getUserHikesByStatusHandler) // New route
+	mux.HandleFunc("GET /api/userhikes/{userUUID}", getUserHikesByStatusHandler)
 }
 
 func main() {
@@ -351,6 +356,7 @@ func endHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Force all participants to finished (do we want this?)
 	_, err = db.Exec(`UPDATE hike_users SET status = 'finished'
 					  WHERE hike_join_code = ? AND (status = 'active' OR status = 'rsvp')
 					 `, hike.JoinCode)
@@ -745,7 +751,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.Query("SELECT id, name, latitude, longitude FROM trailheads WHERE REPLACE(name, '''', '') LIKE ? LIMIT 5", "%"+query+"%")
+	rows, err := db.Query("SELECT name, latitude, longitude FROM trailheads WHERE REPLACE(name, '''', '') LIKE ? LIMIT 5", "%"+query+"%")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -755,7 +761,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	var suggestions []Trailhead
 	for rows.Next() {
 		var th Trailhead
-		if err := rows.Scan(&th.ID, &th.Name, &th.Latitude, &th.Longitude); err != nil {
+		if err := rows.Scan(&th.Name, &th.Latitude, &th.Longitude); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
