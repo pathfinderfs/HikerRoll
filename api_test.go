@@ -195,7 +195,7 @@ func TestRSVPToHike_DuplicateRSVP(t *testing.T) {
 	var waiverCount int
 	err = db.QueryRow("SELECT COUNT(*) FROM waiver_signatures WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, updatedUser.UUID).Scan(&waiverCount)
 	require.NoError(t, err)
-	assert.Equal(t, 2, waiverCount, "Waiver signature should be recorded for each RSVP attempt if not constrained uniquely")
+	assert.Equal(t, 1, waiverCount, "Waiver signature should be recorded for each RSVP attempt if not constrained uniquely")
 }
 
 // Tests for startHikingHandler
@@ -663,7 +663,6 @@ func TestTableCreation(t *testing.T) {
 	defer rows.Close()
 
 	expectedColumns := map[string]string{
-		"id":             "INTEGER",
 		"user_uuid":      "TEXT",
 		"hike_join_code": "TEXT",
 		"signed_at":      "DATETIME",
@@ -695,7 +694,7 @@ func TestTableCreation(t *testing.T) {
 	}
 	require.NoError(t, rows.Err(), "Error iterating over table_info rows")
 	assert.Empty(t, expectedColumns, "Not all expected columns were found")
-	assert.Equal(t, 7, foundColumns, "Should find exactly 7 columns")
+	assert.Equal(t, 6, foundColumns, "Should find exactly 7 columns")
 
 	// Note: Checking foreign keys with PRAGMA foreign_key_list(waiver_signatures) is more complex
 	// and might be overkill for this test, as SQLite's enforcement is the main thing.
@@ -744,7 +743,6 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 
 	// 5. Query waiver_signatures table
 	var (
-		id           int
 		userUUID     string
 		hikeJoinCode string
 		signedAtStr  string // Read as string, then parse if needed
@@ -752,11 +750,11 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 		ipAddress    string
 		dbWaiverText string
 	)
-	query := `SELECT id, user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text
+	query := `SELECT user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text
 	          FROM waiver_signatures
 	          WHERE user_uuid = ? AND hike_join_code = ?`
 	row := db.QueryRow(query, participantUser.UUID, testHike.JoinCode)
-	err = row.Scan(&id, &userUUID, &hikeJoinCode, &signedAtStr, &userAgent, &ipAddress, &dbWaiverText)
+	err = row.Scan(&userUUID, &hikeJoinCode, &signedAtStr, &userAgent, &ipAddress, &dbWaiverText)
 	require.NoError(t, err, "Failed to find waiver signature in DB. \nDB content for waiver_signatures:\n"+dumpTable(t, "waiver_signatures"))
 
 	// 6. Verify data

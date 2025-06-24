@@ -182,13 +182,13 @@ func createTables() {
 		);
 
 		CREATE TABLE IF NOT EXISTS waiver_signatures (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			user_uuid TEXT,
 			hike_join_code TEXT,
 			signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			user_agent TEXT NOT NULL,
 			ip_address TEXT NOT NULL,
 			waiver_text TEXT NOT NULL,
+            PRIMARY KEY (user_uuid, hike_join_code),
 			FOREIGN KEY (user_uuid) REFERENCES users(uuid),
 			FOREIGN KEY (hike_join_code) REFERENCES hikes(join_code)
 		);
@@ -455,7 +455,8 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 
 	// Insert waiver signature
 	_, err = db.Exec(`
-		INSERT INTO waiver_signatures (user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text)
+		INSERT OR REPLACE INTO waiver_signatures
+               (user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, user.UUID, joinCode, time.Now(), userAgent, ipAddress, waiverText)
 
@@ -488,6 +489,7 @@ func startHikingHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: add check that we are not more than an hour before the start hike time.
 	if hikeStatus != "open" {
 		http.Error(w, "Hike is not open. Cannot start hiking.", http.StatusBadRequest)
 		return
@@ -498,7 +500,6 @@ func startHikingHandler(w http.ResponseWriter, r *http.Request) {
 							 SET status = 'active'
 							 WHERE hike_join_code = ? AND user_uuid = ? AND status = 'rsvp'`,
 		joinCode, userUUID)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -639,6 +640,8 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 			  MAX(signed_at) AS most_recent_waiver_date
 			FROM
 			  waiver_signatures
+            WHERE
+              hike_join_code = (SELECT join_code FROM hikes WHERE leader_code =?)
 			GROUP BY
 			  user_uuid
 		  ) AS ws ON hu.user_uuid = ws.user_uuid
@@ -650,7 +653,7 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 			  hikes
 			WHERE
 			  leader_code = ?
-		)`, leaderCode)
+		)`, leaderCode, leaderCode)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
