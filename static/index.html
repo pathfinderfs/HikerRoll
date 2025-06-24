@@ -669,7 +669,6 @@
             currentUser.phone = document.getElementById('participant-phone').value.replace(/\D/g, '');
             currentUser.emergencyContact = document.getElementById('participant-emergencyContact').value.replace(/\D/g, '');
             const rsvpUrl = `/api/hike/${currentHike.joinCode}/rsvp`; // Changed endpoint
-            const rsvpBody = JSON.stringify({ user: currentUser });
             if (!navigator.onLine) {
                 addToRequestQueue(rsvpUrl, 'POST', rsvpBody);
                 alert("You are offline. Your RSVP will be processed when you're back online.");
@@ -677,12 +676,12 @@
                 // For now, just returning to prevent fetch.
                 return;
             }
-            fetch(rsvpUrl, { // Changed variable name
+            fetch(rsvpUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: rsvpBody, // Changed variable name
+                body: JSON.stringify(currentUser)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -737,25 +736,14 @@
         }
 
         function endHike() {
-            const endHikeUrl = `/api/hike/${currentHike.joinCode}`;
-            const endHikeBody = JSON.stringify({
-                leaderCode: currentHike.leaderCode,
-                joinCode: currentHike.joinCode,
-                name: currentHike.name
-            });
+            const endHikeUrl = `/api/hike/${currentHike.joinCode}?leaderCode=${currentHike.leaderCode}`;
             if (!navigator.onLine) {
-                addToRequestQueue(endHikeUrl, 'PUT', endHikeBody);
+                addToRequestQueue(endHikeUrl, 'PUT');
                 alert("You are offline. Your request to end the hike will be processed when you're back online.");
                 // Consider UI feedback here as well
                 return;
             }
-            fetch(endHikeUrl, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: endHikeBody,
-            })
+            fetch(endHikeUrl)
                 .then(response => {
                     if (response.ok) {
                         clearCurrentHike();
@@ -1079,12 +1067,12 @@
                 displayStatus = 'Hiking';
             }
             alert(`
-        Name: ${participant.user.name}
-        Phone: ${formatPhoneNumber(participant.user.phone)}
-        License Plate: ${participant.user.licensePlate || 'N/A'}
-        Emergency Contact: ${formatPhoneNumber(participant.user.emergencyContact) || 'N/A'}
-        Status: ${displayStatus}
-    `);
+                Name: ${participant.user.name}
+                Phone: ${formatPhoneNumber(participant.user.phone)}
+                License Plate: ${participant.user.licensePlate || 'N/A'}
+                Emergency Contact: ${formatPhoneNumber(participant.user.emergencyContact) || 'N/A'}
+                Status: ${displayStatus}
+            `);
         }
 
         function toggleParticipantStatus(userUUID, newStatus, currentStatus) { // Added currentStatus parameter

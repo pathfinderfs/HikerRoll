@@ -127,6 +127,7 @@ type Hike struct {
 
 // Keep in sync with participants table schema
 type Participant struct {
+	Id       int64     `json:"id"`
 	Hike     Hike      `json:"hike"`
 	User     User      `json:"user"`
 	Status   string    `json:"status"`
@@ -257,6 +258,8 @@ func main() {
 
 // Create a new hike and return codes for leader and participants to access the hike
 func createHikeHandler(w http.ResponseWriter, r *http.Request) {
+
+	// Extract json Hike
 	var hike Hike
 	err := json.NewDecoder(r.Body).Decode(&hike)
 	// fmt.Printf("%+v\n", hike)
@@ -283,7 +286,7 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	hike.CreatedAt = time.Now()
 
-	// Insert or update user in the database
+	// Insert or update user (Leader) in the database
 	_, err = db.Exec(`
 		INSERT INTO users (uuid, name, phone)
 		VALUES (?, ?, ?)
@@ -296,16 +299,18 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: If join or leader code already exist, generate new codes
+
+	// Add hike to the HIkes table
 	_, err = db.Exec(`
 		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Return Hike to the caller
 	json.NewEncoder(w).Encode(hike)
 	logAction(fmt.Sprintf("Hike created: %s by %s, starting at %s", hike.Name, hike.Leader.Name, hike.StartTime.Format(time.RFC3339)))
 }
@@ -315,6 +320,7 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	joinCode := r.PathValue("hikeId")
 	leaderCode := r.URL.Query().Get("leaderCode")
 
+	// Retrieve Hike record based on leaderCode if provided otherwise by joinCode
 	var hike Hike
 	var err error
 	if leaderCode != "" {
@@ -337,20 +343,16 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Return retrieved Hike
 	json.NewEncoder(w).Encode(hike)
 }
 
 // End a hike and mark all participants as finished
 func endHikeHandler(w http.ResponseWriter, r *http.Request) {
-	var hike Hike
+	joinCode := r.PathValue("hikeId")
+	leaderCode := r.URL.Query().Get("leaderCode")
 
-	err := json.NewDecoder(r.Body).Decode(&hike)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	_, err = db.Exec("UPDATE hikes SET status = 'closed' WHERE leader_code = ?", hike.LeaderCode)
+	_, err := db.Exec("UPDATE hikes SET status = 'closed' WHERE leader_code = ?", leaderCode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -359,36 +361,36 @@ func endHikeHandler(w http.ResponseWriter, r *http.Request) {
 	// Force all participants to finished (do we want this?)
 	_, err = db.Exec(`UPDATE hike_users SET status = 'finished'
 					  WHERE hike_join_code = ? AND (status = 'active' OR status = 'rsvp')
-					 `, hike.JoinCode)
+					 `, joinCode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	logAction(fmt.Sprintf("Hike closed: Name %s", hike.Name))
+	logAction(fmt.Sprintf("Hike closed"))
 }
 
 func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed function
 	joinCode := r.PathValue("hikeId")
 
-	var request struct {
-		User User `json:"user"`
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&request)
+	// Extract json User
+	var user User
+	err := json.NewDecoder(r.Body).Decode(&user)
+	// fmt.Printf("%+v\n", user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Check if the hike exists and is open
+	// Get hike
 	var hike Hike
 	err = db.QueryRow(`SELECT h.status, h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
 					   FROM hikes AS h JOIN users AS u ON leader_uuid = uuid
 					   WHERE h.join_code = ?
 					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
 
+	// Check if the hike exists and is open
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Hike not found", http.StatusNotFound)
@@ -397,7 +399,6 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 		}
 		return
 	}
-
 	if hike.Status != "open" {
 		http.Error(w, "Hike has already ended", http.StatusBadRequest)
 		return
@@ -407,24 +408,25 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 	_, err = db.Exec(`
 		INSERT OR REPLACE INTO users (uuid, name, phone, license_plate, emergency_contact)
 		VALUES (?, ?, ?, ?, ?)
-		`, request.User.UUID, request.User.Name, request.User.Phone, request.User.LicensePlate, request.User.EmergencyContact)
+		`, user.UUID, user.Name, user.Phone, user.LicensePlate, user.EmergencyContact)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Add the participant to the hike
+	// Add the participant to the hike with status rsvp
 	_, err = db.Exec(`
 		INSERT OR REPLACE INTO hike_users (hike_join_code, user_uuid, status, joined_at)
 		VALUES (?, ?, 'rsvp', CURRENT_TIMESTAMP)
-	`, joinCode, request.User.UUID)
+	`, joinCode, user.UUID)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// TODO: Replace this waiver stuff to use template
 	// Read waiver text
 	waiverTextBytes, err := os.ReadFile("static/waiver.txt")
 	if err != nil {
@@ -455,18 +457,17 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 	_, err = db.Exec(`
 		INSERT INTO waiver_signatures (user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, request.User.UUID, joinCode, time.Now(), userAgent, ipAddress, waiverText)
+	`, user.UUID, joinCode, time.Now(), userAgent, ipAddress, waiverText)
 
 	if err != nil {
 		// Log the error but don't fail the entire join operation,
 		// as the user is already in hike_users.
-		// This could be escalated based on business rules.
-		log.Printf("Error inserting waiver signature: %v. User: %s, Hike: %s", err, request.User.UUID, joinCode)
 		// Potentially, you might want to roll back the hike_users insertion
 		// if waiver signing is absolutely critical, but that adds complexity.
+		log.Printf("Error inserting waiver signature: %v. User: %s, Hike: %s", err, user.UUID, joinCode)
 	}
 
-	logAction(fmt.Sprintf("Participant RSVPd to hike: %s (Hike Join Code: %s), Waiver Signed", request.User.Name, hike.JoinCode)) // Updated log message
+	logAction(fmt.Sprintf("Participant RSVPd to hike: %s (Hike Join Code: %s), Waiver Signed", user.Name, hike.JoinCode)) // Updated log message
 	json.NewEncoder(w).Encode(hike)
 }
 

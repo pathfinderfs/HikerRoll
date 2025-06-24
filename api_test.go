@@ -63,12 +63,7 @@ func TestRSVPToHike_Success(t *testing.T) {
 		LicensePlate:     "ABC123",
 		EmergencyContact: "5555555555",
 	}
-	requestPayload := struct { // Renamed for clarity
-		User User `json:"user"`
-	}{
-		User: requestUser,
-	}
-	body, _ := json.Marshal(requestPayload)
+	body, _ := json.Marshal(requestUser)
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -107,8 +102,7 @@ func TestRSVPToHike_Success(t *testing.T) {
 
 func TestRSVPToHike_HikeNotFound(t *testing.T) {
 	requestUser := User{UUID: "test-user-hike-not-found", Name: "Test User"}
-	requestPayload := struct{ User User }{User: requestUser}
-	body, _ := json.Marshal(requestPayload)
+	body, _ := json.Marshal(requestUser)
 
 	req, _ := http.NewRequest("POST", "/api/hike/nonexistentjoincode/rsvp", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -129,8 +123,7 @@ func TestRSVPToHike_HikeClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	requestUser := User{UUID: "test-user-hike-closed", Name: "Test User"}
-	requestPayload := struct{ User User }{User: requestUser}
-	body, _ := json.Marshal(requestPayload)
+	body, _ := json.Marshal(requestUser)
 
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -163,8 +156,7 @@ func TestRSVPToHike_DuplicateRSVP(t *testing.T) {
 		LicensePlate:     "NEWPLATE",   // Different license plate
 		EmergencyContact: "3213214321", // Different emergency contact
 	}
-	requestPayload := struct{ User User }{User: updatedUser}
-	body, _ := json.Marshal(requestPayload)
+	body, _ := json.Marshal(updatedUser)
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -488,14 +480,7 @@ func TestEndHike_WithRSVPParticipants(t *testing.T) {
 	require.NoError(t, err) // Manually set to finished
 
 	// End the hike
-	endHikePayload := map[string]string{
-		"leaderCode": hike.LeaderCode,
-		"joinCode":   hike.JoinCode,
-		"name":       hike.Name,
-	}
-	body, _ := json.Marshal(endHikePayload)
-	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", hike.JoinCode), bytes.NewBuffer(body)) // Endpoint uses joinCode in path for PUT /api/hike/{hikeId}
-	req.Header.Set("Content-Type", "application/json")
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s?leaderCode=%s", hike.JoinCode, hike.LeaderCode), nil) // Endpoint uses joinCode in path for PUT /api/hike/{hikeId}
 
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
@@ -736,11 +721,8 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 		LicensePlate:     "WVRTEST",
 		EmergencyContact: "9998887777",
 	}
-	joinRequestPayload := struct {
-		User User `json:"user"`
-	}{User: participantUser}
 
-	body, err := json.Marshal(joinRequestPayload)
+	body, err := json.Marshal(participantUser)
 	require.NoError(t, err)
 
 	reqURL := fmt.Sprintf("/api/hike/%s/rsvp", testHike.JoinCode)
@@ -911,11 +893,7 @@ func joinTestHike(t *testing.T, hike Hike) Participant {
 }
 
 func joinTestHikeWithOptions(t *testing.T, hike Hike, user User) Participant {
-	request := struct {
-		User User `json:"user"`
-	}{User: user}
-
-	body, err := json.Marshal(request)
+	body, err := json.Marshal(user)
 	require.NoError(t, err)
 
 	reqURL := fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode) // Updated endpoint
