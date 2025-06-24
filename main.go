@@ -304,7 +304,7 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = db.Exec(`
 		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt, hike.StartTime, hike.JoinCode, hike.LeaderCode)
+	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -458,7 +458,7 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 		INSERT OR REPLACE INTO waiver_signatures
                (user_uuid, hike_join_code, signed_at, user_agent, ip_address, waiver_text)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, user.UUID, joinCode, time.Now(), userAgent, ipAddress, waiverText)
+	`, user.UUID, joinCode, time.Now().Format("2006-01-02T15:04:05-07:00"), userAgent, ipAddress, waiverText)
 
 	if err != nil {
 		// Log the error but don't fail the entire join operation,
@@ -630,21 +630,14 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 		  u.license_plate,
 		  u.emergency_contact,
 		  hu.status,
-		  ws.most_recent_waiver_date
+		  ws.signed_at
 		FROM
 		  hike_users hu
 		  JOIN users u ON hu.user_uuid = u.uuid
-		  JOIN (
-			SELECT
-			  user_uuid,
-			  MAX(signed_at) AS most_recent_waiver_date
-			FROM
-			  waiver_signatures
-            WHERE
-              hike_join_code = (SELECT join_code FROM hikes WHERE leader_code =?)
-			GROUP BY
-			  user_uuid
-		  ) AS ws ON hu.user_uuid = ws.user_uuid
+          JOIN waiver_signatures ws
+            ON
+              hu.user_uuid = ws.user_uuid AND
+              hu.hike_join_code = (SELECT join_code FROM hikes WHERE leader_code =?)
 		WHERE
 		  hu.hike_join_code = (
 			SELECT

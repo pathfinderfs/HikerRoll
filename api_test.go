@@ -765,7 +765,7 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 	// assert.Equal(t, sampleWaiverText, dbWaiverText, "Waiver text should match")
 
 	// Verify signed_at is a valid timestamp (roughly now)
-	signedAt, err := time.Parse("2006-01-02T15:04:05.000000000-07:00", signedAtStr) // Default SQLite datetime format
+	signedAt, err := time.Parse("2006-01-02T15:04:05-07:00", signedAtStr) // Default SQLite datetime format
 	require.NoError(t, err, "Failed to parse signed_at timestamp")
 	assert.WithinDuration(t, time.Now(), signedAt, 5*time.Second, "signed_at should be recent")
 }
