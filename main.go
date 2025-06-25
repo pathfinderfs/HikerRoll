@@ -617,11 +617,6 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 
 	var participants []Participant
 
-	// rows, err := db.Query(`SELECT uuid, name, phone, license_plate, emergency_contact, status
-	// 					   FROM hike_users JOIN users ON user_uuid = uuid
-	// 					   WHERE hike_join_code = (SELECT join_code FROM hikes WHERE leader_code = ?)
-	// 					  `, leaderCode)
-
 	rows, err := db.Query(`
 		SELECT
 		  u.uuid,
@@ -639,14 +634,8 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
               hu.user_uuid = ws.user_uuid AND
               hu.hike_join_code = (SELECT join_code FROM hikes WHERE leader_code =?)
 		WHERE
-		  hu.hike_join_code = (
-			SELECT
-			  join_code
-			FROM
-			  hikes
-			WHERE
-			  leader_code = ?
-		)`, leaderCode, leaderCode)
+		  hu.hike_join_code = (SELECT join_code FROM hikes WHERE leader_code = ?)`,
+		leaderCode, leaderCode)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -662,7 +651,7 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		p.Waiver, err = time.Parse("2006-01-02 15:04:05.000000000-07:00", dateTimeString)
+		p.Waiver, err = time.Parse("2006-01-02T15:04:05-07:00", dateTimeString)
 		if err != nil {
 			logAction(fmt.Sprintf("Error parsing date: %s", err.Error()))
 		}
