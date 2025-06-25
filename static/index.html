@@ -765,7 +765,7 @@
             // The current logic is: if offline, user is alerted for the status update,
             // and they remain on the hiking page. If online, status is updated,
             // then they are taken to welcome page. This seems acceptable.
-            toggleParticipantStatus(currentUser.uuid, 'finished');
+            toggleParticipantStatus(currentHike.participantId, 'finished');
             clearCurrentHike();
             showWelcomePage();
         }
@@ -820,7 +820,7 @@
                             <p>Organization: ${hike.organization}</p>
                             <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
                             <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
-                            <button onclick="startHiking('${hike.joinCode}')">Start Hiking</button>
+                            <button onclick="startHiking('${hike.joinCode}', ${hike.participantId})">Start Hiking</button>
                             <button class="button-secondary" onclick="unRSVP('${hike.joinCode}')">UnRSVP</button>
                         `;
                         rsvpList.appendChild(li);
@@ -832,13 +832,13 @@
                 });
         }
 
-        function startHiking(joinCode) {
+        function startHiking(joinCode, participantId) {
             if (!currentUser || !currentUser.uuid) {
                 alert("User information not found. Please reload the page.");
                 return;
             }
 
-            const startUrl = `/api/hike/${joinCode}/participant/${currentUser.uuid}/start`;
+            const startUrl = `/api/hike/${joinCode}/participant/${participantId}`;
 
             if (!navigator.onLine) {
                 // It's tricky to handle this offline as "starting a hike" implies an immediate state change
@@ -848,10 +848,11 @@
             }
 
             fetch(startUrl, {
-                method: 'POST',
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json', // Though no body is sent, this is good practice
-                }
+                },
+                body: JSON.stringify({status: 'active'})
             })
             .then(response => {
                 if (!response.ok) {
@@ -886,6 +887,7 @@
                     // This assumption might be wrong if someone else is leader.
                     // The backend's GET /api/hike/{joinCode} should return leader User details.
                 }
+                currentHike.participantId = participantId
                 localStorage.setItem('currentHike', JSON.stringify(currentHike));
                 showHikingPage();
                 getRSVPedHikes(); // Refresh RSVP list (the hike should be gone from there)
@@ -1047,7 +1049,7 @@
                         e.preventDefault();
                         // Determine the new status: if active -> finished, if finished -> active
                         const targetStatus = participant.status === 'active' ? 'finished' : 'active';
-                        toggleParticipantStatus(participant.user.uuid, targetStatus, participant.status);
+                        toggleParticipantStatus(participant.id, targetStatus, participant.status);
                     };
                 } else if (participant.status === 'rsvp') {
                     statusLink.style.cursor = 'default'; // Indicate non-interactive
@@ -1075,7 +1077,7 @@
             `);
         }
 
-        function toggleParticipantStatus(userUUID, newStatus, currentStatus) { // Added currentStatus parameter
+        function toggleParticipantStatus(participantId, newStatus, currentStatus) { // Added currentStatus parameter
             // Leader can only toggle between 'active' (Hiking) and 'finished'.
             // RSVP status cannot be changed by the leader here.
             if (currentStatus !== undefined && currentStatus !== 'active' && currentStatus !== 'finished') {
@@ -1084,7 +1086,7 @@
                 return;
             }
 
-            const toggleUrl = `/api/hike/${currentHike.joinCode}/participant/${userUUID}`;
+            const toggleUrl = `/api/hike/${currentHike.joinCode}/participant/${participantId}`;
             const toggleBody = JSON.stringify({ status: newStatus });
             if (!navigator.onLine) {
                 addToRequestQueue(toggleUrl, 'PUT', toggleBody);

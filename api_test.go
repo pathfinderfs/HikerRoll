@@ -202,9 +202,12 @@ func TestRSVPToHike_DuplicateRSVP(t *testing.T) {
 func TestStartHiking_Success(t *testing.T) {
 	hike := createTestHike(t)
 	user := User{UUID: "user-start-hiking-success", Name: "Start Success"}
-	joinTestHikeWithOptions(t, hike, user) // RSVPs the user
+	request := joinTestHikeWithOptions(t, hike, user) // RSVPs the user
+	body, _ := json.Marshal(Participant{Status: "active"})
 
-	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant/%s/start", hike.JoinCode, user.UUID), nil)
+	req, _ := http.NewRequest("PUT",
+		fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, request.Hike.ParticipantId),
+		bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
@@ -217,50 +220,19 @@ func TestStartHiking_Success(t *testing.T) {
 	assert.Equal(t, "active", status, "Participant status should be updated to active")
 }
 
-func TestStartHiking_NotRSVPed(t *testing.T) {
-	hike := createTestHike(t)
-	user := User{UUID: "user-start-not-rsvped", Name: "Not RSVPed User"}
-	// User does NOT RSVP to the hike.
-
-	// Attempt 1: User not in hike_users at all
-	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant/%s/start", hike.JoinCode, user.UUID), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusNotFound, rr.Code, "Expected 404 when user is not a participant")
-
-	// Attempt 2: User is 'active' already
-	joinTestHikeWithOptions(t, hike, user)                                                                                            // User RSVPs
-	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID) // Manually set to active
-	require.NoError(t, err)
-
-	reqActive, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant/%s/start", hike.JoinCode, user.UUID), nil)
-	rrActive := httptest.NewRecorder()
-	mux.ServeHTTP(rrActive, reqActive)
-	assert.Equal(t, http.StatusBadRequest, rrActive.Code, "Expected 400 when user is already active. Body: %s", rrActive.Body.String())
-	assert.Contains(t, rrActive.Body.String(), "status is 'active', not 'rsvp'")
-
-	// Attempt 3: User is 'finished'
-	_, err = db.Exec("UPDATE hike_users SET status = 'finished' WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID) // Manually set to finished
-	require.NoError(t, err)
-
-	reqFinished, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant/%s/start", hike.JoinCode, user.UUID), nil)
-	rrFinished := httptest.NewRecorder()
-	mux.ServeHTTP(rrFinished, reqFinished)
-	assert.Equal(t, http.StatusBadRequest, rrFinished.Code, "Expected 400 when user is finished")
-	assert.Contains(t, rrFinished.Body.String(), "status is 'finished', not 'rsvp'")
-}
-
 func TestStartHiking_HikeNotOpen(t *testing.T) {
 	hike := createTestHike(t)
 	user := User{UUID: "user-start-hike-not-open", Name: "Hike Not Open User"}
-	joinTestHikeWithOptions(t, hike, user) // User RSVPs
+	request := joinTestHikeWithOptions(t, hike, user) // User RSVPs
+	body, _ := json.Marshal(Participant{Status: "active"})
 
 	// Close the hike
 	_, err := db.Exec("UPDATE hikes SET status = 'closed' WHERE join_code = ?", hike.JoinCode)
 	require.NoError(t, err)
 
-	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant/%s/start", hike.JoinCode, user.UUID), nil)
+	req, _ := http.NewRequest("PUT",
+		fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, request.Hike.ParticipantId),
+		bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
@@ -511,7 +483,7 @@ func TestEndHike_WithRSVPParticipants(t *testing.T) {
 func TestUpdateParticipantStatus_PreventRSVPChange(t *testing.T) {
 	hike := createTestHike(t)
 	userRSVP := User{UUID: "user-rsvp-for-update-prevent", Name: "RSVP User Update Prevent"}
-	joinTestHikeWithOptions(t, hike, userRSVP) // User is now 'rsvp'
+	result := joinTestHikeWithOptions(t, hike, userRSVP) // User is now 'rsvp'
 
 	// Attempt to change 'rsvp' to 'active' via updateParticipantStatusHandler (which should be for leader->active/finished)
 	updateBody := map[string]string{"status": "active"}
@@ -519,7 +491,7 @@ func TestUpdateParticipantStatus_PreventRSVPChange(t *testing.T) {
 
 	// Note: The endpoint for updateParticipantStatusHandler is PUT /api/hike/{hikeId}/participant/{participantId}
 	// {hikeId} is joinCode, {participantId} is userUUID
-	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, userRSVP.UUID), bytes.NewBuffer(bodyBytes))
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, result.Hike.ParticipantId), bytes.NewBuffer(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
@@ -608,7 +580,7 @@ func TestLeaveHike(t *testing.T) {
 	participant := joinTestHike(t, hike)
 
 	req, _ := http.NewRequest("PUT",
-		fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, participant.User.UUID),
+		fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, participant.Hike.ParticipantId),
 		bytes.NewBufferString(`{"status":"finished"}`))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -809,7 +781,7 @@ func TestUpdateParticipantStatus(t *testing.T) {
 	participant := joinTestHike(t, hike)
 
 	req, _ := http.NewRequest("PUT",
-		fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, participant.User.UUID),
+		fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, participant.Hike.ParticipantId),
 		bytes.NewBufferString(`{"status":"completed"}`))
 	req.Header.Set("Content-Type", "application/json")
 

@@ -112,7 +112,8 @@ type User struct {
 
 // Keep in sync with hikes table schema
 type Hike struct {
-	Name          string    `json:"name"` // Custom name for the hike event
+	ParticipantId int64     `json:"participantId"` // Used when returning hike to User not in table
+	Name          string    `json:"name"`          // Custom name for the hike event
 	Organization  string    `json:"organization"`
 	TrailheadName string    `json:"trailheadName"`
 	Leader        User      `json:"leader"`
@@ -232,7 +233,6 @@ func addRoutes(mux *http.ServeMux) {
 	// You must define most specific routes first
 	mux.HandleFunc("PUT /api/hike/{hikeId}/participant/{participantId}", updateParticipantStatusHandler)
 	mux.HandleFunc("POST /api/hike/{hikeId}/rsvp", rsvpToHikeHandler) // pass in User
-	mux.HandleFunc("POST /api/hike/{hikeId}/participant/{userUUID}/start", startHikingHandler)
 	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{userUUID}/rsvp", unRSVPHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
@@ -416,11 +416,17 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 	}
 
 	// Add the participant to the hike with status rsvp
-	_, err = db.Exec(`
+	result, err := db.Exec(`
 		INSERT OR REPLACE INTO hike_users (hike_join_code, user_uuid, status, joined_at)
 		VALUES (?, ?, 'rsvp', CURRENT_TIMESTAMP)
 	`, joinCode, user.UUID)
 
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	hike.ParticipantId, err = result.LastInsertId()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -470,67 +476,6 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 
 	logAction(fmt.Sprintf("Participant RSVPd to hike: %s (Hike Join Code: %s), Waiver Signed", user.Name, hike.JoinCode)) // Updated log message
 	json.NewEncoder(w).Encode(hike)
-}
-
-// startHikingHandler allows a user to change their status from 'rsvp' to 'active'
-func startHikingHandler(w http.ResponseWriter, r *http.Request) {
-	joinCode := r.PathValue("hikeId")
-	userUUID := r.PathValue("userUUID")
-
-	// Check if the hike exists and is open
-	var hikeStatus string
-	err := db.QueryRow(`SELECT status FROM hikes WHERE join_code = ?`, joinCode).Scan(&hikeStatus)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Hike not found", http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	// TODO: add check that we are not more than an hour before the start hike time.
-	if hikeStatus != "open" {
-		http.Error(w, "Hike is not open. Cannot start hiking.", http.StatusBadRequest)
-		return
-	}
-
-	// Update participant status from 'rsvp' to 'active'
-	result, err := db.Exec(`UPDATE hike_users
-							 SET status = 'active'
-							 WHERE hike_join_code = ? AND user_uuid = ? AND status = 'rsvp'`,
-		joinCode, userUUID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		http.Error(w, "Failed to check rows affected", http.StatusInternalServerError)
-		return
-	}
-
-	if rowsAffected == 0 {
-		// This could be because the user/hike combination doesn't exist, or status wasn't 'rsvp'
-		// Query current status to give a more specific error
-		var currentStatus string
-		err := db.QueryRow(`SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?`, joinCode, userUUID).Scan(&currentStatus)
-		if err == sql.ErrNoRows {
-			http.Error(w, "Participant not found for this hike.", http.StatusNotFound)
-		} else if err != nil {
-			http.Error(w, "Error fetching participant status: "+err.Error(), http.StatusInternalServerError)
-		} else if currentStatus != "rsvp" {
-			http.Error(w, fmt.Sprintf("Cannot start hiking. Participant status is '%s', not 'rsvp'.", currentStatus), http.StatusBadRequest)
-		} else {
-			// Should not happen if rowsAffected was 0 and status was 'rsvp'
-			http.Error(w, "Could not update participant status. Please ensure you have RSVPd.", http.StatusBadRequest)
-		}
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	logAction(fmt.Sprintf("Participant %s started hiking for hike %s", userUUID, joinCode))
 }
 
 // unRSVPHandler allows a user to remove their RSVP if their status is 'rsvp'
@@ -619,12 +564,12 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(`
 		SELECT
-		  u.uuid,
 		  u.name,
 		  u.phone,
 		  u.license_plate,
 		  u.emergency_contact,
 		  hu.status,
+          hu.id,
 		  ws.signed_at
 		FROM
 		  hike_users hu
@@ -646,7 +591,7 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p Participant
 		var dateTimeString string
-		err := rows.Scan(&p.User.UUID, &p.User.Name, &p.User.Phone, &p.User.LicensePlate, &p.User.EmergencyContact, &p.Status, &dateTimeString)
+		err := rows.Scan(&p.User.Name, &p.User.Phone, &p.User.LicensePlate, &p.User.EmergencyContact, &p.Status, &p.Id, &dateTimeString)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -663,7 +608,7 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 
 func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 	joinCode := r.PathValue("hikeId")
-	userUUID := r.PathValue("participantId")
+	participantId := r.PathValue("participantId")
 
 	var request struct {
 		Status string `json:"status"`
@@ -675,17 +620,29 @@ func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec(`UPDATE hike_users
+	result, err := db.Exec(`UPDATE hike_users
 					  SET status = ?
-					  WHERE hike_join_code = (SELECT join_code FROM hikes WHERE join_code = ?) AND user_uuid = ?
-					 `, request.Status, joinCode, userUUID)
+					  WHERE
+                        hike_join_code = (SELECT join_code FROM hikes
+                                          WHERE join_code = ? and status = "open") AND
+                        id = ?
+					 `, request.Status, joinCode, participantId)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Hike not found or not open", http.StatusBadRequest)
+	}
+
 	w.WriteHeader(http.StatusOK)
-	logAction(fmt.Sprintf("Participant status updated: UUID %s, Leader Code: %s, New Status: %s", userUUID, joinCode, request.Status))
+	logAction(fmt.Sprintf("Participant status updated: Id: %s, Leader Code: %s, New Status: %s", participantId, joinCode, request.Status))
 }
 
 // Given a latitude and longitude, return all hikes within a 0.25 mile radius
@@ -790,7 +747,7 @@ func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	query := `
 		SELECT h.name, h.organization, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code,
-		       l.name AS leader_name, l.phone AS leader_phone
+		       hu.id AS participant_id, l.name AS leader_name, l.phone AS leader_phone
 		FROM hikes AS h
 		JOIN hike_users AS hu ON h.join_code = hu.hike_join_code
 		JOIN users AS l ON h.leader_uuid = l.uuid
@@ -812,7 +769,7 @@ func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
 		// as h.Leader is a struct.
 		err := rows.Scan(
 			&h.Name, &h.Organization, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode,
-			&h.Leader.Name, &h.Leader.Phone,
+			&h.ParticipantId, &h.Leader.Name, &h.Leader.Phone,
 		)
 		if err != nil {
 			http.Error(w, "Error scanning row: "+err.Error(), http.StatusInternalServerError)
