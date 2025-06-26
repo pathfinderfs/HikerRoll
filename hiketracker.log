@@ -1,0 +1,176 @@
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-27T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: Jane Doe (Hike Join Code: XJTG6ItUb4sNAryj8BKtoA==), Waiver Signed
+2025/06/26 23:35:49 Hike created: Test Hike for leader-closed-hike by Closed Hike Leader, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: Original Name (Hike Join Code: 3JeaxX_sc85V58zDDLAzyQ==), Waiver Signed
+2025/06/26 23:35:49 Participant RSVPd to hike: Updated Name (Hike Join Code: 3JeaxX_sc85V58zDDLAzyQ==), Waiver Signed
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: Start Success (Hike Join Code: 7W-TCvdigPdP4W21Rz3lPg==), Waiver Signed
+2025/06/26 23:35:49 Participant status updated: Id: 4, Leader Code: 7W-TCvdigPdP4W21Rz3lPg==, New Status: active
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: Hike Not Open User (Hike Join Code: aj1dN44NRZpjy28nXcuiyw==), Waiver Signed
+2025/06/26 23:35:49 Participant status updated: Id: 5, Leader Code: aj1dN44NRZpjy28nXcuiyw==, New Status: active
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: UnRSVP Success (Hike Join Code: r1QpTJoHqec-bMxozVlZQQ==), Waiver Signed
+2025/06/26 23:35:49 Participant user-unrsvp-success unRSVPd from hike r1QpTJoHqec-bMxozVlZQQ==
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: UnRSVP Not RSVPed (Hike Join Code: WhP3K9b6uG9Dc42XPNSU-w==), Waiver Signed
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: UnRSVP Hike Closed (Hike Join Code: borOlrqwvloVdfYMZyBfsg==), Waiver Signed
+2025/06/26 23:35:49 Participant user-unrsvp-hike-closed unRSVPd from hike borOlrqwvloVdfYMZyBfsg==
+2025/06/26 23:35:49 Hike created: Test Hike for leader1-rsvp by Leader One, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike for leader2-rsvp by Leader Two, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike for leader3-rsvp by Leader Three, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: GetHikes RSVP (Hike Join Code: D3l7yGDXH9dgmJQdyEnIzg==), Waiver Signed
+2025/06/26 23:35:49 Participant RSVPd to hike: GetHikes RSVP (Hike Join Code: KuH0lY8YUmeumiO6GQ2FZw==), Waiver Signed
+2025/06/26 23:35:49 Hike created: Test Hike for leader1-active by Leader Active One, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike for leader2-active-closed by Leader Active Two Closed, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: GetHikes Active (Hike Join Code: W8rt9lDK3xcvML54lvmSkg==), Waiver Signed
+2025/06/26 23:35:49 Participant RSVPd to hike: GetHikes Active (Hike Join Code: yQp5D2qxkcxDCbwL-wi0mQ==), Waiver Signed
+2025/06/26 23:35:49 Hike created: Test Hike for leader-end-rsvp by End RSVP Leader, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: RSVP User (Hike Join Code: TRAxtUtJszJGpymWTwU3eA==), Waiver Signed
+2025/06/26 23:35:49 Participant RSVPd to hike: Active User (Hike Join Code: TRAxtUtJszJGpymWTwU3eA==), Waiver Signed
+2025/06/26 23:35:49 Participant RSVPd to hike: Finished User (Hike Join Code: TRAxtUtJszJGpymWTwU3eA==), Waiver Signed
+2025/06/26 23:35:49 Hike closed
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: RSVP User Update Prevent (Hike Join Code: xVaOobM_ymUlw7vcKfhfrQ==), Waiver Signed
+2025/06/26 23:35:49 Participant status updated: Id: 16, Leader Code: xVaOobM_ymUlw7vcKfhfrQ==, New Status: active
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: Default Joiner (Hike Join Code: IeKo1u0eXvFTk1B5ipnTXw==), Waiver Signed
+2025/06/26 23:35:49 Error parsing date: parsing time "2025-06-26T23:35:49Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike closed
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: Default Joiner (Hike Join Code: lJ-D8heL28KTCOVBbT7iWQ==), Waiver Signed
+2025/06/26 23:35:49 Participant status updated: Id: 18, Leader Code: lJ-D8heL28KTCOVBbT7iWQ==, New Status: finished
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:35:49Z
+2025/06/26 23:35:49 Participant RSVPd to hike: Default Joiner (Hike Join Code: njSF5CnyKL9262Op9PA4dQ==), Waiver Signed
+2025/06/26 23:35:49 Participant status updated: Id: 19, Leader Code: njSF5CnyKL9262Op9PA4dQ==, New Status: completed
+2025/06/26 23:35:52 Hike created: E2E Test Hike by E2E Leader, starting at 2025-06-27T23:35:00Z
+2025/06/26 23:35:53 Participant RSVPd to hike: E2E Participant (Hike Join Code: lMRDHN1tvIAqkak-qrEyUQ==), Waiver Signed
+2025/06/26 23:35:53 Participant status updated: Id: 20, Leader Code: lMRDHN1tvIAqkak-qrEyUQ==, New Status: active
+2025/06/26 23:35:53 Error parsing date: parsing time "2025-06-26T23:35:53Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:35:55 Participant status updated: Id: 20, Leader Code: lMRDHN1tvIAqkak-qrEyUQ==, New Status: finished
+2025/06/26 23:35:55 Error parsing date: parsing time "2025-06-26T23:35:53Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-27T23:36:17Z
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Jane Doe (Hike Join Code: P1rl37IsJenIiv1lw2dbJw==), Waiver Signed
+2025/06/26 23:36:17 Hike created: Test Hike for leader-closed-hike by Closed Hike Leader, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Original Name (Hike Join Code: nntSeg6ZIljp1kTqFXkuhQ==), Waiver Signed
+2025/06/26 23:36:17 Participant RSVPd to hike: Updated Name (Hike Join Code: nntSeg6ZIljp1kTqFXkuhQ==), Waiver Signed
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Start Success (Hike Join Code: zkkkopF6WpcwAn-idsjjLw==), Waiver Signed
+2025/06/26 23:36:17 Participant status updated: Id: 4, Leader Code: zkkkopF6WpcwAn-idsjjLw==, New Status: active
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Hike Not Open User (Hike Join Code: bdazqFRXNn5CDdMV2wpzoQ==), Waiver Signed
+2025/06/26 23:36:17 Participant status updated: Id: 5, Leader Code: bdazqFRXNn5CDdMV2wpzoQ==, New Status: active
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: UnRSVP Success (Hike Join Code: T9RGEahq_PzScohKUakwZw==), Waiver Signed
+2025/06/26 23:36:17 Participant user-unrsvp-success unRSVPd from hike T9RGEahq_PzScohKUakwZw==
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: UnRSVP Not RSVPed (Hike Join Code: A17AlhI48at5WnsERC27dA==), Waiver Signed
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: UnRSVP Hike Closed (Hike Join Code: HajmSjg00zrBanf00bqNrg==), Waiver Signed
+2025/06/26 23:36:17 Participant user-unrsvp-hike-closed unRSVPd from hike HajmSjg00zrBanf00bqNrg==
+2025/06/26 23:36:17 Hike created: Test Hike for leader1-rsvp by Leader One, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Hike created: Test Hike for leader2-rsvp by Leader Two, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Hike created: Test Hike for leader3-rsvp by Leader Three, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: GetHikes RSVP (Hike Join Code: KCvJVY85LBINBtlKD-87CA==), Waiver Signed
+2025/06/26 23:36:17 Participant RSVPd to hike: GetHikes RSVP (Hike Join Code: HCyqpvcDh0UHrWiilK02wQ==), Waiver Signed
+2025/06/26 23:36:17 Hike created: Test Hike for leader1-active by Leader Active One, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Hike created: Test Hike for leader2-active-closed by Leader Active Two Closed, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: GetHikes Active (Hike Join Code: reuVhl3mGqQ52u-J9HTGTg==), Waiver Signed
+2025/06/26 23:36:17 Participant RSVPd to hike: GetHikes Active (Hike Join Code: IzQqeRTqsgae_fcerk2E5Q==), Waiver Signed
+2025/06/26 23:36:17 Hike created: Test Hike for leader-end-rsvp by End RSVP Leader, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: RSVP User (Hike Join Code: DyOrsz977sRD1UFBLIHC4g==), Waiver Signed
+2025/06/26 23:36:17 Participant RSVPd to hike: Active User (Hike Join Code: DyOrsz977sRD1UFBLIHC4g==), Waiver Signed
+2025/06/26 23:36:17 Participant RSVPd to hike: Finished User (Hike Join Code: DyOrsz977sRD1UFBLIHC4g==), Waiver Signed
+2025/06/26 23:36:17 Hike closed
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: RSVP User Update Prevent (Hike Join Code: XcV2NRC6pG9ZqK5rEVN8uw==), Waiver Signed
+2025/06/26 23:36:17 Participant status updated: Id: 16, Leader Code: XcV2NRC6pG9ZqK5rEVN8uw==, New Status: active
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Default Joiner (Hike Join Code: 8xgSA62uYIIuOW3VVOb8Fw==), Waiver Signed
+2025/06/26 23:36:17 Error parsing date: parsing time "2025-06-26T23:36:17Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Hike closed
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Default Joiner (Hike Join Code: TKuGGhXrQmd1w6sTyZLoGw==), Waiver Signed
+2025/06/26 23:36:17 Participant status updated: Id: 18, Leader Code: TKuGGhXrQmd1w6sTyZLoGw==, New Status: finished
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Waiver Participant (Hike Join Code: bQzN9vCtziAT8k3BOb4QGQ==), Waiver Signed
+2025/06/26 23:36:17 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:17Z
+2025/06/26 23:36:17 Participant RSVPd to hike: Default Joiner (Hike Join Code: P4FcPgzzzOx6rIp8-3HzOg==), Waiver Signed
+2025/06/26 23:36:17 Participant status updated: Id: 20, Leader Code: P4FcPgzzzOx6rIp8-3HzOg==, New Status: completed
+2025/06/26 23:36:19 Hike created: E2E Test Hike by E2E Leader, starting at 2025-06-27T23:36:00Z
+2025/06/26 23:36:20 Participant RSVPd to hike: E2E Participant (Hike Join Code: SQz70YRl6YpG4uwkk5EqyQ==), Waiver Signed
+2025/06/26 23:36:20 Participant status updated: Id: 21, Leader Code: SQz70YRl6YpG4uwkk5EqyQ==, New Status: active
+2025/06/26 23:36:20 Error parsing date: parsing time "2025-06-26T23:36:20Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:36:22 Participant status updated: Id: 21, Leader Code: SQz70YRl6YpG4uwkk5EqyQ==, New Status: finished
+2025/06/26 23:36:22 Error parsing date: parsing time "2025-06-26T23:36:20Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-27T23:36:45Z
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Jane Doe (Hike Join Code: j5gVcJYavYT32ZyuQGZ1xQ==), Waiver Signed
+2025/06/26 23:36:45 Hike created: Test Hike for leader-closed-hike by Closed Hike Leader, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Original Name (Hike Join Code: QX72zkqkLFsUVe97gtH42w==), Waiver Signed
+2025/06/26 23:36:45 Participant RSVPd to hike: Updated Name (Hike Join Code: QX72zkqkLFsUVe97gtH42w==), Waiver Signed
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Start Success (Hike Join Code: c2O9zPmJ3o-yv2hG3DDkhQ==), Waiver Signed
+2025/06/26 23:36:45 Participant status updated: Id: 4, Leader Code: c2O9zPmJ3o-yv2hG3DDkhQ==, New Status: active
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Hike Not Open User (Hike Join Code: ql38DxHSbf46toaG1nvWpg==), Waiver Signed
+2025/06/26 23:36:45 Participant status updated: Id: 5, Leader Code: ql38DxHSbf46toaG1nvWpg==, New Status: active
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: UnRSVP Success (Hike Join Code: Yn1Oln9Ajnejb2d1pXUGXA==), Waiver Signed
+2025/06/26 23:36:45 Participant user-unrsvp-success unRSVPd from hike Yn1Oln9Ajnejb2d1pXUGXA==
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: UnRSVP Not RSVPed (Hike Join Code: nRQeEXcaL2D62sc5crDvwQ==), Waiver Signed
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: UnRSVP Hike Closed (Hike Join Code: DGzm3XDNSB-cdJm--151Fw==), Waiver Signed
+2025/06/26 23:36:45 Participant user-unrsvp-hike-closed unRSVPd from hike DGzm3XDNSB-cdJm--151Fw==
+2025/06/26 23:36:45 Hike created: Test Hike for leader1-rsvp by Leader One, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Hike created: Test Hike for leader2-rsvp by Leader Two, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Hike created: Test Hike for leader3-rsvp by Leader Three, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: GetHikes RSVP (Hike Join Code: x-li29v2WvUTp0MyyRiM2Q==), Waiver Signed
+2025/06/26 23:36:45 Participant RSVPd to hike: GetHikes RSVP (Hike Join Code: 3yBG_mI8HANHT-ZO4oB8WQ==), Waiver Signed
+2025/06/26 23:36:45 Hike created: Test Hike for leader1-active by Leader Active One, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Hike created: Test Hike for leader2-active-closed by Leader Active Two Closed, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: GetHikes Active (Hike Join Code: IbTUeB4EDEnEWIKVqfyCwA==), Waiver Signed
+2025/06/26 23:36:45 Participant RSVPd to hike: GetHikes Active (Hike Join Code: wWmXH5KaCEYkBn38qAgo2g==), Waiver Signed
+2025/06/26 23:36:45 Hike created: Test Hike for leader-end-rsvp by End RSVP Leader, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: RSVP User (Hike Join Code: 7sDWej2mig-RaG7GXEISTw==), Waiver Signed
+2025/06/26 23:36:45 Participant RSVPd to hike: Active User (Hike Join Code: 7sDWej2mig-RaG7GXEISTw==), Waiver Signed
+2025/06/26 23:36:45 Participant RSVPd to hike: Finished User (Hike Join Code: 7sDWej2mig-RaG7GXEISTw==), Waiver Signed
+2025/06/26 23:36:45 Hike closed
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: RSVP User Update Prevent (Hike Join Code: Q6N-j3dHMTFm6jDlouIznQ==), Waiver Signed
+2025/06/26 23:36:45 Participant status updated: Id: 16, Leader Code: Q6N-j3dHMTFm6jDlouIznQ==, New Status: active
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Default Joiner (Hike Join Code: ND4jtEzxl9i9FC3voxcb3Q==), Waiver Signed
+2025/06/26 23:36:45 Error parsing date: parsing time "2025-06-26T23:36:45Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Hike closed
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Default Joiner (Hike Join Code: FDOak0wsyzFRNgGVtO8O8g==), Waiver Signed
+2025/06/26 23:36:45 Participant status updated: Id: 18, Leader Code: FDOak0wsyzFRNgGVtO8O8g==, New Status: finished
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Hike created: Test Hike for leader-uuid-waivertest by Waiver Test Leader, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Waiver Participant (Hike Join Code: 01YmBhHQf7unHJ-Q02eRUg==), Waiver Signed
+2025/06/26 23:36:45 Hike created: Test Hike by John Doe, starting at 2025-06-26T23:36:45Z
+2025/06/26 23:36:45 Participant RSVPd to hike: Default Joiner (Hike Join Code: QlsGg1JRfXD6j_xGWJrcUw==), Waiver Signed
+2025/06/26 23:36:45 Participant status updated: Id: 20, Leader Code: QlsGg1JRfXD6j_xGWJrcUw==, New Status: completed
+2025/06/26 23:36:47 Hike created: E2E Test Hike by E2E Leader, starting at 2025-06-27T23:36:00Z
+2025/06/26 23:36:48 Participant RSVPd to hike: E2E Participant (Hike Join Code: 6SsMprsv-jpC4I0SMN6XCA==), Waiver Signed
+2025/06/26 23:36:48 Participant status updated: Id: 21, Leader Code: 6SsMprsv-jpC4I0SMN6XCA==, New Status: active
+2025/06/26 23:36:48 Error parsing date: parsing time "2025-06-26T23:36:48Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/06/26 23:36:50 Participant status updated: Id: 21, Leader Code: 6SsMprsv-jpC4I0SMN6XCA==, New Status: finished
+2025/06/26 23:36:50 Error parsing date: parsing time "2025-06-26T23:36:48Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"

@@ -64,7 +64,7 @@ func TestRSVPToHike_Success(t *testing.T) {
 		EmergencyContact: "5555555555",
 	}
 	body, _ := json.Marshal(requestUser)
-	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode), bytes.NewBuffer(body))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant", hike.JoinCode), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
@@ -104,7 +104,7 @@ func TestRSVPToHike_HikeNotFound(t *testing.T) {
 	requestUser := User{UUID: "test-user-hike-not-found", Name: "Test User"}
 	body, _ := json.Marshal(requestUser)
 
-	req, _ := http.NewRequest("POST", "/api/hike/nonexistentjoincode/rsvp", bytes.NewBuffer(body))
+	req, _ := http.NewRequest("POST", "/api/hike/nonexistentjoincode/participant", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
@@ -125,7 +125,7 @@ func TestRSVPToHike_HikeClosed(t *testing.T) {
 	requestUser := User{UUID: "test-user-hike-closed", Name: "Test User"}
 	body, _ := json.Marshal(requestUser)
 
-	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode), bytes.NewBuffer(body))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant", hike.JoinCode), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
@@ -157,7 +157,7 @@ func TestRSVPToHike_DuplicateRSVP(t *testing.T) {
 		EmergencyContact: "3213214321", // Different emergency contact
 	}
 	body, _ := json.Marshal(updatedUser)
-	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode), bytes.NewBuffer(body))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant", hike.JoinCode), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
@@ -696,7 +696,7 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 	body, err := json.Marshal(participantUser)
 	require.NoError(t, err)
 
-	reqURL := fmt.Sprintf("/api/hike/%s/rsvp", testHike.JoinCode)
+	reqURL := fmt.Sprintf("/api/hike/%s/participant", testHike.JoinCode)
 	req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(body))
 	require.NoError(t, err)
 
@@ -737,7 +737,12 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 	// assert.Equal(t, sampleWaiverText, dbWaiverText, "Waiver text should match")
 
 	// Verify signed_at is a valid timestamp (roughly now)
-	signedAt, err := time.Parse("2006-01-02T15:04:05-07:00", signedAtStr) // Default SQLite datetime format
+	// Try parsing with RFC3339 which handles 'Z' for UTC
+	signedAt, err := time.Parse(time.RFC3339, signedAtStr)
+	if err != nil {
+		// Fallback to the previous format if RFC3339 fails, though 'Z' should be covered by RFC3339
+		signedAt, err = time.Parse("2006-01-02T15:04:05-07:00", signedAtStr)
+	}
 	require.NoError(t, err, "Failed to parse signed_at timestamp")
 	assert.WithinDuration(t, time.Now(), signedAt, 5*time.Second, "signed_at should be recent")
 }
@@ -866,7 +871,7 @@ func joinTestHikeWithOptions(t *testing.T, hike Hike, user User) Participant {
 	body, err := json.Marshal(user)
 	require.NoError(t, err)
 
-	reqURL := fmt.Sprintf("/api/hike/%s/rsvp", hike.JoinCode) // Updated endpoint
+	reqURL := fmt.Sprintf("/api/hike/%s/participant", hike.JoinCode) // Updated endpoint
 	req, err := http.NewRequest("POST", reqURL, bytes.NewBuffer(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
