@@ -606,6 +606,7 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(participants)
 }
 
+// TODO: For security require either LeaderCode or User's UUID
 func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 	joinCode := r.PathValue("hikeId")
 	participantId := r.PathValue("participantId")
