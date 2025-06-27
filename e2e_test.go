@@ -223,11 +223,16 @@ func TestHikeLifecycle(t *testing.T) {
 	leaderPage.MustNavigate(baseServerURL).MustWaitLoad() // Simulate going back to welcome page
 	assert.True(t, isElementVisible(t, leaderPage, "#welcome-page", 10*time.Second), "Welcome page for leader")
 
-	// Assert "Hikes I'm Leading" section and the created hike
-	assert.True(t, leaderPage.MustHas("h2:contains('Hikes I'm Leading')"), "Section 'Hikes I'm Leading' title found")
+	// Assert "Hikes I'm Leading" section title using XPath
+	hikesImLeadingTitleXPath := "//h2[contains(normalize-space(.), \"Hikes I'm Leading\")]"
+	assert.True(t, leaderPage.MustHasX(hikesImLeadingTitleXPath), "Section 'Hikes I'm Leading' title found")
 
-	leadingHikeItemSelector := fmt.Sprintf("#leading-hikes-list li:has(h3:contains('E2E Test Hike')):has(button[onclick*=\"goToLeaderConsole('%s'\"])", joinCode)
-	assert.True(t, isElementVisible(t, leaderPage, leadingHikeItemSelector, 15*time.Second), "Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list")
+	// XPath for the specific "E2E Test Hike" in the "Hikes I'm Leading" list
+	leadingHikeItemXPath := fmt.Sprintf("//ul[@id='leading-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')] and .//button[contains(@onclick, \"goToLeaderConsole('%s'\")]]", joinCode)
+
+	// Wait for the list item itself to be visible using the XPath
+	_, errLeadingItem := leaderPage.Timeout(15 * time.Second).ElementX(leadingHikeItemXPath).MustWaitVisible().Do()
+	assert.NoError(t, errLeadingItem, "Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list should be visible")
 
 	// Optional: Test the "Open Coordinator Console" button from this list item later if needed,
 	// but the primary check is that it appears.
@@ -254,7 +259,9 @@ func TestHikeLifecycle(t *testing.T) {
 	// Let's assume we need to click the button from the "Hikes I'm Leading" list to get back.
 
 	t.Log("Hike Leader: Clicking 'Open Coordinator Console' from 'Hikes I'm Leading' list to return to console...")
-	leaderPage.MustElement(leadingHikeItemSelector + " button").MustClick()
+	// XPath for the button within that li:
+	goToConsoleButtonXPath := fmt.Sprintf("%s//button[contains(@onclick, 'goToLeaderConsole')]", leadingHikeItemXPath)
+	leaderPage.MustElementX(goToConsoleButtonXPath).MustClick()
 	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page (re-accessed)")
 	t.Log("Hike Leader: Successfully back on Coordinator Console page")
 
@@ -281,12 +288,19 @@ func TestHikeLifecycle(t *testing.T) {
 
 	// Wait for the welcome page to show and the specific RSVPed hike to be listed
 	assert.True(t, isElementVisible(t, participantPage, "#welcome-page", 10*time.Second), "Welcome page after RSVP")
-	rsvpedHikeItemSelector := fmt.Sprintf("#rsvped-hikes-list li:has(h3:contains('E2E Test Hike')):has(button[onclick*=\"startHiking('%s'\"])", joinCode)
-	assert.True(t, isElementVisible(t, participantPage, rsvpedHikeItemSelector, 15*time.Second), "RSVPed hike 'E2E Test Hike' in list")
 
-	// Click the "Start Hiking" button for the specific hike
-	startHikingButtonSelector := fmt.Sprintf("%s button[onclick*='startHiking']", rsvpedHikeItemSelector)
-	participantPage.MustElement(startHikingButtonSelector).MustClick()
+	// XPath to find the specific li for the RSVPed hike
+	rsvpedHikeItemXPath := fmt.Sprintf("//ul[@id='rsvped-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')] and .//button[contains(@onclick, \"startHiking('%s'\")]]", joinCode)
+
+	// Wait for the list item itself to be visible using the XPath
+	_, errRsvpItem := participantPage.Timeout(15 * time.Second).ElementX(rsvpedHikeItemXPath).MustWaitVisible().Do()
+	assert.NoError(t, errRsvpItem, "RSVPed hike 'E2E Test Hike' in list should be visible")
+
+	// Click the "Start Hiking" button within this specific list item
+	// The button can be found relative to the rsvpedHikeItemXPath or as a direct child.
+	// XPath for the button within that li:
+	startHikingButtonXPath := fmt.Sprintf("%s//button[contains(@onclick, 'startHiking')]", rsvpedHikeItemXPath)
+	participantPage.MustElementX(startHikingButtonXPath).MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for participant")
 	t.Log("Participant: Successfully on Hiking page")
