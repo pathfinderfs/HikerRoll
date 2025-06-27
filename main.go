@@ -666,7 +666,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 	latitude := r.URL.Query().Get("latitude")
 	longitude := r.URL.Query().Get("longitude")
 	userUUID := r.URL.Query().Get("userUUID")
-	leaderID := r.URL.Query().Get("leaderID")
+	// leaderID parameter is removed
 
 	var allHikes []Hike
 	now := time.Now() // For time-based filtering
@@ -756,19 +756,19 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fetch by leaderID
-	if leaderID != "" {
+	// If userUUID is provided, also fetch hikes led by this user
+	if userUUID != "" {
 		rows, err := db.Query(`
 			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name AS leader_name, u.phone AS leader_phone,
-			       h.latitude, h.longitude, h.start_time, h.status
+			       h.latitude, h.longitude, h.start_time, h.status, h.leader_code
 			FROM hikes AS h
 			JOIN users AS u ON h.leader_uuid = u.uuid
 			WHERE h.leader_uuid = ? AND h.status = 'open'
 			ORDER BY h.start_time DESC
-		`, leaderID)
+		`, userUUID) // Query by userUUID for hikes they are leading
 
 		if err != nil {
-			http.Error(w, "Error querying leader hikes: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error querying hikes led by user: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
@@ -777,17 +777,17 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			var h Hike
 			err := rows.Scan(
 				&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status,
+				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status, &h.LeaderCode, // Added h.LeaderCode
 			)
 			if err != nil {
-				http.Error(w, "Error scanning leader hike: "+err.Error(), http.StatusInternalServerError)
+				http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
-			h.SourceType = "leader"
+			h.SourceType = "led_by_user" // New SourceType
 			allHikes = append(allHikes, h)
 		}
 		if err = rows.Err(); err != nil {
-			http.Error(w, "Error iterating leader hikes: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error iterating hikes led by user: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}

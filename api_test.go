@@ -469,115 +469,27 @@ func TestGetHikes_Location(t *testing.T) {
 	assert.GreaterOrEqual(t, len(hikes), 1, "Should find at least one hike")
 }
 
-func TestGetHikes_UserRSVP(t *testing.T) {
-	user := User{UUID: "user-gethikes-rsvp-test", Name: "GetHikes RSVP TestUser"}
-	leader1 := User{UUID: "leader1-rsvp-test", Name: "Leader One RSVP Test"}
-	hike1 := createTestHikeWithOptions(t, leader1)
+func TestGetHikes_UserSpecific(t *testing.T) {
+	testUser := User{UUID: "user-specific-test", Name: "User Specific TestUser"}
 
-	// Another hike by a different leader, user also RSVPs to this
-	leader2 := User{UUID: "leader2-rsvp-test", Name: "Leader Two RSVP Test"}
-	hike2 := createTestHikeWithOptions(t, leader2)
+	// Hike 1: User RSVPs to this hike (led by someone else)
+	otherLeader := User{UUID: "other-leader-specific", Name: "Other Leader Specific"}
+	hikeRsvp := createTestHikeWithOptionsAndStartTime(t, otherLeader, "RSVPd Hike", 30.0, -100.0, time.Now().Add(10*time.Minute))
+	joinTestHikeWithOptions(t, hikeRsvp, testUser)
 
-	// A third hike the user does not RSVP to
-	leader3 := User{UUID: "leader3-rsvp-test", Name: "Leader Three RSVP Test"}
-	_ = createTestHikeWithOptions(t, leader3)
+	// Hike 2: User is leading this hike
+	hikeLedByUser := createTestHikeWithOptionsAndStartTime(t, testUser, "Led by User Hike", 31.0, -101.0, time.Now().Add(20*time.Minute))
 
+	// Hike 3: User RSVPs to a hike they are also leading
+	hikeRsvpAndLed := createTestHikeWithOptionsAndStartTime(t, testUser, "RSVP & Led Hike", 32.0, -102.0, time.Now().Add(30*time.Minute))
+	joinTestHikeWithOptions(t, hikeRsvpAndLed, testUser)
 
-	joinTestHikeWithOptions(t, hike1, user) // User RSVPs to hike1
-	joinTestHikeWithOptions(t, hike2, user) // User RSVPs to hike2
-
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", user.UUID), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
-	var hikes []Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
-	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
-	assert.Len(t, hikes, 2, "Should return 2 hikes the user RSVPd to")
-
-	foundHike1 := false
-	foundHike2 := false
-	for _, h := range hikes {
-		assert.Equal(t, "rsvp", h.SourceType, "SourceType should be 'rsvp'")
-		if h.JoinCode == hike1.JoinCode {
-			foundHike1 = true
-			assert.Equal(t, leader1.Name, h.Leader.Name)
-		}
-		if h.JoinCode == hike2.JoinCode {
-			foundHike2 = true
-			assert.Equal(t, leader2.Name, h.Leader.Name)
-		}
-	}
-	assert.True(t, foundHike1, "Hike 1 not found in user's RSVP list. Response: %s", rr.Body.String())
-	assert.True(t, foundHike2, "Hike 2 not found in user's RSVP list. Response: %s", rr.Body.String())
-}
-
-func TestGetHikes_Leader(t *testing.T) {
-	leaderUser := User{UUID: "leader-gethikes-test", Name: "GetHikes Leader TestUser"}
-
-	// Hike 1 led by leaderUser
-	hike1 := createTestHikeWithOptionsAndStartTime(t, leaderUser, "Led Hike 1", 34.0522, -118.2437, time.Now().Add(15*time.Minute))
-	// Hike 2 led by leaderUser with a different start time
-	hike2 := createTestHikeWithOptionsAndStartTime(t, leaderUser, "Led Hike 2", 34.0522, -118.2437, time.Now().Add(45*time.Minute))
-
-	// Hike 3 led by a different leader
-	otherLeader := User{UUID: "other-leader-gethikes", Name: "Other Leader"}
-	_ = createTestHikeWithOptions(t, otherLeader)
+	// Hike 4: Unrelated hike
+	unrelatedLeader := User{UUID: "unrelated-leader", Name: "Unrelated Leader"}
+	_ = createTestHikeWithOptions(t, unrelatedLeader)
 
 
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?leaderID=%s", leaderUser.UUID), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
-	var hikes []Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
-	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
-	assert.Len(t, hikes, 2, "Should return 2 hikes led by the leader")
-
-	foundHike1 := false
-	foundHike2 := false
-	for _, h := range hikes {
-		assert.Equal(t, "leader", h.SourceType, "SourceType should be 'leader'")
-		assert.Equal(t, leaderUser.UUID, h.Leader.UUID)
-		if h.JoinCode == hike1.JoinCode {
-			foundHike1 = true
-		}
-		if h.JoinCode == hike2.JoinCode {
-			foundHike2 = true
-		}
-	}
-	assert.True(t, foundHike1, "Led Hike 1 not found. Response: %s", rr.Body.String())
-	assert.True(t, foundHike2, "Led Hike 2 not found. Response: %s", rr.Body.String())
-}
-
-func TestGetHikes_Combined(t *testing.T) {
-	hikeTime := time.Now().Add(30 * time.Minute)
-	searchLat, searchLon := 22.2222, -158.2222
-
-	leader := User{UUID: "leader-combined-test", Name: "Combined Test Leader"}
-	participant := User{UUID: "participant-combined-test", Name: "Combined Test Participant"}
-
-	// Hike 1: Led by 'leader', RSVPd by 'participant', and at 'searchLat, searchLon'
-	hike1 := createTestHikeWithOptionsAndStartTime(t, leader, "Combined Hike 1 (All)", searchLat, searchLon, hikeTime)
-	joinTestHikeWithOptions(t, hike1, participant)
-
-	// Hike 2: Led by 'leader', but different location and participant not RSVPd
-	hike2 := createTestHikeWithOptionsAndStartTime(t, leader, "Combined Hike 2 (Leader Only)", 23.3333, -159.3333, hikeTime)
-
-	// Hike 3: RSVPd by 'participant', but different leader and location
-	otherLeader := User{UUID: "other-leader-combined", Name: "Other Combined Leader"}
-	hike3 := createTestHikeWithOptionsAndStartTime(t, otherLeader, "Combined Hike 3 (RSVP Only)", 24.4444, -160.4444, hikeTime)
-	joinTestHikeWithOptions(t, hike3, participant)
-
-	// Hike 4: At 'searchLat, searchLon', but different leader and participant not RSVPd
-	anotherLeader := User{UUID: "another-leader-combined", Name: "Another Combined Leader"}
-	hike4 := createTestHikeWithOptionsAndStartTime(t, anotherLeader, "Combined Hike 4 (Location Only)", searchLat, searchLon, hikeTime)
-
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?leaderID=%s&userUUID=%s&latitude=%.4f&longitude=%.4f", leader.UUID, participant.UUID, searchLat, searchLon), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", testUser.UUID), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
@@ -588,38 +500,149 @@ func TestGetHikes_Combined(t *testing.T) {
 	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
 
 	// Expected:
-	// hike1 (source: location), hike1 (source: rsvp), hike1 (source: leader)
-	// hike2 (source: leader)
-	// hike3 (source: rsvp)
-	// hike4 (source: location)
-	// Total 6 entries if duplicates are returned per source type
-	assert.Len(t, hikes, 6, "Should return 6 entries for combined query. Got: %s", rr.Body.String())
+	// - hikeRsvp (source: rsvp)
+	// - hikeLedByUser (source: led_by_user)
+	// - hikeRsvpAndLed (source: rsvp)
+	// - hikeRsvpAndLed (source: led_by_user)
+	// Total 4 entries
+	assert.Len(t, hikes, 4, "Should return 4 entries for user specific query. Got: %s", rr.Body.String())
 
-	sourceCounts := make(map[string]int)
-	hikeCounts := make(map[string]int)
+	foundRsvp := 0
+	foundLedByUser := 0
+
+	isHikeRsvpPresentAsRsvp := false
+	isHikeLedByUserPresentAsLed := false
+	isHikeRsvpAndLedPresentAsRsvp := false
+	isHikeRsvpAndLedPresentAsLed := false
+
 
 	for _, h := range hikes {
-		sourceCounts[h.SourceType]++
-		hikeCounts[h.JoinCode]++
-		if h.JoinCode == hike1.JoinCode {
-			assert.Contains(t, []string{"location", "rsvp", "leader"}, h.SourceType)
-		} else if h.JoinCode == hike2.JoinCode {
-			assert.Equal(t, "leader", h.SourceType)
-		} else if h.JoinCode == hike3.JoinCode {
+		if h.JoinCode == hikeRsvp.JoinCode {
 			assert.Equal(t, "rsvp", h.SourceType)
-		} else if h.JoinCode == hike4.JoinCode {
-			assert.Equal(t, "location", h.SourceType)
+			isHikeRsvpPresentAsRsvp = true
+			foundRsvp++
+		} else if h.JoinCode == hikeLedByUser.JoinCode {
+			assert.Equal(t, "led_by_user", h.SourceType)
+			assert.Equal(t, testUser.UUID, h.Leader.UUID)
+			isHikeLedByUserPresentAsLed = true
+			foundLedByUser++
+		} else if h.JoinCode == hikeRsvpAndLed.JoinCode {
+			if h.SourceType == "rsvp" {
+				isHikeRsvpAndLedPresentAsRsvp = true
+				foundRsvp++
+			} else if h.SourceType == "led_by_user" {
+				assert.Equal(t, testUser.UUID, h.Leader.UUID)
+				isHikeRsvpAndLedPresentAsLed = true
+				foundLedByUser++
+			} else {
+				t.Errorf("Unexpected sourceType %s for hikeRsvpAndLed", h.SourceType)
+			}
 		}
 	}
 
-	assert.Equal(t, 3, hikeCounts[hike1.JoinCode], "Hike 1 should appear 3 times (once for each matching criterion)")
-	assert.Equal(t, 1, hikeCounts[hike2.JoinCode], "Hike 2 should appear once")
-	assert.Equal(t, 1, hikeCounts[hike3.JoinCode], "Hike 3 should appear once")
-	assert.Equal(t, 1, hikeCounts[hike4.JoinCode], "Hike 4 should appear once")
+	assert.True(t, isHikeRsvpPresentAsRsvp, "Hike RSVP'd by user (hikeRsvp) not found with source 'rsvp'")
+	assert.True(t, isHikeLedByUserPresentAsLed, "Hike led by user (hikeLedByUser) not found with source 'led_by_user'")
+	assert.True(t, isHikeRsvpAndLedPresentAsRsvp, "Hike RSVP'd and Led by user (hikeRsvpAndLed) not found with source 'rsvp'")
+	assert.True(t, isHikeRsvpAndLedPresentAsLed, "Hike RSVP'd and Led by user (hikeRsvpAndLed) not found with source 'led_by_user'")
 
-	assert.Equal(t, 2, sourceCounts["location"], "Expected 2 hikes from location") // hike1, hike4
-	assert.Equal(t, 2, sourceCounts["rsvp"], "Expected 2 hikes from rsvp")       // hike1, hike3
-	assert.Equal(t, 2, sourceCounts["leader"], "Expected 2 hikes from leader")   // hike1, hike2
+	assert.Equal(t, 2, foundRsvp, "Expected 2 hikes with sourceType 'rsvp'")
+	assert.Equal(t, 2, foundLedByUser, "Expected 2 hikes with sourceType 'led_by_user'")
+}
+
+// TestGetHikes_Leader was removed as leaderID parameter is removed. Functionality merged into TestGetHikes_UserSpecific and TestGetHikes_Combined.
+
+func TestGetHikes_Combined(t *testing.T) {
+	hikeTime := time.Now().Add(30 * time.Minute)
+	searchLat, searchLon := 22.2222, -158.2222
+
+	// User for whom we are querying. This user will be leading some, RSVPing to some.
+	queryUser := User{UUID: "query-user-combined", Name: "Query User Combined"}
+
+	// Hike 1: Led by queryUser, RSVPd by queryUser, and at searchLat, searchLon (matches all 3 criteria for queryUser)
+	hike1_allMatch := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike All Match", searchLat, searchLon, hikeTime)
+	joinTestHikeWithOptions(t, hike1_allMatch, queryUser) // queryUser RSVPs
+
+	// Hike 2: Led by queryUser, but different location. queryUser also RSVPs. (matches user_led, rsvp)
+	hike2_led_rsvp := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led & RSVP", 23.3333, -159.3333, hikeTime)
+	joinTestHikeWithOptions(t, hike2_led_rsvp, queryUser)
+
+	// Hike 3: RSVPd by queryUser, but different leader and location. (matches rsvp)
+	otherLeader := User{UUID: "other-leader-combined", Name: "Other Combined Leader"}
+	hike3_rsvp_only := createTestHikeWithOptionsAndStartTime(t, otherLeader, "Hike RSVP Only", 24.4444, -160.4444, hikeTime)
+	joinTestHikeWithOptions(t, hike3_rsvp_only, queryUser)
+
+	// Hike 4: At searchLat, searchLon, but different leader and queryUser not RSVPd. (matches location)
+	anotherLeader := User{UUID: "another-leader-combined", Name: "Another Combined Leader"}
+	hike4_location_only := createTestHikeWithOptionsAndStartTime(t, anotherLeader, "Hike Location Only", searchLat, searchLon, hikeTime)
+
+	// Hike 5: Led by queryUser, but different location and queryUser NOT RSVPd. (matches user_led)
+	hike5_led_only := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led Only", 25.5555, -161.5555, hikeTime)
+
+	// Unrelated hike
+	_ = createTestHikeWithOptionsAndStartTime(t, User{UUID:"unrelated", Name:"Unrelated"}, "Unrelated Hike", 0,0, hikeTime)
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s&latitude=%.4f&longitude=%.4f", queryUser.UUID, searchLat, searchLon), nil)
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
+	var hikes []Hike
+	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
+
+	// Expected results based on queryUser and searchLat/searchLon:
+	// hike1_allMatch (source: location)
+	// hike1_allMatch (source: rsvp)
+	// hike1_allMatch (source: led_by_user)
+	// hike2_led_rsvp (source: rsvp)
+	// hike2_led_rsvp (source: led_by_user)
+	// hike3_rsvp_only (source: rsvp)
+	// hike4_location_only (source: location)
+	// hike5_led_only (source: led_by_user)
+	// Total: 8 entries
+	assert.Len(t, hikes, 8, "Should return 8 entries for combined query. Got: %s", rr.Body.String())
+
+	sourceCounts := make(map[string]int)
+	hikeCounts := make(map[string]map[string]bool) // hikeJoinCode -> sourceType -> present
+
+	for _, h := range hikes {
+		sourceCounts[h.SourceType]++
+		if _, ok := hikeCounts[h.JoinCode]; !ok {
+			hikeCounts[h.JoinCode] = make(map[string]bool)
+		}
+		hikeCounts[h.JoinCode][h.SourceType] = true
+	}
+
+	// Verify hike1_allMatch
+	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["location"], "hike1_allMatch missing location source")
+	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["rsvp"], "hike1_allMatch missing rsvp source")
+	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["led_by_user"], "hike1_allMatch missing led_by_user source")
+
+	// Verify hike2_led_rsvp
+	assert.True(t, hikeCounts[hike2_led_rsvp.JoinCode]["rsvp"], "hike2_led_rsvp missing rsvp source")
+	assert.True(t, hikeCounts[hike2_led_rsvp.JoinCode]["led_by_user"], "hike2_led_rsvp missing led_by_user source")
+	assert.False(t, hikeCounts[hike2_led_rsvp.JoinCode]["location"], "hike2_led_rsvp should not have location source")
+
+	// Verify hike3_rsvp_only
+	assert.True(t, hikeCounts[hike3_rsvp_only.JoinCode]["rsvp"], "hike3_rsvp_only missing rsvp source")
+	assert.False(t, hikeCounts[hike3_rsvp_only.JoinCode]["led_by_user"], "hike3_rsvp_only should not have led_by_user source")
+	assert.False(t, hikeCounts[hike3_rsvp_only.JoinCode]["location"], "hike3_rsvp_only should not have location source")
+
+	// Verify hike4_location_only
+	assert.True(t, hikeCounts[hike4_location_only.JoinCode]["location"], "hike4_location_only missing location source")
+	assert.False(t, hikeCounts[hike4_location_only.JoinCode]["rsvp"], "hike4_location_only should not have rsvp source")
+	assert.False(t, hikeCounts[hike4_location_only.JoinCode]["led_by_user"], "hike4_location_only should not have led_by_user source")
+
+	// Verify hike5_led_only
+	assert.True(t, hikeCounts[hike5_led_only.JoinCode]["led_by_user"], "hike5_led_only missing led_by_user source")
+	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["rsvp"], "hike5_led_only should not have rsvp source")
+	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["location"], "hike5_led_only should not have location source")
+
+
+	assert.Equal(t, 2, sourceCounts["location"], "Expected 2 total hikes from location")    // hike1_allMatch, hike4_location_only
+	assert.Equal(t, 3, sourceCounts["rsvp"], "Expected 3 total hikes from rsvp")          // hike1_allMatch, hike2_led_rsvp, hike3_rsvp_only
+	assert.Equal(t, 3, sourceCounts["led_by_user"], "Expected 3 total hikes from led_by_user") // hike1_allMatch, hike2_led_rsvp, hike5_led_only
 }
 
 

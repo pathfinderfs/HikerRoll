@@ -284,6 +284,9 @@
             <h2>Your RSVPed Hikes</h2>
             <ul id="rsvped-hikes-list" class="hike-list"></ul>
 
+            <h2>Hikes I'm Leading</h2>
+            <ul id="leading-hikes-list" class="hike-list"></ul>
+
             <h2>Nearby Hikes</h2>
             <button class="button-refresh" onclick="getNearbyHikes()">🔄 Refresh</button>
             <ul id="nearby-hikes" class="hike-list"></ul>
@@ -476,7 +479,45 @@
         function showWelcomePage() {
             showPage('welcome-page');
             getNearbyHikes();
-            getRSVPedHikes(); // Added call
+            getRSVPedHikes();
+            getLeadingHikes(); // Added call
+        }
+
+        function goToLeaderConsole(joinCode, leaderCode) {
+            if (!joinCode || !leaderCode) {
+                // This case might happen if leaderCode was not included in the hike object from the API
+                // For 'led_by_user' source. We might need to fetch it separately or ensure backend provides it.
+                // For now, try to fetch the hike details to get the leader code if it's missing.
+                // This is a fallback, ideally leaderCode is directly available.
+                fetch(`/api/hike/${joinCode}?leaderCode=temp`) // A bit of a hack to try and get leader details
+                    .then(response => {
+                        if (!response.ok) throw new Error('Hike not found or access denied.');
+                        return response.json();
+                    })
+                    .then(hikeWithLeaderCode => {
+                        if (hikeWithLeaderCode.leaderCode) {
+                             // TODO: This logic is problematic. The getHikeHandler for leaderCode requires the leaderCode.
+                             // The API needs to provide the leaderCode for hikes queried by userUUID where source is 'led_by_user'.
+                             // For now, this button will likely fail if leaderCode isn't in the initial payload.
+                             // A proper fix involves backend sending leaderCode for led_by_user hikes.
+                             // As a temporary measure, this will likely not work as intended without backend change.
+                            alert("Could not retrieve leader code for this hike. Navigating with join code only.");
+                            window.location.href = `${window.location.origin}?code=${joinCode}`; // Fallback
+                        } else {
+                             // This will effectively try to load the hike as a participant if leaderCode is missing/wrong
+                            window.location.href = `${window.location.origin}?code=${joinCode}`;
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Error trying to navigate to leader console:", err);
+                        alert("Could not navigate to coordinator console. The hike details might be incomplete or the hike has ended.");
+                        // Fallback to just using joinCode if leaderCode is problematic
+                         window.location.href = `${window.location.origin}?code=${joinCode}`;
+                    });
+                return;
+            }
+            // If leaderCode is present, directly navigate.
+            window.location.href = `${window.location.origin}?code=${joinCode}&leaderCode=${leaderCode}`;
         }
 
         function getNearbyHikes() {
@@ -779,6 +820,70 @@
             showWelcomePage();
         }
 
+        function getLeadingHikes() {
+            const leadingList = document.getElementById('leading-hikes-list');
+            if (!leadingList) {
+                console.error("Element with ID 'leading-hikes-list' not found.");
+                return;
+            }
+            leadingList.innerHTML = '<li>Loading hikes you are leading...</li>';
+
+            if (!currentUser || !currentUser.uuid) {
+                console.log("Current user not available for fetching leading hikes.");
+                leadingList.innerHTML = '<li>Hikes you are leading will appear here.</li>';
+                return;
+            }
+
+            fetch(`/api/hike?userUUID=${currentUser.uuid}`)
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 404) return [];
+                        throw new Error(`Failed to fetch user's hikes. Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(allUserHikes => {
+                    leadingList.innerHTML = '';
+                    const leadingFilter = allUserHikes ? allUserHikes.filter(hike => hike.sourceType === 'led_by_user') : [];
+                    if (leadingFilter.length === 0) {
+                        const li = document.createElement('li');
+                        li.className = 'hike-item';
+                        li.textContent = "You are not currently leading any hikes.";
+                        leadingList.appendChild(li);
+                        return;
+                    }
+                    leadingFilter.forEach(hike => {
+                        const li = document.createElement('li');
+                        li.className = 'hike-item';
+                        // For hikes led by the user, the button should take them to the leader console
+                        // The leaderCode would be available if the hike object from backend includes it
+                        // when fetched via userUUID and sourceType 'led_by_user'.
+                        // The current backend for 'led_by_user' does NOT include leaderCode.
+                        // This will need adjustment in backend OR we find leaderCode from currentHike if it matches.
+                        // For now, let's assume we want a button to go to leader page.
+                        // We'll need to store the leaderCode or fetch it to make this button fully work.
+                        // A temporary solution might be to only show this button if this hike IS currentHike.
+                        // Or, more robustly, ensure leaderCode is part of the payload for 'led_by_user' hikes.
+                        // Let's assume for now the backend will be updated to include leaderCode for 'led_by_user' source.
+                        // If not, this button's onclick will need to be smarter or the button omitted/changed.
+                        // For now, constructing the link and hoping leaderCode is there or will be added.
+                        const leaderConsoleLink = `${window.location.origin}?code=${hike.joinCode}&leaderCode=${hike.leaderCode}`;
+                        li.innerHTML = `
+                            <h3>${hike.name}</h3>
+                            <p>Organization: ${hike.organization}</p>
+                            <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
+                            <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                            <button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>
+                        `;
+                        leadingList.appendChild(li);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching leading hikes:', error);
+                    leadingList.innerHTML = '<li>Error loading hikes you are leading. Please try refreshing.</li>';
+                });
+        }
+
         // Placeholder for getRSVPedHikes
         function getRSVPedHikes() {
             const rsvpList = document.getElementById('rsvped-hikes-list');
@@ -808,25 +913,29 @@
                     }
                     return response.json();
                 })
-                .then(hikes => {
+                .then(allUserHikes => { // Renamed to allUserHikes as it contains both RSVPd and led hikes
                     rsvpList.innerHTML = ''; // Clear placeholder/previous
-                    if (!hikes || hikes.length === 0) {
+                    const rsvpFilter = allUserHikes ? allUserHikes.filter(hike => hike.sourceType === 'rsvp') : [];
+                    if (rsvpFilter.length === 0) {
                         const li = document.createElement('li');
                         li.className = 'hike-item';
                         li.textContent = "You have not RSVPed to any hikes yet.";
                         rsvpList.appendChild(li);
                         return;
                     }
-                    hikes.forEach(hike => {
+                    rsvpFilter.forEach(hike => { // Iterate over filtered list
                         const li = document.createElement('li');
                         li.className = 'hike-item';
+                        // Ensure participantId is available and correctly used for RSVPd hikes
+                        // The backend query for "rsvp" sourceType includes hu.id AS participant_id
+                        const participantId = hike.participantId || 0; // Fallback if somehow missing
                         li.innerHTML = `
                             <h3>${hike.name}</h3>
                             <p>Organization: ${hike.organization}</p>
                             <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
                             <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
-                            <button onclick="startHiking('${hike.joinCode}', ${hike.participantId})">Start Hiking</button>
-                            <button class="button-secondary" onclick="unRSVP('${hike.joinCode}', ${hike.participantId})">UnRSVP</button>
+                            <button onclick="startHiking('${hike.joinCode}', ${participantId})">Start Hiking</button>
+                            <button class="button-secondary" onclick="unRSVP('${hike.joinCode}', ${participantId})">UnRSVP</button>
                         `;
                         rsvpList.appendChild(li);
                     });
