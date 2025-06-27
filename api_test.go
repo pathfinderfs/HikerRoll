@@ -256,7 +256,7 @@ func TestUnRSVP_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "Waiver should exist before unRSVP")
 
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s/rsvp", hike.JoinCode, user.UUID), nil)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
@@ -280,7 +280,7 @@ func TestUnRSVP_NotRSVPed(t *testing.T) {
 	// User does not RSVP.
 
 	// Attempt 1: User not in hike_users at all
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s/rsvp", hike.JoinCode, user.UUID), nil)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
@@ -291,7 +291,7 @@ func TestUnRSVP_NotRSVPed(t *testing.T) {
 	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID) // Manually set to active
 	require.NoError(t, err)
 
-	reqActive, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s/rsvp", hike.JoinCode, user.UUID), nil)
+	reqActive, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
 	rrActive := httptest.NewRecorder()
 	mux.ServeHTTP(rrActive, reqActive)
 	assert.Equal(t, http.StatusBadRequest, rrActive.Code, "Expected 400 when user is active. Body: %s", rrActive.Body.String())
@@ -310,7 +310,7 @@ func TestUnRSVP_HikeClosed(t *testing.T) {
 	// unRSVPHandler does not explicitly check if the hike is closed. It only checks the participant's status.
 	// So, unRSVPing from a closed hike (where user is 'rsvp') should still succeed.
 
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s/rsvp", hike.JoinCode, user.UUID), nil)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)

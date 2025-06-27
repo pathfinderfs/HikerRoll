@@ -904,7 +904,7 @@
                 return;
             }
 
-            const unRSVPUrl = `/api/hike/${joinCode}/participant/${currentUser.uuid}/rsvp`;
+            const unRSVPUrl = `/api/hike/${joinCode}/participant/${currentUser.uuid}`;
 
             if (!navigator.onLine) {
                 // Similar to starting a hike, unRSVPing implies an immediate state change.
