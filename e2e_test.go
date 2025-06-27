@@ -231,8 +231,8 @@ func TestHikeLifecycle(t *testing.T) {
 	leadingHikeItemXPath := fmt.Sprintf("//ul[@id='leading-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')] and .//button[contains(@onclick, \"goToLeaderConsole('%s'\")]]", joinCode)
 
 	// Wait for the list item itself to be visible using the XPath
-	_, errLeadingItem := leaderPage.Timeout(15 * time.Second).ElementX(leadingHikeItemXPath).MustWaitVisible().Do()
-	assert.NoError(t, errLeadingItem, "Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list should be visible")
+	leaderPage.Timeout(15 * time.Second).ElementX(leadingHikeItemXPath).MustWaitVisible()
+	t.Log("Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list is visible") // Log success
 
 	// Optional: Test the "Open Coordinator Console" button from this list item later if needed,
 	// but the primary check is that it appears.
@@ -293,8 +293,8 @@ func TestHikeLifecycle(t *testing.T) {
 	rsvpedHikeItemXPath := fmt.Sprintf("//ul[@id='rsvped-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')] and .//button[contains(@onclick, \"startHiking('%s'\")]]", joinCode)
 
 	// Wait for the list item itself to be visible using the XPath
-	_, errRsvpItem := participantPage.Timeout(15 * time.Second).ElementX(rsvpedHikeItemXPath).MustWaitVisible().Do()
-	assert.NoError(t, errRsvpItem, "RSVPed hike 'E2E Test Hike' in list should be visible")
+	participantPage.Timeout(15 * time.Second).ElementX(rsvpedHikeItemXPath).MustWaitVisible()
+	t.Log("RSVPed hike 'E2E Test Hike' in list is visible") // Log success
 
 	// Click the "Start Hiking" button within this specific list item
 	// The button can be found relative to the rsvpedHikeItemXPath or as a direct child.
