@@ -795,10 +795,15 @@
                 return;
             }
 
-            fetch(`/api/userhikes/${currentUser.uuid}?status=rsvp`) // Assumed endpoint
+            // Updated to use the new consolidated GET /api/hike endpoint
+            fetch(`/api/hike?userUUID=${currentUser.uuid}`)
                 .then(response => {
                     if (!response.ok) {
-                        if (response.status === 404) return []; // No RSVPed hikes is not an error for the user
+                        // For the new endpoint, if userUUID is provided but no hikes are found,
+                        // it will return an empty list and 200 OK.
+                        // So, a 404 is less likely unless the endpoint itself is wrong.
+                        // Handling general errors remains important.
+                        if (response.status === 404) return [];
                         throw new Error(`Failed to fetch RSVPed hikes. Status: ${response.status}`);
                     }
                     return response.json();
