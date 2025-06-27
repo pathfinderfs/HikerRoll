@@ -288,7 +288,7 @@
             <ul id="leading-hikes-list" class="hike-list"></ul>
 
             <h2>Nearby Hikes</h2>
-            <button class="button-refresh" onclick="getNearbyHikes()">🔄 Refresh</button>
+            <button class="button-refresh" onclick="fetchAllWelcomePageHikes()">🔄 Refresh All</button>
             <ul id="nearby-hikes" class="hike-list"></ul>
         </div>
 
@@ -371,6 +371,7 @@
             </table>
             <button onclick="downloadParticipantList()">Download Participant List</button>
             <button class="button-secondary" onclick="endHike()">End Hike</button>
+            <button type="button" style="background-color: #555; margin-top: 10px;" onclick="goHomeFromLeaderConsole()">Home / Welcome Page</button>
         </div>
 
         <div id="hiking-page" style="display:none;">
@@ -478,10 +479,129 @@
 
         function showWelcomePage() {
             showPage('welcome-page');
-            getNearbyHikes();
-            getRSVPedHikes();
-            getLeadingHikes(); // Added call
+            // All data fetching for welcome page is now consolidated
+            fetchAllWelcomePageHikes();
         }
+
+        function fetchAllWelcomePageHikes() {
+            const nearbyList = document.getElementById('nearby-hikes');
+            const rsvpList = document.getElementById('rsvped-hikes-list');
+            const leadingList = document.getElementById('leading-hikes-list');
+
+            // Clear previous content and set loading messages
+            nearbyList.innerHTML = '<li>Loading nearby hikes...</li>';
+            rsvpList.innerHTML = '<li>Loading RSVPed hikes...</li>';
+            leadingList.innerHTML = '<li>Loading hikes you are leading...</li>';
+
+            let apiUrl = `/api/hike?userUUID=${currentUser.uuid}`;
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    apiUrl += `&latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`;
+                    fetchHikes(apiUrl);
+                }, error => {
+                    console.error("Error getting location for welcome page:", error);
+                    // Proceed without location data if geolocation fails
+                    fetchHikes(apiUrl);
+                });
+            } else {
+                console.log("Geolocation is not supported by this browser. Cannot fetch nearby hikes.");
+                // Proceed without location data
+                fetchHikes(apiUrl);
+            }
+        }
+
+        function fetchHikes(url) {
+            const nearbyList = document.getElementById('nearby-hikes');
+            const rsvpList = document.getElementById('rsvped-hikes-list');
+            const leadingList = document.getElementById('leading-hikes-list');
+
+            // Ensure lists are cleared before processing new data or error messages
+            nearbyList.innerHTML = '';
+            rsvpList.innerHTML = '';
+            leadingList.innerHTML = '';
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`API request failed with status ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(hikes => {
+                    let foundNearby = false;
+                    let foundRsvp = false;
+                    let foundLeading = false;
+
+                    if (!hikes || hikes.length === 0) {
+                        // Handled by individual list checks below
+                    } else {
+                        hikes.forEach(hike => {
+                            const li = document.createElement('li');
+                            li.className = 'hike-item';
+                            let buttonHtml = '';
+
+                            if (hike.sourceType === 'location') {
+                                buttonHtml = `<button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>`;
+                                li.innerHTML = `
+                                    <h3>${hike.name}</h3>
+                                    <p>Organization: ${hike.organization}</p>
+                                    <p>Trailhead: ${hike.trailheadName}</p>
+                                    <p>Leader: ${hike.leader.name}</p>
+                                    <p>Phone: ${formatPhoneNumber(hike.leader.phone)}</p>
+                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                                    ${buttonHtml}
+                                `;
+                                nearbyList.appendChild(li);
+                                foundNearby = true;
+                            } else if (hike.sourceType === 'rsvp') {
+                                const participantId = hike.participantId || 0;
+                                buttonHtml = `
+                                    <button onclick="startHiking('${hike.joinCode}', ${participantId})">Start Hiking</button>
+                                    <button class="button-secondary" onclick="unRSVP('${hike.joinCode}', ${participantId})">UnRSVP</button>
+                                `;
+                                li.innerHTML = `
+                                    <h3>${hike.name}</h3>
+                                    <p>Organization: ${hike.organization}</p>
+                                    <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
+                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                                    ${buttonHtml}
+                                `;
+                                rsvpList.appendChild(li);
+                                foundRsvp = true;
+                            } else if (hike.sourceType === 'led_by_user') {
+                                buttonHtml = `<button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>`;
+                                li.innerHTML = `
+                                    <h3>${hike.name}</h3>
+                                    <p>Organization: ${hike.organization}</p>
+                                    <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
+                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                                    ${buttonHtml}
+                                `;
+                                leadingList.appendChild(li);
+                                foundLeading = true;
+                            }
+                        });
+                    }
+
+                    if (!foundNearby) {
+                        nearbyList.innerHTML = '<li class="hike-item">No nearby hikes currently. Enable location or refresh.</li>';
+                    }
+                    if (!foundRsvp) {
+                        rsvpList.innerHTML = '<li class="hike-item">You have not RSVPed to any hikes yet.</li>';
+                    }
+                    if (!foundLeading) {
+                        leadingList.innerHTML = '<li class="hike-item">You are not currently leading any hikes.</li>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching all welcome page hikes:', error);
+                    nearbyList.innerHTML = '<li>Error loading nearby hikes.</li>';
+                    rsvpList.innerHTML = '<li>Error loading your RSVPed hikes.</li>';
+                    leadingList.innerHTML = '<li>Error loading hikes you lead.</li>';
+                });
+        }
+
 
         function goToLeaderConsole(joinCode, leaderCode) {
             if (!joinCode || !leaderCode) {
@@ -520,46 +640,7 @@
             window.location.href = `${window.location.origin}?code=${joinCode}&leaderCode=${leaderCode}`;
         }
 
-        function getNearbyHikes() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    fetch(`/api/hike?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`)
-                        .then(response => response.json())
-                        .then(hikes => {
-                            const hikesList = document.getElementById('nearby-hikes');
-                            hikesList.innerHTML = '';
-
-                            if (!hikes || hikes.length === 0) {
-                                const li = document.createElement('li');
-                                li.className = 'hike-item';
-                                li.textContent = "No nearby hikes currently.";
-                                hikesList.appendChild(li);
-                                return;
-                            }
-
-                            hikes.forEach(hike => {
-                                const li = document.createElement('li');
-                                li.className = 'hike-item';
-                                li.innerHTML = `
-                                    <h3>${hike.name}</h3>
-                                    <p>Organization: ${hike.organization}</p>
-                                    <p>Trailhead: ${hike.trailheadName}</p>
-                                    <p>Leader: ${hike.leader.name}</p>
-                                    <p>Phone: ${formatPhoneNumber(hike.leader.phone)}</p>
-                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
-                                    <button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>
-                                `;
-                                hikesList.appendChild(li);
-                            });
-                        });
-                }, function (error) {
-                    console.error("Error getting location:", error);
-                    alert("GPS location is required to find nearby hikes. Please enable location services and try again.");
-                });
-            } else {
-                alert("Geolocation is not supported by this browser. You won't be able to see nearby hikes.");
-            }
-        }
+        // getNearbyHikes, getRSVPedHikes, and getLeadingHikes are now consolidated into fetchAllWelcomePageHikes
 
         function showJoinHikePage(joinCode) {
             // Load currentUser into the form
@@ -811,6 +892,12 @@
             showWelcomePage();
         }
 
+        function goHomeFromLeaderConsole() {
+            window.history.pushState({}, document.title, window.location.pathname); // Clear URL params
+            clearCurrentHike(); // Clear any stored hike state
+            showWelcomePage();  // Show the main welcome page
+        }
+
         function cancelCreateHike() {
             showWelcomePage();
         }
@@ -820,131 +907,8 @@
             showWelcomePage();
         }
 
-        function getLeadingHikes() {
-            const leadingList = document.getElementById('leading-hikes-list');
-            if (!leadingList) {
-                console.error("Element with ID 'leading-hikes-list' not found.");
-                return;
-            }
-            leadingList.innerHTML = '<li>Loading hikes you are leading...</li>';
+        // getLeadingHikes and getRSVPedHikes are removed and functionality merged into fetchAllWelcomePageHikes
 
-            if (!currentUser || !currentUser.uuid) {
-                console.log("Current user not available for fetching leading hikes.");
-                leadingList.innerHTML = '<li>Hikes you are leading will appear here.</li>';
-                return;
-            }
-
-            fetch(`/api/hike?userUUID=${currentUser.uuid}`)
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 404) return [];
-                        throw new Error(`Failed to fetch user's hikes. Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(allUserHikes => {
-                    leadingList.innerHTML = '';
-                    const leadingFilter = allUserHikes ? allUserHikes.filter(hike => hike.sourceType === 'led_by_user') : [];
-                    if (leadingFilter.length === 0) {
-                        const li = document.createElement('li');
-                        li.className = 'hike-item';
-                        li.textContent = "You are not currently leading any hikes.";
-                        leadingList.appendChild(li);
-                        return;
-                    }
-                    leadingFilter.forEach(hike => {
-                        const li = document.createElement('li');
-                        li.className = 'hike-item';
-                        // For hikes led by the user, the button should take them to the leader console
-                        // The leaderCode would be available if the hike object from backend includes it
-                        // when fetched via userUUID and sourceType 'led_by_user'.
-                        // The current backend for 'led_by_user' does NOT include leaderCode.
-                        // This will need adjustment in backend OR we find leaderCode from currentHike if it matches.
-                        // For now, let's assume we want a button to go to leader page.
-                        // We'll need to store the leaderCode or fetch it to make this button fully work.
-                        // A temporary solution might be to only show this button if this hike IS currentHike.
-                        // Or, more robustly, ensure leaderCode is part of the payload for 'led_by_user' hikes.
-                        // Let's assume for now the backend will be updated to include leaderCode for 'led_by_user' source.
-                        // If not, this button's onclick will need to be smarter or the button omitted/changed.
-                        // For now, constructing the link and hoping leaderCode is there or will be added.
-                        const leaderConsoleLink = `${window.location.origin}?code=${hike.joinCode}&leaderCode=${hike.leaderCode}`;
-                        li.innerHTML = `
-                            <h3>${hike.name}</h3>
-                            <p>Organization: ${hike.organization}</p>
-                            <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
-                            <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
-                            <button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>
-                        `;
-                        leadingList.appendChild(li);
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching leading hikes:', error);
-                    leadingList.innerHTML = '<li>Error loading hikes you are leading. Please try refreshing.</li>';
-                });
-        }
-
-        // Placeholder for getRSVPedHikes
-        function getRSVPedHikes() {
-            const rsvpList = document.getElementById('rsvped-hikes-list');
-            if (!rsvpList) {
-                console.error("Element with ID 'rsvped-hikes-list' not found.");
-                return;
-            }
-            rsvpList.innerHTML = '<li>Loading RSVPed hikes...</li>'; // Placeholder
-
-            // Ensure currentUser and currentUser.uuid are available
-            if (!currentUser || !currentUser.uuid) {
-                console.log("Current user not available for fetching RSVPed hikes.");
-                rsvpList.innerHTML = '<li>Your RSVPed hikes will appear here.</li>';
-                return;
-            }
-
-            // Updated to use the new consolidated GET /api/hike endpoint
-            fetch(`/api/hike?userUUID=${currentUser.uuid}`)
-                .then(response => {
-                    if (!response.ok) {
-                        // For the new endpoint, if userUUID is provided but no hikes are found,
-                        // it will return an empty list and 200 OK.
-                        // So, a 404 is less likely unless the endpoint itself is wrong.
-                        // Handling general errors remains important.
-                        if (response.status === 404) return [];
-                        throw new Error(`Failed to fetch RSVPed hikes. Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(allUserHikes => { // Renamed to allUserHikes as it contains both RSVPd and led hikes
-                    rsvpList.innerHTML = ''; // Clear placeholder/previous
-                    const rsvpFilter = allUserHikes ? allUserHikes.filter(hike => hike.sourceType === 'rsvp') : [];
-                    if (rsvpFilter.length === 0) {
-                        const li = document.createElement('li');
-                        li.className = 'hike-item';
-                        li.textContent = "You have not RSVPed to any hikes yet.";
-                        rsvpList.appendChild(li);
-                        return;
-                    }
-                    rsvpFilter.forEach(hike => { // Iterate over filtered list
-                        const li = document.createElement('li');
-                        li.className = 'hike-item';
-                        // Ensure participantId is available and correctly used for RSVPd hikes
-                        // The backend query for "rsvp" sourceType includes hu.id AS participant_id
-                        const participantId = hike.participantId || 0; // Fallback if somehow missing
-                        li.innerHTML = `
-                            <h3>${hike.name}</h3>
-                            <p>Organization: ${hike.organization}</p>
-                            <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
-                            <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
-                            <button onclick="startHiking('${hike.joinCode}', ${participantId})">Start Hiking</button>
-                            <button class="button-secondary" onclick="unRSVP('${hike.joinCode}', ${participantId})">UnRSVP</button>
-                        `;
-                        rsvpList.appendChild(li);
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching RSVPed hikes:', error);
-                    rsvpList.innerHTML = '<li>Error loading your RSVPed hikes. Please try refreshing.</li>';
-                });
-        }
 
         function startHiking(joinCode, participantId) {
             if (!currentUser || !currentUser.uuid) {
