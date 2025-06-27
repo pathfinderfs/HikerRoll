@@ -865,7 +865,7 @@
                 // Consider UI feedback here as well
                 return;
             }
-            fetch(endHikeUrl)
+            fetch(endHikeUrl, { method: 'PUT' }) // Added { method: 'PUT' }
                 .then(response => {
                     if (response.ok) {
                         clearCurrentHike();
