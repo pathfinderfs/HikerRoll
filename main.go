@@ -124,6 +124,7 @@ type Hike struct {
 	Status        string    `json:"Status"`
 	JoinCode      string    `json:"joinCode"`
 	LeaderCode    string    `json:"leaderCode"`
+	SourceType    string    `json:"sourceType,omitempty"` // Added for combined hike results
 }
 
 // Keep in sync with participants table schema
@@ -238,9 +239,9 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
-	mux.HandleFunc("GET /api/hike", getNearbyHikesHandler)
+	mux.HandleFunc("GET /api/hike", getHikesHandler) // Renamed from getNearbyHikesHandler
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
-	mux.HandleFunc("GET /api/userhikes/{userUUID}", getUserHikesByStatusHandler)
+	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
 }
 
 func main() {
@@ -657,45 +658,145 @@ func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 	logAction(fmt.Sprintf("Participant status updated: Id: %s, Leader Code: %s, New Status: %s", participantId, joinCode, request.Status))
 }
 
-// Given a latitude and longitude, return all hikes within a 0.25 mile radius
-func getNearbyHikesHandler(w http.ResponseWriter, r *http.Request) {
+// getHikesHandler returns hikes based on query parameters:
+// - latitude, longitude: nearby hikes
+// - userUUID: hikes user has RSVPd to
+// - leaderID: hikes led by the leader
+func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 	latitude := r.URL.Query().Get("latitude")
 	longitude := r.URL.Query().Get("longitude")
+	userUUID := r.URL.Query().Get("userUUID")
+	leaderID := r.URL.Query().Get("leaderID")
 
-	now := time.Now()
-	oneHourAgo := now.Add(-1 * time.Hour)
-	oneHourFromNow := now.Add(1 * time.Hour)
+	var allHikes []Hike
+	now := time.Now() // For time-based filtering
 
-	//	latRange = .25 / 69
-	//	lonRange = .25 / (69 * math.Cos(latitude*(math.Pi/180)))
+	// Fetch by location
+	if latitude != "" && longitude != "" {
+		// Ensure lat/lon can be parsed to float for query, or handle error
+		// For this implementation, we assume they are valid float strings as per original behavior.
+		// The original query used latitude and longitude directly in SQL string comparisons with fixed offsets.
+		// It's better to use BETWEEN for ranges.
+		// latRange = 0.003623 (approx 0.25 miles / 69 miles/degree)
+		// lonRange = 0.003896 (approx 0.25 miles / (69 * cos(lat)) ) - this was a fixed value in original, so keeping it fixed.
 
-	rows, err := db.Query(`
-		SELECT h.join_code, h.name, h.organization, u.name, u.phone, h.latitude, h.longitude, h.start_time
-		FROM hikes AS h JOIN users AS u ON leader_uuid = uuid
-		WHERE h.latitude - ? <= 0.003623
-		AND h.longitude - ? <= 0.003896
-		AND h.status = 'open'
-		AND h.start_time BETWEEN ? AND ?
-	`, latitude, longitude, oneHourAgo, oneHourFromNow)
+		// Time window for nearby hikes
+		oneHourAgo := now.Add(-1 * time.Hour)
+		oneHourFromNow := now.Add(1 * time.Hour)
 
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
+		rows, err := db.Query(`
+			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name as leader_name, u.phone as leader_phone,
+			       h.latitude, h.longitude, h.start_time, h.status
+			FROM hikes AS h
+			JOIN users AS u ON h.leader_uuid = u.uuid
+			WHERE h.latitude BETWEEN (? - 0.003623) AND (? + 0.003623)
+			  AND h.longitude BETWEEN (? - 0.003896) AND (? + 0.003896)
+			  AND h.status = 'open'
+			  AND h.start_time BETWEEN ? AND ?
+		`, latitude, latitude, longitude, longitude, oneHourAgo, oneHourFromNow)
 
-	var hikes []Hike
-	for rows.Next() {
-		var h Hike
-		err := rows.Scan(&h.JoinCode, &h.Name, &h.Organization, &h.Leader.Name, &h.Leader.Phone, &h.Latitude, &h.Longitude, &h.StartTime)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error querying location hikes: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		hikes = append(hikes, h)
+		defer rows.Close()
+
+		for rows.Next() {
+			var h Hike
+			err := rows.Scan(&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
+				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status)
+			if err != nil {
+				http.Error(w, "Error scanning location hike: "+err.Error(), http.StatusInternalServerError)
+				// Consider logging rows.Err() as well
+				return
+			}
+			h.SourceType = "location"
+			allHikes = append(allHikes, h)
+		}
+		if err = rows.Err(); err != nil {
+			http.Error(w, "Error iterating location hikes: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
-	json.NewEncoder(w).Encode(hikes)
+	// Fetch by userUUID (RSVP'd hikes)
+	if userUUID != "" {
+		rows, err := db.Query(`
+			SELECT h.name, h.organization, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code, h.status,
+			       hu.id AS participant_id, l.uuid AS leader_uuid, l.name AS leader_name, l.phone AS leader_phone
+			FROM hikes AS h
+			JOIN hike_users AS hu ON h.join_code = hu.hike_join_code
+			JOIN users AS l ON h.leader_uuid = l.uuid
+			WHERE hu.user_uuid = ? AND hu.status = 'rsvp' AND h.status = 'open'
+			ORDER BY h.start_time DESC
+		`, userUUID)
+
+		if err != nil {
+			http.Error(w, "Error querying RSVP hikes: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var h Hike
+			err := rows.Scan(
+				&h.Name, &h.Organization, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode, &h.Status,
+				&h.ParticipantId, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
+			)
+			if err != nil {
+				http.Error(w, "Error scanning RSVP hike: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			h.SourceType = "rsvp"
+			allHikes = append(allHikes, h)
+		}
+		if err = rows.Err(); err != nil {
+			http.Error(w, "Error iterating RSVP hikes: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Fetch by leaderID
+	if leaderID != "" {
+		rows, err := db.Query(`
+			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name AS leader_name, u.phone AS leader_phone,
+			       h.latitude, h.longitude, h.start_time, h.status
+			FROM hikes AS h
+			JOIN users AS u ON h.leader_uuid = u.uuid
+			WHERE h.leader_uuid = ? AND h.status = 'open'
+			ORDER BY h.start_time DESC
+		`, leaderID)
+
+		if err != nil {
+			http.Error(w, "Error querying leader hikes: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var h Hike
+			err := rows.Scan(
+				&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
+				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status,
+			)
+			if err != nil {
+				http.Error(w, "Error scanning leader hike: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			h.SourceType = "leader"
+			allHikes = append(allHikes, h)
+		}
+		if err = rows.Err(); err != nil {
+			http.Error(w, "Error iterating leader hikes: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Note: As per plan, if a hike matches multiple criteria, it will appear multiple times
+	// in allHikes, each with its respective SourceType. No deduplication is done.
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(allHikes)
 }
 
 // Given a query string, return a list of trailhead suggestions
@@ -745,59 +846,4 @@ func logAction(action string) {
 
 	logger := log.New(f, "", log.LstdFlags)
 	logger.Println(action)
-}
-
-// getUserHikesByStatusHandler returns a list of hikes for a given user, filtered by status.
-func getUserHikesByStatusHandler(w http.ResponseWriter, r *http.Request) {
-	userUUID := r.PathValue("userUUID")
-	statusFilter := r.URL.Query().Get("status")
-
-	if statusFilter == "" {
-		http.Error(w, "Missing required 'status' query parameter", http.StatusBadRequest)
-		return
-	}
-
-	query := `
-		SELECT h.name, h.organization, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code,
-		       hu.id AS participant_id, l.name AS leader_name, l.phone AS leader_phone
-		FROM hikes AS h
-		JOIN hike_users AS hu ON h.join_code = hu.hike_join_code
-		JOIN users AS l ON h.leader_uuid = l.uuid
-		WHERE hu.user_uuid = ? AND hu.status = ? AND h.status = 'open'
-		ORDER BY h.start_time DESC
-	`
-
-	rows, err := db.Query(query, userUUID, statusFilter)
-	if err != nil {
-		http.Error(w, "Database query error: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	var hikes []Hike
-	for rows.Next() {
-		var h Hike
-		// We need to scan into h.Leader.Name and h.Leader.Phone separately
-		// as h.Leader is a struct.
-		err := rows.Scan(
-			&h.Name, &h.Organization, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode,
-			&h.ParticipantId, &h.Leader.Name, &h.Leader.Phone,
-		)
-		if err != nil {
-			http.Error(w, "Error scanning row: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// The userUUID for the leader is h.leader_uuid in the hikes table,
-		// but we don't explicitly fetch it into h.Leader.UUID here unless needed by frontend.
-		// The current Hike struct's Leader User field doesn't require UUID for this specific display.
-		hikes = append(hikes, h)
-	}
-
-	if err = rows.Err(); err != nil {
-		http.Error(w, "Error iterating rows: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(hikes)
 }

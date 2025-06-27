@@ -334,108 +334,7 @@ func TestUnRSVP_HikeClosed(t *testing.T) {
 	assert.Equal(t, 0, count, "Waiver should be removed")
 }
 
-// Tests for getUserHikesByStatusHandler
-func TestGetUserHikes_StatusRSVP(t *testing.T) {
-	user := User{UUID: "user-gethikes-rsvp", Name: "GetHikes RSVP"}
-	hike1 := createTestHikeWithOptions(t, User{UUID: "leader1-rsvp", Name: "Leader One"})
-	hike2 := createTestHikeWithOptions(t, User{UUID: "leader2-rsvp", Name: "Leader Two"})
-	_ = createTestHikeWithOptions(t, User{UUID: "leader3-rsvp", Name: "Leader Three"}) // Another hike user is not part of
-
-	joinTestHikeWithOptions(t, hike1, user) // RSVPs to hike1
-	joinTestHikeWithOptions(t, hike2, user) // RSVPs to hike2
-
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/userhikes/%s?status=rsvp", user.UUID), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var hikes []Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
-	require.NoError(t, err)
-	assert.Len(t, hikes, 2, "Should return 2 hikes the user RSVPd to")
-
-	// Check that hike1 and hike2 are in the list (order might vary due to DESC StartTime)
-	foundHike1 := false
-	foundHike2 := false
-	for _, h := range hikes {
-		if h.JoinCode == hike1.JoinCode {
-			foundHike1 = true
-			assert.Equal(t, "Leader One", h.Leader.Name)
-		}
-		if h.JoinCode == hike2.JoinCode {
-			foundHike2 = true
-			assert.Equal(t, "Leader Two", h.Leader.Name)
-		}
-	}
-	assert.True(t, foundHike1, "Hike 1 not found in RSVP list")
-	assert.True(t, foundHike2, "Hike 2 not found in RSVP list")
-}
-
-func TestGetUserHikes_StatusActive(t *testing.T) {
-	user := User{UUID: "user-gethikes-active", Name: "GetHikes Active"}
-	hike1 := createTestHikeWithOptions(t, User{UUID: "leader1-active", Name: "Leader Active One"})
-	hike2Closed := createTestHikeWithOptions(t, User{UUID: "leader2-active-closed", Name: "Leader Active Two Closed"})
-
-	joinTestHikeWithOptions(t, hike1, user) // RSVPs
-	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hike1.JoinCode, user.UUID)
-	require.NoError(t, err)
-
-	joinTestHikeWithOptions(t, hike2Closed, user) // RSVPs
-	_, err = db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hike2Closed.JoinCode, user.UUID)
-	require.NoError(t, err)
-	_, err = db.Exec("UPDATE hikes SET status = 'closed' WHERE join_code = ?", hike2Closed.JoinCode) // Close hike2
-	require.NoError(t, err)
-
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/userhikes/%s?status=active", user.UUID), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var hikes []Hike
-	err = json.Unmarshal(rr.Body.Bytes(), &hikes)
-	require.NoError(t, err)
-	// Only open hikes should be returned
-	assert.Len(t, hikes, 1, "Should return 1 active hike for the user from an open hike")
-	if len(hikes) == 1 {
-		assert.Equal(t, hike1.JoinCode, hikes[0].JoinCode)
-		assert.Equal(t, "Leader Active One", hikes[0].Leader.Name)
-	}
-}
-
-func TestGetUserHikes_NoStatusParam(t *testing.T) {
-	userUUID := "user-no-status-param"
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/userhikes/%s", userUUID), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestGetUserHikes_UserNotFoundOrNoHikes(t *testing.T) {
-	// Test with a user UUID that has no hikes
-	user := User{UUID: "user-no-hikes-ever", Name: "No Hikes User"}
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/userhikes/%s?status=rsvp", user.UUID), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var hikes []Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
-	require.NoError(t, err)
-	assert.Empty(t, hikes, "Should return an empty list for a user with no RSVPd hikes")
-
-	// Test with a completely non-existent user UUID
-	reqNotFound, _ := http.NewRequest("GET", "/api/userhikes/nonexistentuseruuid?status=rsvp", nil)
-	rrNotFound := httptest.NewRecorder()
-	mux.ServeHTTP(rrNotFound, reqNotFound)
-	assert.Equal(t, http.StatusOK, rrNotFound.Code)
-	err = json.Unmarshal(rrNotFound.Body.Bytes(), &hikes)
-	require.NoError(t, err)
-	assert.Empty(t, hikes, "Should return an empty list for a non-existent user")
-}
+// Tests for /api/hike (formerly getUserHikesByStatusHandler functionality is merged here)
 
 func TestEndHike_WithRSVPParticipants(t *testing.T) {
 	leader := User{UUID: "leader-end-rsvp", Name: "End RSVP Leader"}
@@ -537,20 +436,206 @@ func TestUpdateParticipantStatus_PreventRSVPChange(t *testing.T) {
 	// For now, this test confirms current behavior. A future task might be to restrict updateParticipantStatusHandler.
 }
 
-func TestNearbyHikes(t *testing.T) {
-	createTestHike(t)
+func TestGetHikes_Location(t *testing.T) {
+	// Create a hike that should be found by location
+	hikeTime := time.Now().Add(30 * time.Minute) // Ensure it's within the +/- 1 hour window
+	leader := User{UUID: "leader-location-test", Name: "Location Test Leader"}
+	createdHike := createTestHikeWithOptionsAndStartTime(t, leader, "Location Test Hike", 21.3000, -157.8500, hikeTime)
 
-	req, _ := http.NewRequest("GET", "/api/hike?latitude=40.7128&longitude=-74.0060", nil)
+	// Make sure DB has some trailheads populated if your createTestHike doesn't handle it
+	// populateTrailheads() // Usually called by initDB in TestMain
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?latitude=%.4f&longitude=%.4f", 21.3000, -157.8500), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
 
 	var hikes []Hike
-	json.Unmarshal(rr.Body.Bytes(), &hikes)
-	assert.GreaterOrEqual(t, len(hikes), 1)
+	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
+
+	found := false
+	for _, h := range hikes {
+		if h.JoinCode == createdHike.JoinCode {
+			assert.Equal(t, "location", h.SourceType, "SourceType should be 'location'")
+			assert.Equal(t, createdHike.Name, h.Name)
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Created hike was not found in location search results. Response: %s", rr.Body.String())
+	assert.GreaterOrEqual(t, len(hikes), 1, "Should find at least one hike")
 }
+
+func TestGetHikes_UserRSVP(t *testing.T) {
+	user := User{UUID: "user-gethikes-rsvp-test", Name: "GetHikes RSVP TestUser"}
+	leader1 := User{UUID: "leader1-rsvp-test", Name: "Leader One RSVP Test"}
+	hike1 := createTestHikeWithOptions(t, leader1)
+
+	// Another hike by a different leader, user also RSVPs to this
+	leader2 := User{UUID: "leader2-rsvp-test", Name: "Leader Two RSVP Test"}
+	hike2 := createTestHikeWithOptions(t, leader2)
+
+	// A third hike the user does not RSVP to
+	leader3 := User{UUID: "leader3-rsvp-test", Name: "Leader Three RSVP Test"}
+	_ = createTestHikeWithOptions(t, leader3)
+
+
+	joinTestHikeWithOptions(t, hike1, user) // User RSVPs to hike1
+	joinTestHikeWithOptions(t, hike2, user) // User RSVPs to hike2
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", user.UUID), nil)
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
+	var hikes []Hike
+	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
+	assert.Len(t, hikes, 2, "Should return 2 hikes the user RSVPd to")
+
+	foundHike1 := false
+	foundHike2 := false
+	for _, h := range hikes {
+		assert.Equal(t, "rsvp", h.SourceType, "SourceType should be 'rsvp'")
+		if h.JoinCode == hike1.JoinCode {
+			foundHike1 = true
+			assert.Equal(t, leader1.Name, h.Leader.Name)
+		}
+		if h.JoinCode == hike2.JoinCode {
+			foundHike2 = true
+			assert.Equal(t, leader2.Name, h.Leader.Name)
+		}
+	}
+	assert.True(t, foundHike1, "Hike 1 not found in user's RSVP list. Response: %s", rr.Body.String())
+	assert.True(t, foundHike2, "Hike 2 not found in user's RSVP list. Response: %s", rr.Body.String())
+}
+
+func TestGetHikes_Leader(t *testing.T) {
+	leaderUser := User{UUID: "leader-gethikes-test", Name: "GetHikes Leader TestUser"}
+
+	// Hike 1 led by leaderUser
+	hike1 := createTestHikeWithOptionsAndStartTime(t, leaderUser, "Led Hike 1", 34.0522, -118.2437, time.Now().Add(15*time.Minute))
+	// Hike 2 led by leaderUser with a different start time
+	hike2 := createTestHikeWithOptionsAndStartTime(t, leaderUser, "Led Hike 2", 34.0522, -118.2437, time.Now().Add(45*time.Minute))
+
+	// Hike 3 led by a different leader
+	otherLeader := User{UUID: "other-leader-gethikes", Name: "Other Leader"}
+	_ = createTestHikeWithOptions(t, otherLeader)
+
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?leaderID=%s", leaderUser.UUID), nil)
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
+	var hikes []Hike
+	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
+	assert.Len(t, hikes, 2, "Should return 2 hikes led by the leader")
+
+	foundHike1 := false
+	foundHike2 := false
+	for _, h := range hikes {
+		assert.Equal(t, "leader", h.SourceType, "SourceType should be 'leader'")
+		assert.Equal(t, leaderUser.UUID, h.Leader.UUID)
+		if h.JoinCode == hike1.JoinCode {
+			foundHike1 = true
+		}
+		if h.JoinCode == hike2.JoinCode {
+			foundHike2 = true
+		}
+	}
+	assert.True(t, foundHike1, "Led Hike 1 not found. Response: %s", rr.Body.String())
+	assert.True(t, foundHike2, "Led Hike 2 not found. Response: %s", rr.Body.String())
+}
+
+func TestGetHikes_Combined(t *testing.T) {
+	hikeTime := time.Now().Add(30 * time.Minute)
+	searchLat, searchLon := 22.2222, -158.2222
+
+	leader := User{UUID: "leader-combined-test", Name: "Combined Test Leader"}
+	participant := User{UUID: "participant-combined-test", Name: "Combined Test Participant"}
+
+	// Hike 1: Led by 'leader', RSVPd by 'participant', and at 'searchLat, searchLon'
+	hike1 := createTestHikeWithOptionsAndStartTime(t, leader, "Combined Hike 1 (All)", searchLat, searchLon, hikeTime)
+	joinTestHikeWithOptions(t, hike1, participant)
+
+	// Hike 2: Led by 'leader', but different location and participant not RSVPd
+	hike2 := createTestHikeWithOptionsAndStartTime(t, leader, "Combined Hike 2 (Leader Only)", 23.3333, -159.3333, hikeTime)
+
+	// Hike 3: RSVPd by 'participant', but different leader and location
+	otherLeader := User{UUID: "other-leader-combined", Name: "Other Combined Leader"}
+	hike3 := createTestHikeWithOptionsAndStartTime(t, otherLeader, "Combined Hike 3 (RSVP Only)", 24.4444, -160.4444, hikeTime)
+	joinTestHikeWithOptions(t, hike3, participant)
+
+	// Hike 4: At 'searchLat, searchLon', but different leader and participant not RSVPd
+	anotherLeader := User{UUID: "another-leader-combined", Name: "Another Combined Leader"}
+	hike4 := createTestHikeWithOptionsAndStartTime(t, anotherLeader, "Combined Hike 4 (Location Only)", searchLat, searchLon, hikeTime)
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?leaderID=%s&userUUID=%s&latitude=%.4f&longitude=%.4f", leader.UUID, participant.UUID, searchLat, searchLon), nil)
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
+	var hikes []Hike
+	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
+
+	// Expected:
+	// hike1 (source: location), hike1 (source: rsvp), hike1 (source: leader)
+	// hike2 (source: leader)
+	// hike3 (source: rsvp)
+	// hike4 (source: location)
+	// Total 6 entries if duplicates are returned per source type
+	assert.Len(t, hikes, 6, "Should return 6 entries for combined query. Got: %s", rr.Body.String())
+
+	sourceCounts := make(map[string]int)
+	hikeCounts := make(map[string]int)
+
+	for _, h := range hikes {
+		sourceCounts[h.SourceType]++
+		hikeCounts[h.JoinCode]++
+		if h.JoinCode == hike1.JoinCode {
+			assert.Contains(t, []string{"location", "rsvp", "leader"}, h.SourceType)
+		} else if h.JoinCode == hike2.JoinCode {
+			assert.Equal(t, "leader", h.SourceType)
+		} else if h.JoinCode == hike3.JoinCode {
+			assert.Equal(t, "rsvp", h.SourceType)
+		} else if h.JoinCode == hike4.JoinCode {
+			assert.Equal(t, "location", h.SourceType)
+		}
+	}
+
+	assert.Equal(t, 3, hikeCounts[hike1.JoinCode], "Hike 1 should appear 3 times (once for each matching criterion)")
+	assert.Equal(t, 1, hikeCounts[hike2.JoinCode], "Hike 2 should appear once")
+	assert.Equal(t, 1, hikeCounts[hike3.JoinCode], "Hike 3 should appear once")
+	assert.Equal(t, 1, hikeCounts[hike4.JoinCode], "Hike 4 should appear once")
+
+	assert.Equal(t, 2, sourceCounts["location"], "Expected 2 hikes from location") // hike1, hike4
+	assert.Equal(t, 2, sourceCounts["rsvp"], "Expected 2 hikes from rsvp")       // hike1, hike3
+	assert.Equal(t, 2, sourceCounts["leader"], "Expected 2 hikes from leader")   // hike1, hike2
+}
+
+
+func TestGetHikes_NoParams(t *testing.T) {
+	req, _ := http.NewRequest("GET", "/api/hike", nil) // No query parameters
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
+	var hikes []Hike
+	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
+	assert.Empty(t, hikes, "Should return an empty list when no parameters are provided")
+}
+
 
 func TestHikeParticipants(t *testing.T) {
 	hike := createTestHike(t)
@@ -834,13 +919,18 @@ func createTestHike(t *testing.T) Hike {
 
 // createTestHikeWithOptions allows specifying the leader
 func createTestHikeWithOptions(t *testing.T, leader User) Hike {
+	return createTestHikeWithOptionsAndStartTime(t, leader, "Test Hike for "+leader.UUID, 40.7128, -74.0060, time.Now())
+}
+
+// createTestHikeWithOptionsAndStartTime allows specifying leader, name, lat, lon, and start time
+func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName string, lat float64, lon float64, startTime time.Time) Hike {
 	hike := Hike{
-		Name:          "Test Hike for " + leader.UUID,
+		Name:          hikeName,
 		Leader:        leader,
-		TrailheadName: "Test Trailhead for " + leader.UUID,
-		Latitude:      40.7128,
-		Longitude:     -74.0060,
-		StartTime:     time.Now(),
+		TrailheadName: "Test Trailhead for " + leader.UUID, // Can be generic or passed as param
+		Latitude:      lat,
+		Longitude:     lon,
+		StartTime:     startTime,
 	}
 	body, err := json.Marshal(hike)
 	require.NoError(t, err)
