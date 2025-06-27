@@ -15,6 +15,7 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const baseServerURL = "http://localhost:8197"
@@ -217,6 +218,47 @@ func TestHikeLifecycle(t *testing.T) {
 	joinCode := parsedJoinURL.Query().Get("code")
 	t.Logf("Hike Leader: Extracted joinCode: %s", joinCode)
 
+	// Leader: Navigate back to Welcome Page to check "Hikes I'm Leading"
+	t.Log("Hike Leader: Navigating to Welcome Page to check 'Hikes I'm Leading' section...")
+	leaderPage.MustNavigate(baseServerURL).MustWaitLoad() // Simulate going back to welcome page
+	assert.True(t, isElementVisible(t, leaderPage, "#welcome-page", 10*time.Second), "Welcome page for leader")
+
+	// Assert "Hikes I'm Leading" section and the created hike
+	assert.True(t, leaderPage.MustHas("h2:contains('Hikes I'm Leading')"), "Section 'Hikes I'm Leading' title found")
+
+	leadingHikeItemSelector := fmt.Sprintf("#leading-hikes-list li:has(h3:contains('E2E Test Hike')):has(button[onclick*=\"goToLeaderConsole('%s'\"])", joinCode)
+	assert.True(t, isElementVisible(t, leaderPage, leadingHikeItemSelector, 15*time.Second), "Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list")
+
+	// Optional: Test the "Open Coordinator Console" button from this list item later if needed,
+	// but the primary check is that it appears.
+	// For now, navigate back to the coordinator console using the original leaderPage instance which should still be on it,
+	// or by re-constructing the leader URL if state was lost.
+	// The leaderPage was navigated away, so we need to get back to coordinator console for participant check.
+	// Re-fetch leaderCode (assuming it's stable and was part of currentHike in JS, though not explicitly extracted in test yet)
+	// This part of the test might need the leaderCode if the original page context is lost.
+	// For simplicity, let's assume the leader console URL is known or can be reconstructed if needed later.
+	// The test flow below expects leaderPage to be on the coordinator console.
+	// So, after this check, leader should go back to the console.
+	// The leader's `currentHike` object in JS would have the leaderCode.
+	// We can simulate this by getting the leaderCode from the joinURL's page again.
+	// However, the original leaderPage instance should still be on the coordinator console.
+	// The leaderPage.MustNavigate above changed its URL.
+	// We need to get the leaderCode to go back to the coordinator console.
+
+	// Re-access leader console for the next steps of the test
+	// This assumes leaderCode was implicitly stored or can be retrieved.
+	// The simplest way for the test is to re-extract leaderCode if needed or ensure leader page state is managed.
+	// For the E2E test, the leaderPage was on the coordinator console, then navigated away.
+	// To continue the original flow, it needs to be on the coordinator console.
+	// We need the leaderCode to reconstruct the URL.
+	// Let's assume we need to click the button from the "Hikes I'm Leading" list to get back.
+
+	t.Log("Hike Leader: Clicking 'Open Coordinator Console' from 'Hikes I'm Leading' list to return to console...")
+	leaderPage.MustElement(leadingHikeItemSelector + " button").MustClick()
+	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page (re-accessed)")
+	t.Log("Hike Leader: Successfully back on Coordinator Console page")
+
+
 	t.Log("Participant: Starting to join hike...")
 	participantPage := testBrowser.MustIncognito().MustPage()
 	defer participantPage.MustClose()
@@ -236,7 +278,15 @@ func TestHikeLifecycle(t *testing.T) {
 	// waiverText := participantPage.MustElement(waiverContentSelector).MustText()
 	// assert.Contains(t, strings.ToLower(waiverText), "waiver", "Waiver text problem")
 	participantPage.MustElement("#waiver-page button[onclick='joinHike()']").MustClick()
-	participantPage.MustElementX("//li[h3[normalize-space(text()) = 'E2E Test Hike'] and .//button[starts-with(@onclick, 'startHiking(')]]//button[starts-with(@onclick, 'startHiking(')]").MustClick()
+
+	// Wait for the welcome page to show and the specific RSVPed hike to be listed
+	assert.True(t, isElementVisible(t, participantPage, "#welcome-page", 10*time.Second), "Welcome page after RSVP")
+	rsvpedHikeItemSelector := fmt.Sprintf("#rsvped-hikes-list li:has(h3:contains('E2E Test Hike')):has(button[onclick*=\"startHiking('%s'\"])", joinCode)
+	assert.True(t, isElementVisible(t, participantPage, rsvpedHikeItemSelector, 15*time.Second), "RSVPed hike 'E2E Test Hike' in list")
+
+	// Click the "Start Hiking" button for the specific hike
+	startHikingButtonSelector := fmt.Sprintf("%s button[onclick*='startHiking']", rsvpedHikeItemSelector)
+	participantPage.MustElement(startHikingButtonSelector).MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for participant")
 	t.Log("Participant: Successfully on Hiking page")
@@ -324,4 +374,61 @@ func TestHikeLifecycle(t *testing.T) {
 	t.Log("Hike Leader: Successfully ended hike and is on welcome page.")
 
 	t.Log("TestHikeLifecycle COMPLETED SUCCESSFULLY")
+}
+
+func TestCoordinatorConsoleNavigation(t *testing.T) {
+	page := testBrowser.MustPage(baseServerURL).MustWaitLoad()
+	defer page.MustClose()
+
+	t.Log("CoordinatorNav: Creating a hike to access coordinator console...")
+	page.MustElement("button[onclick='showCreateHikePage()']").MustClick()
+	assert.True(t, isElementVisible(t, page, "#create-hike-page", 5*time.Second), "Create hike page")
+	page.MustElement("#hike-name").MustInput("Nav Test Hike")
+	page.MustElement("#leader-name").MustInput("Nav Test Leader")
+	page.MustElement("#leader-phone").MustInput("1122334455")
+	// For simplicity, using default trailhead and time, assuming form handles defaults or they aren't strictly required for this nav test path
+	page.MustElement("#hike-trailheadName").MustInput("Nav Test Trailhead") // Must be filled due to 'required'
+
+	// Set a valid start time using Flatpickr
+	tomorrow := time.Now().Add(24 * time.Hour)
+	page.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
+	assert.True(t, isElementVisible(t, page, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar for nav test")
+	yearEl := page.MustElement(".flatpickr-current-month .numInput.cur-year")
+	yearEl.MustSelectAllText().MustInput(fmt.Sprintf("%d", tomorrow.Year()))
+	yearEl.MustType(input.Enter) // Close year input often helps
+	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
+	assert.True(t, isElementVisible(t, page, daySelector, 5*time.Second), "Flatpickr day for nav test")
+	page.MustElement(daySelector).MustClick() // Select day
+	// Click again or type enter if time part needs confirming, or if MustClick on day closes picker.
+	// Assuming clicking day is enough or time defaults are fine for just creating the hike.
+    // If flatpickr stays open, find a way to close it, e.g., by clicking outside or tabbing away.
+    // For now, assume it closes or the create button is still clickable.
+    // A common way to close flatpickr is to click the input again or press Esc.
+    // Let's try clicking the hike name field to shift focus and potentially close datepicker.
+    page.MustElement("#hike-name").MustClick()
+
+
+	page.MustElement("#create-hike-form button[onclick='createHike()']").MustClick()
+	assert.True(t, isElementVisible(t, page, "#hike-leader-page", 10*time.Second), "Hike leader page for nav test")
+	t.Log("CoordinatorNav: On coordinator console.")
+
+	t.Log("CoordinatorNav: Clicking 'Home / Welcome Page' button...")
+	homeButtonSelector := "#hike-leader-page button[onclick='goHomeFromLeaderConsole()']"
+	assert.True(t, isElementVisible(t, page, homeButtonSelector, 5*time.Second), "Home button on leader console")
+	page.MustElement(homeButtonSelector).MustClick()
+
+	assert.True(t, isElementVisible(t, page, "#welcome-page", 10*time.Second), "Welcome page after clicking home")
+	t.Log("CoordinatorNav: Successfully navigated to welcome page.")
+
+	// Verify URL parameters are cleared
+	currentPageInfo, err := page.Info()
+	require.NoError(t, err, "Failed to get page info")
+	currentURL, err := url.Parse(currentPageInfo.URL)
+	require.NoError(t, err, "Failed to parse current URL")
+
+	assert.NotContains(t, currentURL.RawQuery, "code=", "URL should not contain 'code' query parameter")
+	assert.NotContains(t, currentURL.RawQuery, "leaderCode=", "URL should not contain 'leaderCode' query parameter")
+	t.Logf("CoordinatorNav: Verified URL parameters cleared. Current URL: %s", currentURL.String())
+
+	t.Log("TestCoordinatorConsoleNavigation COMPLETED SUCCESSFULLY")
 }
