@@ -821,7 +821,7 @@
                             <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
                             <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
                             <button onclick="startHiking('${hike.joinCode}', ${hike.participantId})">Start Hiking</button>
-                            <button class="button-secondary" onclick="unRSVP('${hike.joinCode}')">UnRSVP</button>
+                            <button class="button-secondary" onclick="unRSVP('${hike.joinCode}', ${hike.participantId})">UnRSVP</button>
                         `;
                         rsvpList.appendChild(li);
                     });
@@ -898,13 +898,13 @@
             });
         }
 
-        function unRSVP(joinCode) {
-            if (!currentUser || !currentUser.uuid) {
-                alert("User information not found. Please reload the page.");
+        function unRSVP(joinCode, participantId) {
+            if (!participantId) {
+                alert("Participant ID not found. Cannot unRSVP.");
                 return;
             }
 
-            const unRSVPUrl = `/api/hike/${joinCode}/participant/${currentUser.uuid}`;
+            const unRSVPUrl = `/api/hike/${joinCode}/participant/${participantId}`;
 
             if (!navigator.onLine) {
                 // Similar to starting a hike, unRSVPing implies an immediate state change.

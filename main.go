@@ -233,7 +233,7 @@ func addRoutes(mux *http.ServeMux) {
 	// You must define most specific routes first
 	mux.HandleFunc("PUT /api/hike/{hikeId}/participant/{participantId}", updateParticipantStatusHandler)
 	mux.HandleFunc("POST /api/hike/{hikeId}/participant", rsvpToHikeHandler) // pass in User
-	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{userUUID}", unRSVPHandler)
+	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{participantId}", unRSVPHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
@@ -481,25 +481,12 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 // unRSVPHandler allows a user to remove their RSVP if their status is 'rsvp'
 func unRSVPHandler(w http.ResponseWriter, r *http.Request) {
 	joinCode := r.PathValue("hikeId")
-	userUUID := r.PathValue("userUUID")
+	participantIdStr := r.PathValue("participantId")
 
-	// Check if the hike exists and is open - users should be able to unRSVP even if hike is closed for new RSVPs,
-	// but perhaps not if it has already ended or started. For now, let's allow unRSVP as long as hike exists.
-	// However, the main check is participant status.
-
-	var currentStatus string
-	err := db.QueryRow(`SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?`, joinCode, userUUID).Scan(&currentStatus)
+	// Convert participantIdStr to int64
+	participantId, err := parseInt64(participantIdStr)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Participant not found for this hike.", http.StatusNotFound)
-		} else {
-			http.Error(w, "Error fetching participant status: "+err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	if currentStatus != "rsvp" {
-		http.Error(w, fmt.Sprintf("Cannot unRSVP. Participant status is '%s', not 'rsvp'. Only users who RSVPd can unRSVP.", currentStatus), http.StatusBadRequest)
+		http.Error(w, "Invalid participant ID format", http.StatusBadRequest)
 		return
 	}
 
@@ -509,41 +496,58 @@ func unRSVPHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to start transaction: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer tx.Rollback() // Rollback if not committed
 
-	// Delete from hike_users
-	result, err := tx.Exec(`DELETE FROM hike_users
-							 WHERE hike_join_code = ? AND user_uuid = ? AND status = 'rsvp'`,
-		joinCode, userUUID)
+	// Fetch user_uuid and current status using participantId and joinCode
+	var userUUID string
+	var currentStatus string
+	err = tx.QueryRow(`SELECT user_uuid, status FROM hike_users WHERE id = ? AND hike_join_code = ?`, participantId, joinCode).Scan(&userUUID, &currentStatus)
 	if err != nil {
-		tx.Rollback()
+		if err == sql.ErrNoRows {
+			http.Error(w, "Participant not found for this hike with the given ID.", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error fetching participant details: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if currentStatus != "rsvp" {
+		http.Error(w, fmt.Sprintf("Cannot unRSVP. Participant status is '%s', not 'rsvp'. Only users who RSVPd can unRSVP.", currentStatus), http.StatusBadRequest)
+		return
+	}
+
+	// Delete from hike_users using participantId
+	result, err := tx.Exec(`DELETE FROM hike_users
+							 WHERE id = ? AND hike_join_code = ? AND status = 'rsvp'`,
+		participantId, joinCode)
+	if err != nil {
 		http.Error(w, "Failed to delete participant from hike: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		tx.Rollback()
 		http.Error(w, "Failed to check rows affected for hike_users deletion: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if rowsAffected == 0 {
-		tx.Rollback()
-		// This should ideally not happen if we've already checked the status above,
-		// but it's a good safeguard (e.g. race condition, though unlikely here)
-		http.Error(w, "Could not remove RSVP. Participant not found or status was not 'rsvp'.", http.StatusNotFound)
+		// This might happen if status changed between SELECT and DELETE, or ID/joinCode mismatch
+		http.Error(w, "Could not remove RSVP. Participant not found, status was not 'rsvp', or ID/hike mismatch.", http.StatusNotFound)
 		return
 	}
 
-	// Delete from waiver_signatures
+	// Delete from waiver_signatures using the fetched userUUID
 	_, err = tx.Exec(`DELETE FROM waiver_signatures
 					   WHERE hike_join_code = ? AND user_uuid = ?`,
 		joinCode, userUUID)
 	if err != nil {
-		tx.Rollback()
-		http.Error(w, "Failed to delete waiver signature: "+err.Error(), http.StatusInternalServerError)
-		// Note: Participant was already removed from hike_users. This is a partial failure.
-		// Depending on policy, might want to log this inconsistency.
-		return
+		// Log this error, but the primary action (removing from hike_users) succeeded.
+		// Depending on policy, this might be considered a critical failure requiring rollback,
+		// but waiver cleanup is secondary to unRSVPing from the hike itself.
+		log.Printf("Error deleting waiver signature for user %s, hike %s (participantId %d): %v. Continuing with unRSVP.", userUUID, joinCode, participantId, err)
+		// If this should be a hard failure, uncomment the following:
+		// http.Error(w, "Failed to delete waiver signature: "+err.Error(), http.StatusInternalServerError)
+		// return
 	}
 
 	err = tx.Commit()
@@ -553,7 +557,14 @@ func unRSVPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	logAction(fmt.Sprintf("Participant %s unRSVPd from hike %s", userUUID, joinCode))
+	logAction(fmt.Sprintf("Participant with ID %d (UserUUID: %s) unRSVPd from hike %s", participantId, userUUID, joinCode))
+}
+
+// Helper function to parse string to int64 (could be in a utils package)
+func parseInt64(s string) (int64, error) {
+	var i int64
+	_, err := fmt.Sscan(s, &i)
+	return i, err
 }
 
 // Given a leader code, return all participants of the hike

@@ -245,30 +245,34 @@ func TestStartHiking_HikeNotOpen(t *testing.T) {
 func TestUnRSVP_Success(t *testing.T) {
 	hike := createTestHike(t)
 	user := User{UUID: "user-unrsvp-success", Name: "UnRSVP Success"}
-	joinTestHikeWithOptions(t, hike, user) // User RSVPs
+	rsvpResponse := joinTestHikeWithOptions(t, hike, user) // User RSVPs, rsvpResponse contains ParticipantId
+
+	require.NotZero(t, rsvpResponse.Hike.ParticipantId, "ParticipantId should not be zero after RSVP")
 
 	// Verify participant and waiver exist before unRSVP
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM hike_users WHERE hike_join_code = ? AND user_uuid = ? AND status = 'rsvp'", hike.JoinCode, user.UUID).Scan(&count)
+	// Check using participantId from the RSVP response
+	err := db.QueryRow("SELECT COUNT(*) FROM hike_users WHERE id = ? AND hike_join_code = ? AND status = 'rsvp'", rsvpResponse.Hike.ParticipantId, hike.JoinCode).Scan(&count)
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "Participant should be in hike_users with status rsvp before unRSVP")
+
 	err = db.QueryRow("SELECT COUNT(*) FROM waiver_signatures WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID).Scan(&count)
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "Waiver should exist before unRSVP")
 
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, rsvpResponse.Hike.ParticipantId), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Failed to unRSVP: %s", rr.Body.String())
 
-	// Verify participant removed from hike_users
-	err = db.QueryRow("SELECT COUNT(*) FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID).Scan(&count)
+	// Verify participant removed from hike_users (check by participantId)
+	err = db.QueryRow("SELECT COUNT(*) FROM hike_users WHERE id = ?", rsvpResponse.Hike.ParticipantId).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "Participant should be removed from hike_users after unRSVP")
 
-	// Verify waiver removed from waiver_signatures
+	// Verify waiver removed from waiver_signatures (still uses userUUID for this check)
 	err = db.QueryRow("SELECT COUNT(*) FROM waiver_signatures WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "Waiver signature should be removed after unRSVP")
@@ -277,21 +281,22 @@ func TestUnRSVP_Success(t *testing.T) {
 func TestUnRSVP_NotRSVPed(t *testing.T) {
 	hike := createTestHike(t)
 	user := User{UUID: "user-unrsvp-not-rsvped", Name: "UnRSVP Not RSVPed"}
-	// User does not RSVP.
 
-	// Attempt 1: User not in hike_users at all
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
+	// Attempt 1: User not in hike_users at all (using a non-existent participantId)
+	nonExistentParticipantId := int64(999999)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, nonExistentParticipantId), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusNotFound, rr.Code, "Expected 404 when user not participant trying to unRSVP")
+	assert.Equal(t, http.StatusNotFound, rr.Code, "Expected 404 when trying to unRSVP with a non-existent participantId")
 
 	// Attempt 2: User is 'active'
-	joinTestHikeWithOptions(t, hike, user)                                                                                            // User RSVPs
-	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID) // Manually set to active
+	rsvpResponse := joinTestHikeWithOptions(t, hike, user) // User RSVPs
+	require.NotZero(t, rsvpResponse.Hike.ParticipantId, "ParticipantId should not be zero after RSVP")
+	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE id = ?", rsvpResponse.Hike.ParticipantId) // Manually set to active using participantId
 	require.NoError(t, err)
 
-	reqActive, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
+	reqActive, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, rsvpResponse.Hike.ParticipantId), nil)
 	rrActive := httptest.NewRecorder()
 	mux.ServeHTTP(rrActive, reqActive)
 	assert.Equal(t, http.StatusBadRequest, rrActive.Code, "Expected 400 when user is active. Body: %s", rrActive.Body.String())
@@ -301,7 +306,8 @@ func TestUnRSVP_NotRSVPed(t *testing.T) {
 func TestUnRSVP_HikeClosed(t *testing.T) {
 	hike := createTestHike(t)
 	user := User{UUID: "user-unrsvp-hike-closed", Name: "UnRSVP Hike Closed"}
-	joinTestHikeWithOptions(t, hike, user) // User RSVPs
+	rsvpResponse := joinTestHikeWithOptions(t, hike, user) // User RSVPs
+	require.NotZero(t, rsvpResponse.Hike.ParticipantId, "ParticipantId should not be zero after RSVP")
 
 	// Close the hike
 	_, err := db.Exec("UPDATE hikes SET status = 'closed' WHERE join_code = ?", hike.JoinCode)
@@ -310,7 +316,7 @@ func TestUnRSVP_HikeClosed(t *testing.T) {
 	// unRSVPHandler does not explicitly check if the hike is closed. It only checks the participant's status.
 	// So, unRSVPing from a closed hike (where user is 'rsvp') should still succeed.
 
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%s", hike.JoinCode, user.UUID), nil)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/hike/%s/participant/%d", hike.JoinCode, rsvpResponse.Hike.ParticipantId), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
@@ -319,7 +325,7 @@ func TestUnRSVP_HikeClosed(t *testing.T) {
 
 	// Verify participant and waiver removed
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, user.UUID).Scan(&count)
+	err = db.QueryRow("SELECT COUNT(*) FROM hike_users WHERE id = ?", rsvpResponse.Hike.ParticipantId).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "Participant should be removed from hike_users")
 
