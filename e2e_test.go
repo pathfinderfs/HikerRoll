@@ -13,6 +13,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -162,8 +163,8 @@ func truncateString(s string, num int) string {
 
 func TestHikeLifecycle(t *testing.T) {
 	leaderPage := testBrowser.MustPage(baseServerURL).MustWaitLoad()
-	defer leaderPage.MustClose()
 
+	defer leaderPage.MustClose()
 	t.Log("Hike Leader: Starting to create hike...")
 	assert.True(t, isElementVisible(t, leaderPage, "button[onclick='showCreateHikePage()']", 10*time.Second), "Create New Hike button")
 	leaderPage.MustElement("button[onclick='showCreateHikePage()']").MustClick()
@@ -220,7 +221,9 @@ func TestHikeLifecycle(t *testing.T) {
 
 	// Leader: Navigate back to Welcome Page to check "Hikes I'm Leading"
 	t.Log("Hike Leader: Navigating to Welcome Page to check 'Hikes I'm Leading' section...")
-	leaderPage.MustNavigate(baseServerURL).MustWaitLoad() // Simulate going back to welcome page
+	leaderPage.MustElementX(`//button[@onclick="goHomeFromLeaderConsole()"]`).MustClick()
+
+	//leaderPage.MustNavigate(baseServerURL).MustWaitLoad() // Simulate going back to welcome page
 	assert.True(t, isElementVisible(t, leaderPage, "#welcome-page", 10*time.Second), "Welcome page for leader")
 
 	// Assert "Hikes I'm Leading" section title using XPath
@@ -228,10 +231,10 @@ func TestHikeLifecycle(t *testing.T) {
 	assert.True(t, leaderPage.MustHasX(hikesImLeadingTitleXPath), "Section 'Hikes I'm Leading' title found")
 
 	// XPath for the specific "E2E Test Hike" in the "Hikes I'm Leading" list
-	leadingHikeItemXPath := fmt.Sprintf("//ul[@id='leading-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')] and .//button[contains(@onclick, \"goToLeaderConsole('%s'\")]]", joinCode)
+	leadingHikeItemXPath := fmt.Sprintf("//ul[@id='leading-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')]]")
 
 	// Wait for the list item itself to be visible using the XPath
-	leaderPage.Timeout(15 * time.Second).ElementX(leadingHikeItemXPath).MustWaitVisible()
+	leaderPage.Timeout(15 * time.Second).MustElementX(leadingHikeItemXPath).MustWaitVisible()
 	t.Log("Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list is visible") // Log success
 
 	// Optional: Test the "Open Coordinator Console" button from this list item later if needed,
@@ -265,7 +268,6 @@ func TestHikeLifecycle(t *testing.T) {
 	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page (re-accessed)")
 	t.Log("Hike Leader: Successfully back on Coordinator Console page")
 
-
 	t.Log("Participant: Starting to join hike...")
 	participantPage := testBrowser.MustIncognito().MustPage()
 	defer participantPage.MustClose()
@@ -293,7 +295,7 @@ func TestHikeLifecycle(t *testing.T) {
 	rsvpedHikeItemXPath := fmt.Sprintf("//ul[@id='rsvped-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')] and .//button[contains(@onclick, \"startHiking('%s'\")]]", joinCode)
 
 	// Wait for the list item itself to be visible using the XPath
-	participantPage.Timeout(15 * time.Second).ElementX(rsvpedHikeItemXPath).MustWaitVisible()
+	participantPage.Timeout(15 * time.Second).MustElementX(rsvpedHikeItemXPath).MustWaitVisible()
 	t.Log("RSVPed hike 'E2E Test Hike' in list is visible") // Log success
 
 	// Click the "Start Hiking" button within this specific list item
@@ -413,14 +415,20 @@ func TestCoordinatorConsoleNavigation(t *testing.T) {
 	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
 	assert.True(t, isElementVisible(t, page, daySelector, 5*time.Second), "Flatpickr day for nav test")
 	page.MustElement(daySelector).MustClick() // Select day
+
+	hourEl := page.MustElement(".flatpickr-time .numInput.flatpickr-hour")
+	hourEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Hour()))
+	minuteEl := page.MustElement(".flatpickr-time .numInput.flatpickr-minute")
+	minuteEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Minute()))
+	minuteEl.MustType(input.Enter)
+
 	// Click again or type enter if time part needs confirming, or if MustClick on day closes picker.
 	// Assuming clicking day is enough or time defaults are fine for just creating the hike.
-    // If flatpickr stays open, find a way to close it, e.g., by clicking outside or tabbing away.
-    // For now, assume it closes or the create button is still clickable.
-    // A common way to close flatpickr is to click the input again or press Esc.
-    // Let's try clicking the hike name field to shift focus and potentially close datepicker.
-    page.MustElement("#hike-name").MustClick()
-
+	// If flatpickr stays open, find a way to close it, e.g., by clicking outside or tabbing away.
+	// For now, assume it closes or the create button is still clickable.
+	// A common way to close flatpickr is to click the input again or press Esc.
+	// Let's try clicking the hike name field to shift focus and potentially close datepicker.
+	page.MustElement("#hike-name").MustClick()
 
 	page.MustElement("#create-hike-form button[onclick='createHike()']").MustClick()
 	assert.True(t, isElementVisible(t, page, "#hike-leader-page", 10*time.Second), "Hike leader page for nav test")

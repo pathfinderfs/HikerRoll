@@ -968,7 +968,6 @@
                 currentHike.participantId = participantId
                 localStorage.setItem('currentHike', JSON.stringify(currentHike));
                 showHikingPage();
-                getRSVPedHikes(); // Refresh RSVP list (the hike should be gone from there)
             })
             .catch(error => {
                 console.error('Error starting hike:', error);
@@ -1013,7 +1012,7 @@
                 return response.text(); // Or response.json() if backend sends a json response
             })
             .then(responseText => { // If response.text() was used
-                getRSVPedHikes(); // Refresh the list of RSVPed hikes
+                fetchAllWelcomePageHikes();
             })
             .catch(error => {
                 console.error('Error unRSVPing:', error);
