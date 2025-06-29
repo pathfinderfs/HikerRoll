@@ -239,13 +239,13 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/hike/{hikeId}/participant", rsvpToHikeHandler) // pass in User
 	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{participantId}", unRSVPHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
+	mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike", getHikesHandler) // Renamed from getNearbyHikesHandler
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
-	mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler)
 }
 
 // WaiverData is used to populate the waiver template
