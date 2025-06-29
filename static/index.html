@@ -345,10 +345,10 @@
         </div>
 
         <div id="hike-leader-page" style="display:none;">
-            <h1>Coordinator Console</h1>
-            <p>Hike Name: <span id="hike-name-display"></span></p>
+            <h1><span id="hike-name-title-display"></span></h1>
             <p>Organization: <span id="hike-organization-display"></span></p>
-            <p>Trailhead: <span id="trailhead-name-display"></span></p>
+            <p>Start Time: <span id="hike-start-time-leader-display"></span></p>
+            <p>Trailhead: <a id="trailhead-link-leader" href="#" target="_blank"><span id="trailhead-name-display"></span></a></p>
             <p>Join Hike Link: <a id="join-url" onclick="copyToClipboard(event)">Press to copy</a></p>
             <p>Hike Coordinator Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
             </p>
@@ -742,9 +742,14 @@
         };
 
         function showHikeLeaderPage() {
-            document.getElementById('hike-name-display').textContent = currentHike.name;
+            document.getElementById('hike-name-title-display').textContent = currentHike.name;
             document.getElementById('hike-organization-display').textContent = currentHike.organization;
+            document.getElementById('hike-start-time-leader-display').textContent = new Date(currentHike.startTime).toLocaleString();
+
+            const trailheadLink = document.getElementById('trailhead-link-leader');
+            trailheadLink.href = makeTrailheadURL(); // Reuses existing function
             document.getElementById('trailhead-name-display').textContent = currentHike.trailheadName;
+
             document.getElementById('participant-toggle').checked = showAllParticipants;
             document.getElementById('join-url').href = generateLink('code', currentHike.joinCode);
             document.getElementById('hike-leader-link').href = generateLink('leaderCode', currentHike.leaderCode);
