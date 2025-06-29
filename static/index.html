@@ -646,14 +646,53 @@
             showPage('hiking-page');
         }
 
+        function simpleTemplate(templateString, data) {
+            let result = templateString;
+            // Handle {{.Variable}} replacements
+            for (const key in data) {
+                const regex = new RegExp(`{{\\s*\\.${key}\\s*}}`, 'g');
+                result = result.replace(regex, data[key] || ''); // Replace with empty string if data[key] is undefined/null
+            }
+
+            // Handle {{if .Variable}}...{{end}} blocks
+            // This is a simplified version and might need to be more robust
+            // depending on the complexity of conditions in waiver.txt
+            const ifRegex = /{{\s*if \.([a-zA-Z0-9_]+)\s*}}([\s\S]*?){{\s*end\s*}}/g;
+            result = result.replace(ifRegex, (match, variableName, content) => {
+                return data[variableName] ? content : '';
+            });
+
+            return result;
+        }
+
         function showWaiverPage() {
-            fetch('/waiver.txt')
-                .then(response => response.text())
-                .then(text => {
-                    document.getElementById('waiver-content').innerText = text;
+            // Ensure currentHike is available and has leader information
+            if (!currentHike || !currentHike.leader || !currentHike.leader.name) {
+                console.error("Current hike data or leader information is missing.");
+                document.getElementById('waiver-content').innerText = 'Error: Hike details are not available to display the waiver.';
+                showPage('waiver-page');
+                return;
+            }
+
+            fetch('/waiver.txt') // Corrected path
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch waiver: ${response.status} ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(waiverTemplateText => {
+                    const templateData = {
+                        Leader: currentHike.leader.name,
+                        Organization: currentHike.organization || "", // Use empty string if organization is null/undefined
+                        // Assume PhotoRelease is a boolean field in currentHike; default to false if not present
+                        PhotoRelease: !!currentHike.photoRelease
+                    };
+                    const processedWaiver = simpleTemplate(waiverTemplateText, templateData);
+                    document.getElementById('waiver-content').innerText = processedWaiver;
                 })
                 .catch(error => {
-                    console.error('Error fetching waiver:', error);
+                    console.error('Error fetching or processing waiver:', error);
                     document.getElementById('waiver-content').innerText = 'Error loading waiver. Please try again.';
                 });
             showPage('waiver-page');

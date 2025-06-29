@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template" // Changed from html/template as waiver.txt is plain text
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -434,13 +435,35 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 
 	// TODO: Replace this waiver stuff to use template
 	// Read waiver text
-	waiverTextBytes, err := os.ReadFile("static/waiver.txt")
+	waiverTemplate, err := template.ParseFiles("static/waiver.txt")
 	if err != nil {
-		// Log the error but proceed with joining the hike, as waiver signing is secondary
-		log.Printf("Error reading waiver.txt: %v", err)
-		// Potentially send a different response or log more critically depending on requirements
+		log.Printf("Error parsing waiver.txt template: %v", err)
+		http.Error(w, "Error processing waiver template", http.StatusInternalServerError)
+		return
 	}
-	waiverText := string(waiverTextBytes)
+
+	// Prepare data for the template
+	// NOTE: The problem description does not specify where PhotoRelease should come from.
+	// For now, I'll assume it's part of the hike details or a general setting.
+	// Let's assume it's part of the Hike struct for now, defaulting to false if not set.
+	// This might need adjustment if PhotoRelease is sourced differently.
+	templateData := struct {
+		Leader       string
+		Organization string
+		PhotoRelease bool
+	}{
+		Leader:       hike.Leader.Name,
+		Organization: hike.Organization,
+		PhotoRelease: false, // Placeholder: This needs to be determined. How is PhotoRelease decided?
+	}
+
+	var processedWaiver strings.Builder
+	if err := waiverTemplate.Execute(&processedWaiver, templateData); err != nil {
+		log.Printf("Error executing waiver template: %v", err)
+		http.Error(w, "Error generating waiver text", http.StatusInternalServerError)
+		return
+	}
+	waiverText := processedWaiver.String()
 
 	// Get User-Agent
 	userAgent := r.UserAgent()
