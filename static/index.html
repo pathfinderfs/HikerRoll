@@ -503,7 +503,7 @@
 
             let apiUrl = `/api/hike?userUUID=${currentUser.uuid}`;
 
-            if ("geolocation" in navigator) {
+            if ("geolocations" in navigator) {
                 navigator.geolocation.getCurrentPosition(position => {
                     apiUrl += `&latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`;
                     fetchHikes(apiUrl);
