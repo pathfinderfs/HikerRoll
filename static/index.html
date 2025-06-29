@@ -258,6 +258,11 @@
             background-color: #f9f9f9;
         }
 
+        /* Default: Hide wide-only columns for narrow screens */
+        .participant-table .col-wide-only {
+            display: none;
+        }
+
         @media screen and (max-width: 600px) {
             .participant-table {
                 font-size: 14px;
@@ -302,52 +307,14 @@
                 width: auto; /* Override any specific width to allow flex sizing */
             }
 
-            /* Responsive Participant Table */
-            #hike-leader-page .participant-table {
-                border: none; /* Remove table border */
-            }
-
-            #hike-leader-page .participant-table thead {
-                display: none; /* Hide table headers */
-            }
-
-            #hike-leader-page .participant-table tr {
-                display: block;
-                margin-bottom: 15px; /* Space between cards */
-                border: 1px solid #ddd;
-                border-radius: 5px;
-                padding: 10px;
-                background-color: #fff; /* Card background */
-            }
-
-            #hike-leader-page .participant-table td {
-                display: block;
-                text-align: right; /* Align value to the right */
-                padding-left: 50%; /* Create space for the label */
-                position: relative;
-                border-bottom: 1px dotted #eee; /* Separator line for items in a card */
-            }
-
-            #hike-leader-page .participant-table td:last-child {
-                border-bottom: none; /* No line for the last item in a card */
-            }
-
-            #hike-leader-page .participant-table td::before {
-                content: attr(data-label); /* Use data-label for content */
-                position: absolute;
-                left: 10px; /* Position label to the left */
-                font-weight: bold;
-                text-align: left;
-                white-space: nowrap;
-            }
-
-            #hike-leader-page .participant-table td a {
-                /* Ensure links are easily tappable and visible */
-                display: inline-block;
-                padding: 3px 0;
-            }
-
             /* Participant List Controls Compact Layout */
+
+            /* Ensure table cells on mobile are not too padded */
+            #hike-leader-page .participant-table th,
+            #hike-leader-page .participant-table td {
+                padding: 5px; /* Reduced padding for mobile table view */
+            }
+
             #hike-leader-page .toggle-container {
                 display: flex;
                 align-items: center;
@@ -371,6 +338,13 @@
                 margin-bottom: 0; /* Reset bottom margin */
                 /* margin-left: 15px; Remove this if using margin-left: auto */
                 text-align: right; /* Ensure text aligns to right if container is wider */
+            }
+        }
+
+        /* Wider screens: Show wide-only columns */
+        @media screen and (min-width: 768px) { /* Breakpoint for landscape phones / tablets */
+            .participant-table .col-wide-only {
+                display: table-cell; /* Or revert to default display for th/td */
             }
         }
     </style>
@@ -477,6 +451,8 @@
                     <tr>
                         <th>Name</th>
                         <th>Phone</th>
+                        <th class="col-wide-only">License Plate</th>
+                        <th class="col-wide-only">Emergency Contact</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -1249,6 +1225,20 @@
                 phoneLink.textContent = formatPhoneNumber(participant.user.phone);
                 phoneCell.appendChild(phoneLink);
                 row.appendChild(phoneCell);
+
+                // License Plate column (conditionally displayed via CSS)
+                const licenseCell = document.createElement('td');
+                licenseCell.setAttribute('data-label', 'License Plate');
+                licenseCell.classList.add('col-wide-only');
+                licenseCell.textContent = participant.user.licensePlate || 'N/A';
+                row.appendChild(licenseCell);
+
+                // Emergency Contact column (conditionally displayed via CSS)
+                const emergencyCell = document.createElement('td');
+                emergencyCell.setAttribute('data-label', 'Emergency Contact');
+                emergencyCell.classList.add('col-wide-only');
+                emergencyCell.textContent = formatPhoneNumber(participant.user.emergencyContact) || 'N/A';
+                row.appendChild(emergencyCell);
 
                 // Status column
                 const statusCell = document.createElement('td');
