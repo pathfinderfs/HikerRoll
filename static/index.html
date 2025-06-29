@@ -268,6 +268,111 @@
                 padding: 6px;
             }
         }
+
+        /* Coordinator Console Mobile Optimizations */
+        @media screen and (max-width: 600px) {
+            #hike-leader-page h1 {
+                font-size: 1.5em; /* Slightly reduce title size */
+                margin-bottom: 10px;
+            }
+
+            #hike-leader-page p {
+                font-size: 0.9em; /* Reduce font size for info text */
+                margin: 5px 0; /* Reduce vertical margins */
+            }
+
+            #hike-leader-page .button-refresh,
+            #hike-leader-page .button-secondary,
+            #hike-leader-page button,
+            #download-participants-button { /* Ensure download button is included */
+                padding: 10px 15px;
+                font-size: 0.95em;
+                /* width: auto; remove fixed width if any button has it by default */
+            }
+
+            #hike-leader-page .button-group {
+                display: flex;
+                justify-content: space-between; /* Or space-around, or remove for default packing */
+                gap: 10px; /* Adds space between buttons in the group */
+                margin-bottom: 10px; /* Space below the button group */
+            }
+
+            #hike-leader-page .button-group button {
+                flex-grow: 1; /* Allows buttons to grow and share space */
+                width: auto; /* Override any specific width to allow flex sizing */
+            }
+
+            /* Responsive Participant Table */
+            #hike-leader-page .participant-table {
+                border: none; /* Remove table border */
+            }
+
+            #hike-leader-page .participant-table thead {
+                display: none; /* Hide table headers */
+            }
+
+            #hike-leader-page .participant-table tr {
+                display: block;
+                margin-bottom: 15px; /* Space between cards */
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 10px;
+                background-color: #fff; /* Card background */
+            }
+
+            #hike-leader-page .participant-table td {
+                display: block;
+                text-align: right; /* Align value to the right */
+                padding-left: 50%; /* Create space for the label */
+                position: relative;
+                border-bottom: 1px dotted #eee; /* Separator line for items in a card */
+            }
+
+            #hike-leader-page .participant-table td:last-child {
+                border-bottom: none; /* No line for the last item in a card */
+            }
+
+            #hike-leader-page .participant-table td::before {
+                content: attr(data-label); /* Use data-label for content */
+                position: absolute;
+                left: 10px; /* Position label to the left */
+                font-weight: bold;
+                text-align: left;
+                white-space: nowrap;
+            }
+
+            #hike-leader-page .participant-table td a {
+                /* Ensure links are easily tappable and visible */
+                display: inline-block;
+                padding: 3px 0;
+            }
+
+            /* Participant List Controls Compact Layout */
+            #hike-leader-page .toggle-container {
+                display: flex;
+                align-items: center;
+                justify-content: space-between; /* This will help space out toggle and count */
+                margin-bottom: 10px; /* Give some space below this line */
+            }
+
+            /* Styling for the toggle part if needed, e.g., to prevent it from stretching too much */
+            #hike-leader-page .toggle-container > .switch {
+                margin-right: 5px; /* Space between "All" and the count if not using margin-left: auto on count */
+            }
+             #hike-leader-page .toggle-container > .toggle-label {
+                white-space: nowrap; /* Prevent labels from wrapping */
+            }
+
+
+            #hike-leader-page #participant-count {
+                /* margin-left: auto; is now inline, can be controlled here too if preferred */
+                font-size: 0.85em;
+                margin-top: 0; /* Reset top margin */
+                margin-bottom: 0; /* Reset bottom margin */
+                /* margin-left: 15px; Remove this if using margin-left: auto */
+                text-align: right; /* Ensure text aligns to right if container is wider */
+            }
+        }
     </style>
 </head>
 
@@ -354,7 +459,10 @@
             </p>
             <h3>Participant List</h3>
             <p id="last-refresh"></p>
-            <button class="button-refresh" onclick="refreshParticipants()">🔄 Refresh</button>
+            <div class="button-group">
+                <button class="button-refresh" onclick="refreshParticipants()">🔄 Refresh</button>
+                <button id="download-participants-button" onclick="downloadParticipantList()">Download List</button>
+            </div>
             <div class="toggle-container">
                 <span class="toggle-label">Active</span>
                 <label class="switch">
@@ -362,8 +470,8 @@
                     <span class="slider"></span>
                 </label>
                 <span class="toggle-label">All</span>
+                <p id="participant-count" style="margin-left: auto;"></p> <!-- Moved and added inline style for alignment -->
             </div>
-            <p id="participant-count"></p>
             <table id="participant-table" class="participant-table">
                 <thead>
                     <tr>
@@ -1122,6 +1230,7 @@
 
                 // Name column
                 const nameCell = document.createElement('td');
+                nameCell.setAttribute('data-label', 'Name');
                 const nameLink = document.createElement('a');
                 nameLink.href = '#';
                 nameLink.textContent = participant.user.name;
@@ -1134,6 +1243,7 @@
 
                 // Phone column
                 const phoneCell = document.createElement('td');
+                phoneCell.setAttribute('data-label', 'Phone');
                 const phoneLink = document.createElement('a');
                 phoneLink.href = `tel:${participant.user.phone}`;
                 phoneLink.textContent = formatPhoneNumber(participant.user.phone);
@@ -1142,6 +1252,7 @@
 
                 // Status column
                 const statusCell = document.createElement('td');
+                statusCell.setAttribute('data-label', 'Status');
                 const statusLink = document.createElement('a');
                 statusLink.href = '#';
                 // Display 'Hiking' for 'active' status, otherwise the status itself.
