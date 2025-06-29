@@ -460,7 +460,6 @@
                     <!-- Participants will be dynamically added here -->
                 </tbody>
             </table>
-            <button onclick="downloadParticipantList()">Download Participant List</button>
             <button class="button-secondary" onclick="endHike()">End Hike</button>
             <button type="button" style="background-color: #555; margin-top: 10px;" onclick="goHomeFromLeaderConsole()">Home / Welcome Page</button>
         </div>
@@ -513,6 +512,20 @@
         function clearCurrentHike() {
             currentHike = emptyHike();
             localStorage.setItem('currentHike', JSON.stringify(currentHike));
+        }
+
+        function formatHikeStartTime(isoString) {
+            const date = new Date(isoString);
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            const dayName = days[date.getDay()];
+            const monthName = months[date.getMonth()];
+            const dayOfMonth = date.getDate();
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+
+            return `${dayName}, ${monthName} ${dayOfMonth}, ${hours}:${minutes}`;
         }
 
         // Initialize autocomplete and flatpickr on page load
@@ -828,7 +841,7 @@
         function showHikeLeaderPage() {
             document.getElementById('hike-name-title-display').textContent = currentHike.name;
             document.getElementById('hike-organization-display').textContent = currentHike.organization;
-            document.getElementById('hike-start-time-leader-display').textContent = new Date(currentHike.startTime).toLocaleString();
+            document.getElementById('hike-start-time-leader-display').textContent = formatHikeStartTime(currentHike.startTime);
 
             const trailheadLink = document.getElementById('trailhead-link-leader');
             trailheadLink.href = makeTrailheadURL(); // Reuses existing function
@@ -1192,12 +1205,14 @@
             );
 
             let countMessage;
+            const totalToShow = participantsToShow.length;
             if (showAllParticipants) {
-                countMessage = `Showing all participants (${participantsToShow.length})`;
+                countMessage = `All: ${totalToShow}`;
             } else {
                 const rsvpCount = participantsToShow.filter(p => p.status === 'rsvp').length;
                 const activeCount = participantsToShow.filter(p => p.status === 'active').length;
-                countMessage = `Showing RSVP (${rsvpCount}) & Hiking (${activeCount}) participants. Total: ${participantsToShow.length}`;
+                // Adjusted text: Removed "Showing" and "participants" after Hiking count
+                countMessage = `RSVP: ${rsvpCount} & Hiking: ${activeCount} (Total: ${totalToShow})`;
             }
             document.getElementById('participant-count').textContent = countMessage;
 
@@ -1237,7 +1252,15 @@
                 const emergencyCell = document.createElement('td');
                 emergencyCell.setAttribute('data-label', 'Emergency Contact');
                 emergencyCell.classList.add('col-wide-only');
-                emergencyCell.textContent = formatPhoneNumber(participant.user.emergencyContact) || 'N/A';
+                const emergencyContact = participant.user.emergencyContact;
+                if (emergencyContact) {
+                    const emergencyLink = document.createElement('a');
+                    emergencyLink.href = `tel:${emergencyContact.replace(/\D/g, '')}`; // Use raw digits for tel:
+                    emergencyLink.textContent = formatPhoneNumber(emergencyContact) || emergencyContact;
+                    emergencyCell.appendChild(emergencyLink);
+                } else {
+                    emergencyCell.textContent = 'N/A';
+                }
                 row.appendChild(emergencyCell);
 
                 // Status column
