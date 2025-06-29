@@ -33,6 +33,7 @@ func TestCreateHike(t *testing.T) {
 		Latitude:      40.7128,
 		Longitude:     -74.0060,
 		StartTime:     time.Now().Add(24 * time.Hour),
+		PhotoRelease:  false, // Default to false for this test
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -95,9 +96,42 @@ func TestRSVPToHike_Success(t *testing.T) {
 
 	// Verify waiver signature
 	var waiverCount int
-	err = db.QueryRow("SELECT COUNT(*) FROM waiver_signatures WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, requestUser.UUID).Scan(&waiverCount)
+	var storedWaiverText string
+	err = db.QueryRow("SELECT COUNT(*), waiver_text FROM waiver_signatures WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, requestUser.UUID).Scan(&waiverCount, &storedWaiverText)
 	require.NoError(t, err)
 	assert.Equal(t, 1, waiverCount, "Waiver signature should exist for the participant")
+	assert.Contains(t, storedWaiverText, hike.Leader.Name, "Stored waiver text should contain the leader's name")
+	// Assuming default created hike has PhotoRelease = false
+	assert.NotContains(t, storedWaiverText, "Photographic Release", "Stored waiver text should not contain photo release section for default hike")
+
+	// Test with PhotoRelease = true
+	leaderPhotoRSVP := User{UUID: "leader-photo-rsvp", Name: "Photo RSVP Leader"}
+	hikePhotoRSVP := Hike{
+		Name:         "Photo RSVP Hike",
+		Leader:       leaderPhotoRSVP,
+		StartTime:    time.Now().Add(2 * time.Hour),
+		PhotoRelease: true, // Explicitly true
+	}
+	bodyPhotoHike, _ := json.Marshal(hikePhotoRSVP)
+	reqPhotoHike, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(bodyPhotoHike))
+	rrPhotoHike := httptest.NewRecorder()
+	mux.ServeHTTP(rrPhotoHike, reqPhotoHike)
+	require.Equal(t, http.StatusOK, rrPhotoHike.Code)
+	var createdPhotoHikeRSVP Hike
+	json.Unmarshal(rrPhotoHike.Body.Bytes(), &createdPhotoHikeRSVP)
+
+	participantForPhotoHike := User{UUID: "participant-photo-rsvp", Name: "Photo RSVP Participant"}
+	bodyParticipantPhoto, _ := json.Marshal(participantForPhotoHike)
+	reqJoinPhotoHike, _ := http.NewRequest("POST", fmt.Sprintf("/api/hike/%s/participant", createdPhotoHikeRSVP.JoinCode), bytes.NewBuffer(bodyParticipantPhoto))
+	rrJoinPhotoHike := httptest.NewRecorder()
+	mux.ServeHTTP(rrJoinPhotoHike, reqJoinPhotoHike)
+	require.Equal(t, http.StatusOK, rrJoinPhotoHike.Code)
+
+	var storedWaiverTextPhoto string
+	err = db.QueryRow("SELECT waiver_text FROM waiver_signatures WHERE hike_join_code = ? AND user_uuid = ?", createdPhotoHikeRSVP.JoinCode, participantForPhotoHike.UUID).Scan(&storedWaiverTextPhoto)
+	require.NoError(t, err)
+	assert.Contains(t, storedWaiverTextPhoto, leaderPhotoRSVP.Name, "Stored waiver for photo hike should contain leader's name")
+	assert.Contains(t, storedWaiverTextPhoto, "Photographic Release", "Stored waiver for photo hike should contain photo release section")
 }
 
 func TestRSVPToHike_HikeNotFound(t *testing.T) {
@@ -859,6 +893,75 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 	}
 	require.NoError(t, err, "Failed to parse signed_at timestamp")
 	assert.WithinDuration(t, time.Now(), signedAt, 5*time.Second, "signed_at should be recent")
+	// Verify waiver text content
+	assert.Contains(t, dbWaiverText, "Waiver Test Leader", "Waiver text should contain leader's name")
+	assert.NotContains(t, dbWaiverText, "Photographic Release", "Waiver text should not contain photo release section by default")
+}
+
+func TestGetHikeWaiverHandler(t *testing.T) {
+	mux := setupTestMux()
+
+	// Scenario 1: Hike with PhotoRelease = true
+	leaderWithPhoto := User{UUID: "leader-waiver-photo", Name: "Photo Leader", Phone: "1111111111"}
+	hikeWithPhoto := Hike{
+		Name:          "Photo Hike",
+		Organization:  "Photo Org",
+		Leader:        leaderWithPhoto,
+		TrailheadName: "Photo Trail",
+		StartTime:     time.Now().Add(1 * time.Hour),
+		PhotoRelease:  true,
+	}
+	bodyWithPhoto, _ := json.Marshal(hikeWithPhoto)
+	reqCreateWithPhoto, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(bodyWithPhoto))
+	rrCreateWithPhoto := httptest.NewRecorder()
+	mux.ServeHTTP(rrCreateWithPhoto, reqCreateWithPhoto)
+	require.Equal(t, http.StatusOK, rrCreateWithPhoto.Code, "Failed to create hike with photo release")
+	var createdHikeWithPhoto Hike
+	json.Unmarshal(rrCreateWithPhoto.Body.Bytes(), &createdHikeWithPhoto)
+
+	reqWaiverWithPhoto, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s/waiver", createdHikeWithPhoto.JoinCode), nil)
+	rrWaiverWithPhoto := httptest.NewRecorder()
+	mux.ServeHTTP(rrWaiverWithPhoto, reqWaiverWithPhoto)
+
+	assert.Equal(t, http.StatusOK, rrWaiverWithPhoto.Code)
+	waiverTextWithPhoto := rrWaiverWithPhoto.Body.String()
+	assert.Contains(t, waiverTextWithPhoto, "Photo Leader", "Waiver should contain leader's name")
+	assert.Contains(t, waiverTextWithPhoto, "Photo Org", "Waiver should contain organization")
+	assert.Contains(t, waiverTextWithPhoto, "Photographic Release", "Waiver should contain photo release section")
+
+	// Scenario 2: Hike with PhotoRelease = false
+	leaderNoPhoto := User{UUID: "leader-waiver-nophoto", Name: "NoPhoto Leader", Phone: "2222222222"}
+	hikeNoPhoto := Hike{
+		Name:          "NoPhoto Hike",
+		Organization:  "NoPhoto Org",
+		Leader:        leaderNoPhoto,
+		TrailheadName: "NoPhoto Trail",
+		StartTime:     time.Now().Add(1 * time.Hour),
+		PhotoRelease:  false,
+	}
+	bodyNoPhoto, _ := json.Marshal(hikeNoPhoto)
+	reqCreateNoPhoto, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(bodyNoPhoto))
+	rrCreateNoPhoto := httptest.NewRecorder()
+	mux.ServeHTTP(rrCreateNoPhoto, reqCreateNoPhoto)
+	require.Equal(t, http.StatusOK, rrCreateNoPhoto.Code, "Failed to create hike without photo release")
+	var createdHikeNoPhoto Hike
+	json.Unmarshal(rrCreateNoPhoto.Body.Bytes(), &createdHikeNoPhoto)
+
+	reqWaiverNoPhoto, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s/waiver", createdHikeNoPhoto.JoinCode), nil)
+	rrWaiverNoPhoto := httptest.NewRecorder()
+	mux.ServeHTTP(rrWaiverNoPhoto, reqWaiverNoPhoto)
+
+	assert.Equal(t, http.StatusOK, rrWaiverNoPhoto.Code)
+	waiverTextNoPhoto := rrWaiverNoPhoto.Body.String()
+	assert.Contains(t, waiverTextNoPhoto, "NoPhoto Leader", "Waiver should contain leader's name")
+	assert.Contains(t, waiverTextNoPhoto, "NoPhoto Org", "Waiver should contain organization")
+	assert.NotContains(t, waiverTextNoPhoto, "Photographic Release", "Waiver should NOT contain photo release section")
+
+	// Scenario 3: Hike not found
+	reqWaiverNotFound, _ := http.NewRequest("GET", "/api/hike/nonexistentjoincode/waiver", nil)
+	rrWaiverNotFound := httptest.NewRecorder()
+	mux.ServeHTTP(rrWaiverNotFound, reqWaiverNotFound)
+	assert.Equal(t, http.StatusNotFound, rrWaiverNotFound.Code)
 }
 
 // Helper function to dump table content for debugging
@@ -924,6 +1027,7 @@ func createTestHike(t *testing.T) Hike {
 		Latitude:      40.7128,
 		Longitude:     -74.0060,
 		StartTime:     time.Now(),
+		PhotoRelease:  false, // Default
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -954,6 +1058,7 @@ func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName s
 		Latitude:      lat,
 		Longitude:     lon,
 		StartTime:     startTime,
+		PhotoRelease:  false, // Default, can be overridden by specific test setups if needed by creating hike directly
 	}
 	body, err := json.Marshal(hike)
 	require.NoError(t, err)

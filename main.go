@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -124,6 +125,7 @@ type Hike struct {
 	Status        string    `json:"Status"`
 	JoinCode      string    `json:"joinCode"`
 	LeaderCode    string    `json:"leaderCode"`
+	PhotoRelease  bool      `json:"photoRelease"`
 	SourceType    string    `json:"sourceType,omitempty"` // Added for combined hike results
 }
 
@@ -169,6 +171,7 @@ func createTables() {
 			status TEXT DEFAULT 'open',
 			join_code TEXT PRIMARY KEY,
 			leader_code TEXT UNIQUE,
+            photo_release BOOLEAN DEFAULT FALSE,
 			FOREIGN KEY (leader_uuid) REFERENCES users(uuid)
 		);
 
@@ -242,6 +245,80 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/hike", getHikesHandler) // Renamed from getNearbyHikesHandler
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
+	mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler)
+}
+
+// WaiverData is used to populate the waiver template
+type WaiverData struct {
+	LeaderName   string
+	Organization string
+	PhotoRelease bool
+}
+
+// generateWaiverText fetches hike details and generates the waiver text using a template.
+func generateWaiverText(joinCode string) (string, error) {
+	var leaderName, organization sql.NullString // Use sql.NullString for organization as it can be NULL
+	var photoRelease bool
+
+	err := db.QueryRow(`
+		SELECT u.name, h.organization, h.photo_release
+		FROM hikes h
+		JOIN users u ON h.leader_uuid = u.uuid
+		WHERE h.join_code = ?
+	`, joinCode).Scan(&leaderName, &organization, &photoRelease)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("hike not found for join code: %s", joinCode)
+		}
+		return "", fmt.Errorf("error fetching hike details for waiver: %v", err)
+	}
+
+	data := WaiverData{
+		LeaderName:   leaderName.String, // .String handles NULL by returning empty string
+		Organization: organization.String,
+		PhotoRelease: photoRelease,
+	}
+
+	// Read waiver template
+	templateBytes, err := os.ReadFile("static/waiver.txt")
+	if err != nil {
+		return "", fmt.Errorf("error reading waiver.txt template: %v", err)
+	}
+	templateContent := string(templateBytes)
+
+	// Parse and execute template
+	tmpl, err := template.New("waiver").Parse(templateContent)
+	if err != nil {
+		return "", fmt.Errorf("error parsing waiver template: %v", err)
+	}
+
+	var renderedWaiver strings.Builder
+	if err := tmpl.Execute(&renderedWaiver, data); err != nil {
+		return "", fmt.Errorf("error executing waiver template: %v", err)
+	}
+
+	return renderedWaiver.String(), nil
+}
+
+// getHikeWaiverHandler serves the dynamically generated waiver for a hike.
+func getHikeWaiverHandler(w http.ResponseWriter, r *http.Request) {
+	joinCode := r.PathValue("hikeId")
+
+	waiverText, err := generateWaiverText(joinCode)
+	if err != nil {
+		// Log the error and return an appropriate HTTP error code
+		log.Printf("Error generating waiver for joinCode %s: %v", joinCode, err)
+		if strings.Contains(err.Error(), "hike not found") {
+			http.Error(w, "Hike not found.", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error generating waiver.", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprint(w, waiverText)
 }
 
 func main() {
@@ -303,9 +380,9 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add hike to the HIkes table
 	_, err = db.Exec(`
-		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode)
+		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code, photo_release)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.PhotoRelease)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -433,15 +510,19 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 		return
 	}
 
-	// TODO: Replace this waiver stuff to use template
-	// Read waiver text
-	waiverTextBytes, err := os.ReadFile("static/waiver.txt")
+	// Generate waiver text using the new helper function
+	waiverText, err := generateWaiverText(joinCode)
 	if err != nil {
 		// Log the error but proceed with joining the hike, as waiver signing is secondary
-		log.Printf("Error reading waiver.txt: %v", err)
-		// Potentially send a different response or log more critically depending on requirements
+		// However, if the waiver can't be generated, it's a significant issue.
+		log.Printf("Critical: Error generating waiver text for hike %s: %v", joinCode, err)
+		// Depending on policy, we might want to return an error to the user here.
+		// For now, we'll log it and proceed with an empty waiverText to not break the flow,
+		// but this means the stored waiver will be incorrect/empty.
+		// A better approach might be to return HTTP 500 if waiver generation fails.
+		// For now, let's make waiverText empty and log, but this is a point of consideration.
+		waiverText = "" // Or handle error more gracefully, e.g., http.Error
 	}
-	waiverText := string(waiverTextBytes)
 
 	// Get User-Agent
 	userAgent := r.UserAgent()

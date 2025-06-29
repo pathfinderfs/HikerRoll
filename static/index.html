@@ -307,6 +307,13 @@
                     <label for="hike-startTime">Hike Start Date and Time:</label>
                     <input type="text" id="hike-startTime" placeholder="Click to select date and time" required>
                 </div>
+                <div class="toggle-container">
+                    <label for="hike-photo-release" class="toggle-label">Include Photo Release in Waiver?</label>
+                    <label class="switch">
+                        <input type="checkbox" id="hike-photo-release">
+                        <span class="slider"></span>
+                    </label>
+                </div>
                 <button type="button" onclick="createHike()">Create Hike</button>
                 <button type="button" class="button-secondary" onclick="cancelCreateHike()">Cancel</button>
             </form>
@@ -415,6 +422,7 @@
                 startTime: new Date().toISOString(),
                 latitude: 0,
                 longitude: 0,
+                photoRelease: false,
             };
         }
 
@@ -676,10 +684,12 @@
             document.getElementById('hike-name').value = '';
             document.getElementById('hike-organization').value = '';
             document.getElementById('hike-trailheadName').value = '';
+            document.getElementById('hike-photo-release').checked = false; // Reset checkbox
             currentHike.name = ''; // Clear hike name in state
             currentHike.trailheadName = ''; // Clear trailhead name in state
             currentHike.latitude = 0;
             currentHike.longitude = 0;
+            currentHike.photoRelease = false; // Reset in currentHike object
             localStorage.setItem('currentHike', JSON.stringify(currentHike)); // Save cleared state
 
             document.getElementById('hike-name').focus(); // Focus on the custom hike name field first
@@ -769,14 +779,27 @@
         }
 
         function showWaiverPage() {
-            fetch('/waiver.txt')
-                .then(response => response.text())
+            // Ensure currentHike and currentHike.joinCode are available
+            if (!currentHike || !currentHike.joinCode) {
+                console.error('Cannot fetch waiver: currentHike or currentHike.joinCode is missing.');
+                document.getElementById('waiver-content').innerText = 'Error: Hike details are missing. Cannot load waiver.';
+                showPage('waiver-page');
+                return;
+            }
+
+            fetch(`/api/hike/${currentHike.joinCode}/waiver`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch waiver: ${response.status} ${response.statusText}`);
+                    }
+                    return response.text();
+                })
                 .then(text => {
                     document.getElementById('waiver-content').innerText = text;
                 })
                 .catch(error => {
                     console.error('Error fetching waiver:', error);
-                    document.getElementById('waiver-content').innerText = 'Error loading waiver. Please try again.';
+                    document.getElementById('waiver-content').innerText = `Error loading waiver: ${error.message}. Please try again.`;
                 });
             showPage('waiver-page');
         }
@@ -831,6 +854,9 @@
                 // For now, just returning.
                 return;
             }
+
+            currentHike.photoRelease = document.getElementById('hike-photo-release').checked;
+
             // Get current location if not a predefined trail
             if (currentHike.latitude === 0 || currentHike.longitude === 0) {
                 navigator.geolocation.getCurrentPosition(position => {
