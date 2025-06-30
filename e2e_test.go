@@ -202,11 +202,38 @@ func TestHikeLifecycle(t *testing.T) {
 	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
 	assert.True(t, isElementVisible(t, leaderPage, daySelector, 5*time.Second), "Flatpickr day")
 	leaderPage.MustElement(daySelector).MustClick()
-	hourEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-hour")
-	hourEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Hour()))
-	minuteEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-minute")
-	minuteEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Minute()))
-	minuteEl.MustType(input.Enter)
+
+	// AM/PM Time setting logic
+	targetHour24 := tomorrow.Hour()
+	targetMinute := tomorrow.Minute()
+	targetIsPM := targetHour24 >= 12
+	hour12 := targetHour24 % 12
+	if hour12 == 0 { // Midnight (00:xx) or Noon (12:xx)
+		hour12 = 12
+	}
+
+	hourInputEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-hour")
+	hourInputEl.MustSelectAllText().MustInput(fmt.Sprintf("%d", hour12)) // Input 12-hour format, no leading zero
+
+	minuteInputEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-minute")
+	minuteInputEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", targetMinute))
+
+	// Check current AM/PM state and toggle if necessary
+	// Common Flatpickr selector for the AM/PM toggle/display element
+	amPmElement := leaderPage.MustElement(".flatpickr-time .flatpickr-am-pm")
+	currentAmPmState := strings.ToUpper(amPmElement.MustText())
+	desiredAmPmState := "AM"
+	if targetIsPM {
+		desiredAmPmState = "PM"
+	}
+
+	if currentAmPmState != desiredAmPmState {
+		amPmElement.MustClick() // Click to toggle
+		t.Logf("Toggled AM/PM to %s", desiredAmPmState)
+	}
+	// It's good practice to ensure the picker closes or focus moves away.
+	// Clicking the minute input or typing Enter there often helps.
+	minuteInputEl.MustType(input.Enter)
 
 	leaderPage.MustElement("#create-hike-form button[onclick='createHike()']").MustClick()
 	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page")
@@ -415,11 +442,32 @@ func TestCoordinatorConsoleNavigation(t *testing.T) {
 	assert.True(t, isElementVisible(t, page, daySelector, 5*time.Second), "Flatpickr day for nav test")
 	page.MustElement(daySelector).MustClick() // Select day
 
-	hourEl := page.MustElement(".flatpickr-time .numInput.flatpickr-hour")
-	hourEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Hour()))
-	minuteEl := page.MustElement(".flatpickr-time .numInput.flatpickr-minute")
-	minuteEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", tomorrow.Minute()))
-	minuteEl.MustType(input.Enter)
+	// AM/PM Time setting logic for Nav Test
+	targetHour24Nav := tomorrow.Hour()
+	targetMinuteNav := tomorrow.Minute()
+	targetIsPMNav := targetHour24Nav >= 12
+	hour12Nav := targetHour24Nav % 12
+	if hour12Nav == 0 {
+		hour12Nav = 12
+	}
+
+	hourInputElNav := page.MustElement(".flatpickr-time .numInput.flatpickr-hour")
+	hourInputElNav.MustSelectAllText().MustInput(fmt.Sprintf("%d", hour12Nav))
+
+	minuteInputElNav := page.MustElement(".flatpickr-time .numInput.flatpickr-minute")
+	minuteInputElNav.MustSelectAllText().MustInput(fmt.Sprintf("%02d", targetMinuteNav))
+
+	amPmElementNav := page.MustElement(".flatpickr-time .flatpickr-am-pm")
+	currentAmPmStateNav := strings.ToUpper(amPmElementNav.MustText())
+	desiredAmPmStateNav := "AM"
+	if targetIsPMNav {
+		desiredAmPmStateNav = "PM"
+	}
+	if currentAmPmStateNav != desiredAmPmStateNav {
+		amPmElementNav.MustClick()
+		t.Logf("NavTest: Toggled AM/PM to %s", desiredAmPmStateNav)
+	}
+	minuteInputElNav.MustType(input.Enter) // Close picker / confirm time
 
 	// Click again or type enter if time part needs confirming, or if MustClick on day closes picker.
 	// Assuming clicking day is enough or time defaults are fine for just creating the hike.
