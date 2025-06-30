@@ -263,6 +263,37 @@
             display: none;
         }
 
+        /* Styling for paired buttons to sit side-by-side */
+        .button-pair {
+            display: flex;
+            gap: 10px; /* Space between buttons */
+            margin-top: 10px; /* Add some space above the button pair */
+        }
+
+        .button-pair button {
+            flex-grow: 1; /* Allow buttons to share space equally */
+            width: auto; /* Override default 100% width if necessary */
+            margin: 0; /* Remove individual button margins if they interfere */
+        }
+        /* End of button-pair styling */
+
+        /* Styling for button groups within the hike leader page */
+        #hike-leader-page .button-group {
+            display: flex;
+            justify-content: space-between; /* Or space-around, or use 'flex-start' to pack left */
+            gap: 10px; /* Adds space between buttons in the group */
+            margin-bottom: 10px; /* Space below the button group */
+        }
+
+        #hike-leader-page .button-group button {
+            flex-grow: 1; /* Allows buttons to grow and share space */
+            width: auto; /* Override any specific width to allow flex sizing */
+            /* Consider if full-width default button style needs override here for non-mobile */
+            /* For example, if buttons are 100% width by default: */
+            /* width: auto; might not be enough, could need max-width or flex-basis */
+        }
+        /* End of button group styling for hike leader page */
+
         @media screen and (max-width: 600px) {
             .participant-table {
                 font-size: 14px;
@@ -293,18 +324,6 @@
                 padding: 10px 15px;
                 font-size: 0.95em;
                 /* width: auto; remove fixed width if any button has it by default */
-            }
-
-            #hike-leader-page .button-group {
-                display: flex;
-                justify-content: space-between; /* Or space-around, or remove for default packing */
-                gap: 10px; /* Adds space between buttons in the group */
-                margin-bottom: 10px; /* Space below the button group */
-            }
-
-            #hike-leader-page .button-group button {
-                flex-grow: 1; /* Allows buttons to grow and share space */
-                width: auto; /* Override any specific width to allow flex sizing */
             }
 
             /* Participant List Controls Compact Layout */
@@ -460,8 +479,10 @@
                     <!-- Participants will be dynamically added here -->
                 </tbody>
             </table>
-            <button class="button-secondary" onclick="endHike()">End Hike</button>
-            <button type="button" style="background-color: #555; margin-top: 10px;" onclick="goHomeFromLeaderConsole()">Home / Welcome Page</button>
+            <div class="button-pair">
+                <button class="button-secondary" onclick="endHike()">End Hike</button>
+                <button type="button" style="background-color: #555;" onclick="goHomeFromLeaderConsole()">Home / Welcome Page</button>
+            </div>
         </div>
 
         <div id="hiking-page" style="display:none;">
@@ -654,7 +675,7 @@
                                     <p>Trailhead: ${hike.trailheadName}</p>
                                     <p>Leader: ${hike.leader.name}</p>
                                     <p>Phone: ${formatPhoneNumber(hike.leader.phone)}</p>
-                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                                    <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
                                     ${buttonHtml}
                                 `;
                                 nearbyList.appendChild(li);
@@ -662,14 +683,16 @@
                             } else if (hike.sourceType === 'rsvp') {
                                 const participantId = hike.participantId || 0;
                                 buttonHtml = `
+                                <div class="button-pair">
                                     <button onclick="startHiking('${hike.joinCode}', ${participantId})">Start Hiking</button>
                                     <button class="button-secondary" onclick="unRSVP('${hike.joinCode}', ${participantId})">UnRSVP</button>
+                                </div>
                                 `;
                                 li.innerHTML = `
                                     <h3>${hike.name}</h3>
                                     <p>Organization: ${hike.organization}</p>
                                     <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
-                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                                    <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
                                     ${buttonHtml}
                                 `;
                                 rsvpList.appendChild(li);
@@ -680,7 +703,7 @@
                                     <h3>${hike.name}</h3>
                                     <p>Organization: ${hike.organization}</p>
                                     <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
-                                    <p>Start Time: ${new Date(hike.startTime).toLocaleString()}</p>
+                                    <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
                                     ${buttonHtml}
                                 `;
                                 leadingList.appendChild(li);
@@ -761,7 +784,7 @@
                     document.getElementById('join-hike-name').textContent = currentHike.name;
                     document.getElementById('join-hike-organization').textContent = currentHike.organization;
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
-                    document.getElementById('join-hike-start-time').textContent = new Date(currentHike.startTime).toLocaleString();
+                    document.getElementById('join-hike-start-time').textContent = formatHikeStartTime(currentHike.startTime);
                     showPage('join-hike-page');
                 })
                 .catch(error => {
@@ -875,7 +898,7 @@
             phoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
             phoneLink.href = `tel:${currentHike.leader.phone}`;
 
-            document.getElementById('hike-start-time-display').textContent = new Date(currentHike.startTime).toLocaleString();
+            document.getElementById('hike-start-time-display').textContent = formatHikeStartTime(currentHike.startTime);
 
             showPage('hiking-page');
         }
