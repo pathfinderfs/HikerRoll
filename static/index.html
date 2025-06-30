@@ -272,6 +272,7 @@
 
         .button-pair button {
             flex-grow: 1; /* Allow buttons to share space equally */
+            flex-basis: 0; /* Ensures equal distribution of space, ignoring content width */
             width: auto; /* Override default 100% width if necessary */
             margin: 0; /* Remove individual button margins if they interfere */
         }
@@ -287,6 +288,7 @@
 
         #hike-leader-page .button-group button {
             flex-grow: 1; /* Allows buttons to grow and share space */
+            flex-basis: 0; /* Ensures equal distribution of space, ignoring content width */
             width: auto; /* Override any specific width to allow flex sizing */
             /* Consider if full-width default button style needs override here for non-mobile */
             /* For example, if buttons are 100% width by default: */
