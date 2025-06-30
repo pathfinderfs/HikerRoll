@@ -186,10 +186,19 @@ func TestHikeLifecycle(t *testing.T) {
 	tomorrow := time.Now().Add(24 * time.Hour)
 	leaderPage.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
 	assert.True(t, isElementVisible(t, leaderPage, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar")
+
+	// Select Month first
+	monthSelector := leaderPage.MustElement("select.flatpickr-monthDropdown-months")
+	// Month value is 0-indexed for JavaScript Date, Go's time.Month() is 1-indexed.
+	monthValue := fmt.Sprintf("%d", int(tomorrow.Month())-1)
+	monthSelector.MustSelect(monthValue) // Rod's MustSelect takes the option's value attribute
+	t.Logf("Selected month: %s", monthValue)
+
+	// Then Select Year
 	yearEl := leaderPage.MustElement(".flatpickr-current-month .numInput.cur-year")
 	yearEl.MustSelectAllText()
 	yearEl.MustInput(fmt.Sprintf("%d", tomorrow.Year()))
-	yearEl.MustType(input.Enter)
+	yearEl.MustType(input.Enter) // This helps confirm the year input
 
 	//leaderPage.MustElement(fmt.Sprintf(".flatpickr-monthDropdown-months .flatpickr-monthDropdown-month[value='%d']", int(tomorrow.Month())-1)).MustClick()
 	// monthSelector := leaderPage.MustElement("select.flatpickr-monthDropdown-months")
@@ -435,9 +444,18 @@ func TestCoordinatorConsoleNavigation(t *testing.T) {
 	tomorrow := time.Now().Add(24 * time.Hour)
 	page.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
 	assert.True(t, isElementVisible(t, page, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar for nav test")
-	yearEl := page.MustElement(".flatpickr-current-month .numInput.cur-year")
-	yearEl.MustSelectAllText().MustInput(fmt.Sprintf("%d", tomorrow.Year()))
-	yearEl.MustType(input.Enter) // Close year input often helps
+
+	// Select Month first for Nav Test
+	monthSelectorNav := page.MustElement("select.flatpickr-monthDropdown-months")
+	monthValueNav := fmt.Sprintf("%d", int(tomorrow.Month())-1)
+	monthSelectorNav.MustSelect(monthValueNav)
+	t.Logf("NavTest: Selected month: %s", monthValueNav)
+
+	// Then Select Year for Nav Test
+	yearElNav := page.MustElement(".flatpickr-current-month .numInput.cur-year")
+	yearElNav.MustSelectAllText().MustInput(fmt.Sprintf("%d", tomorrow.Year()))
+	yearElNav.MustType(input.Enter) // Close year input often helps
+
 	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
 	assert.True(t, isElementVisible(t, page, daySelector, 5*time.Second), "Flatpickr day for nav test")
 	page.MustElement(daySelector).MustClick() // Select day
