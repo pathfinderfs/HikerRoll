@@ -278,6 +278,33 @@
         }
         /* End of button-pair styling */
 
+        /* Compact hike info display adjustments */
+        .hike-item h3,
+        #hike-leader-page h1,
+        #hiking-page h1 {
+            margin-bottom: 5px; /* Reduce space after the main title line */
+            font-size: 1.2em; /* Slightly adjust H3/H1 if needed, can be page-specific */
+        }
+
+        .hike-item p,
+        #hike-leader-page #leader-org-display,
+        #hike-leader-page p[id^="hike-start-time"], /* Catches hike-start-time-leader-display */
+        #hiking-page #hiking-leader-org,
+        #hiking-page p[id^="hike-start-time"] /* Catches hike-start-time-display */
+         {
+            margin-top: 3px;
+            margin-bottom: 3px;
+            font-size: 0.9em; /* Ensure info lines are slightly smaller */
+        }
+
+        /* Specific adjustment for H1 on leader/hiking pages if 1.2em is too small */
+        #hike-leader-page h1,
+        #hiking-page h1 {
+            font-size: 1.5em; /* Restore or set appropriate H1 size */
+             margin-bottom: 8px;
+        }
+        /* End of Compact hike info display adjustments */
+
         /* Styling for button groups within the hike leader page */
         #hike-leader-page .button-group {
             display: flex;
@@ -445,10 +472,10 @@
         </div>
 
         <div id="hike-leader-page" style="display:none;">
-            <h1><span id="hike-name-title-display"></span></h1>
-            <p>Organization: <span id="hike-organization-display"></span></p>
+            <h1><span id="hike-name-title-display"></span> (TH: <a id="trailhead-link-leader" href="#" target="_blank"><span id="trailhead-name-display"></span></a>)</h1>
             <p>Start Time: <span id="hike-start-time-leader-display"></span></p>
-            <p>Trailhead: <a id="trailhead-link-leader" href="#" target="_blank"><span id="trailhead-name-display"></span></a></p>
+            <p id="leader-org-display"></p>
+            <p style="display:none;">Organization: <span id="hike-organization-display"></span></p> <!-- Kept for JS to hide, or remove if JS adapted -->
             <p>Join Hike Link: <a id="join-url" onclick="copyToClipboard(event)">Press to copy</a></p>
             <p>Hike Coordinator Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
             </p>
@@ -488,12 +515,14 @@
         </div>
 
         <div id="hiking-page" style="display:none;">
-            <h1>Hiking: <span id="current-hike-name"></span></h1>
-            <p>Organization: <span id="current-hike-organization"></span></p>
-            <p>Trailhead: <a id="current-trailhead-name" href="" target="_blank"></a></p>
-            <p>Leader Name: <span id="leader-name-2"></span></p>
-            <p>Leader Phone: <a id="leader-phone-link" href=""></a></p>
+            <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)</h1>
             <p>Start Time: <span id="hike-start-time-display"></span></p>
+            <p id="hiking-leader-org"></p>
+            {/* <!-- Hidden old fields --> */}
+            <p style="display:none;">Organization: <span id="current-hike-organization"></span></p>
+            <p style="display:none;">Trailhead: <span id="hiking-page-trailhead-placeholder"></span></p> {/* Original p for trailhead is gone, this is just a placeholder if anything refers to a generic p */}
+            <p style="display:none;">Leader Name: <span id="leader-name-2"></span></p>
+            <p id="leader-phone-link-container" style="display:none;">Leader Phone: <a id="leader-phone-link" href=""></a></p>
             <button class="button-secondary" onclick="leaveHike()">Leave Hike</button>
         </div>
     </div>
@@ -676,12 +705,9 @@
                             if (hike.sourceType === 'location') {
                                 buttonHtml = `<button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>`;
                                 li.innerHTML = `
-                                    <h3>${hike.name}</h3>
-                                    <p>Organization: ${hike.organization}</p>
-                                    <p>Trailhead: ${hike.trailheadName}</p>
-                                    <p>Leader: ${hike.leader.name}</p>
-                                    <p>Phone: ${formatPhoneNumber(hike.leader.phone)}</p>
+                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
+                                    <p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
                                 `;
                                 nearbyList.appendChild(li);
@@ -694,11 +720,17 @@
                                     <button class="button-secondary" onclick="unRSVP('${hike.joinCode}', ${participantId})">UnRSVP</button>
                                 </div>
                                 `;
+                                let leaderLineRsvp = '';
+                                if (hike.leader && hike.leader.name) { // Check if leader info is present
+                                    leaderLineRsvp = `<p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>`;
+                                } else if (hike.organization) { // Fallback if only organization is known for the hike
+                                    leaderLineRsvp = `<p>Organization: ${hike.organization}</p>`;
+                                }
+
                                 li.innerHTML = `
-                                    <h3>${hike.name}</h3>
-                                    <p>Organization: ${hike.organization}</p>
-                                    <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
+                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
+                                    ${leaderLineRsvp}
                                     ${buttonHtml}
                                 `;
                                 rsvpList.appendChild(li);
@@ -706,10 +738,9 @@
                             } else if (hike.sourceType === 'led_by_user') {
                                 buttonHtml = `<button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>`;
                                 li.innerHTML = `
-                                    <h3>${hike.name}</h3>
-                                    <p>Organization: ${hike.organization}</p>
-                                    <p>Trailhead: <a href="${makeTrailheadURL()}" target="_blank">${hike.trailheadName}</a></p>
+                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
+                                    <p>${currentUser.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
                                 `;
                                 leadingList.appendChild(li);
@@ -868,13 +899,28 @@
         };
 
         function showHikeLeaderPage() {
-            document.getElementById('hike-name-title-display').textContent = currentHike.name;
-            document.getElementById('hike-organization-display').textContent = currentHike.organization;
+            // Line 1: Hike Name (TH: linked trailheadname)
+            const h1Title = document.getElementById('hike-name-title-display');
+            const trailheadLinkLeader = document.getElementById('trailhead-link-leader');
+            const trailheadNameSpan = document.getElementById('trailhead-name-display');
+
+            h1Title.textContent = currentHike.name;
+            trailheadLinkLeader.href = makeTrailheadURL(currentHike);
+            trailheadNameSpan.textContent = currentHike.trailheadName;
+            // The H1 structure in HTML will be: <h1><span id="hike-name-title-display"></span> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
+
+            // Line 2: Start Time
             document.getElementById('hike-start-time-leader-display').textContent = formatHikeStartTime(currentHike.startTime);
 
-            const trailheadLink = document.getElementById('trailhead-link-leader');
-            trailheadLink.href = makeTrailheadURL(); // Reuses existing function
-            document.getElementById('trailhead-name-display').textContent = currentHike.trailheadName;
+            // Line 3: Leader Name (Organization)
+            // We need a new element for this or repurpose an existing one. Let's assume a new one: <p id="leader-org-display"></p>
+            const leaderOrgDisplay = document.getElementById('leader-org-display'); // Assuming this element will be added to HTML
+            leaderOrgDisplay.textContent = `${currentUser.name} ${currentHike.organization ? '(' + currentHike.organization + ')' : ''}`;
+
+            // Hide old organization display if it's separate and no longer needed by new <p id="leader-org-display">
+            const orgDisplayElement = document.getElementById('hike-organization-display');
+            if (orgDisplayElement) orgDisplayElement.style.display = 'none';
+
 
             document.getElementById('participant-toggle').checked = showAllParticipants;
             document.getElementById('join-url').href = generateLink('code', currentHike.joinCode);
@@ -887,24 +933,40 @@
             return `${window.location.origin}?${codeType}=${code}`;
         }
 
-        function makeTrailheadURL() {
-           return `https://www.google.com/maps/search/?api=1&query=${currentHike.latitude},${currentHike.longitude}&query_place_id=${currentHike.name}`;
+        function makeTrailheadURL(hike) {
+            if (!hike || typeof hike.latitude === 'undefined' || typeof hike.longitude === 'undefined') {
+                // console.error("Invalid hike object passed to makeTrailheadURL", hike);
+                return "#"; // Return a safe default or handle error appropriately
+            }
+            // Use hike.trailheadName for the query_place_id if available, otherwise hike.name
+            const placeIdQuery = hike.trailheadName || hike.name || '';
+            return `https://www.google.com/maps/search/?api=1&query=${hike.latitude},${hike.longitude}&query_place_id=${encodeURIComponent(placeIdQuery)}`;
         }
 
         function showHikingPage() {
+            // Line 1: Hike Name (TH: linked trailheadname)
+            // Assuming h1 is: <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)</h1>
             document.getElementById('current-hike-name').textContent = currentHike.name;
-
             const trailheadLink = document.getElementById('current-trailhead-name');
             trailheadLink.textContent = currentHike.trailheadName;
             trailheadLink.href = makeTrailheadURL();
 
-            document.getElementById('leader-name-2').textContent = currentHike.leader.name;
-
-            const phoneLink = document.getElementById('leader-phone-link');
-            phoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
-            phoneLink.href = `tel:${currentHike.leader.phone}`;
-
+            // Line 2: Start Time
             document.getElementById('hike-start-time-display').textContent = formatHikeStartTime(currentHike.startTime);
+
+            // Line 3: Leader Name (Organization)
+            // Need a new element or repurpose. Let's assume <p id="hiking-leader-org"></p>
+            const hikingLeaderOrgDisplay = document.getElementById('hiking-leader-org'); // Assuming this element will be added
+            hikingLeaderOrgDisplay.textContent = `${currentHike.leader.name} ${currentHike.organization ? '(' + currentHike.organization + ')' : ''}`;
+
+            // Hide old individual displays if they are separate and no longer needed
+            const orgDisplay = document.getElementById('current-hike-organization');
+            if (orgDisplay) orgDisplay.style.display = 'none';
+            const leaderNameDisplay = document.getElementById('leader-name-2');
+            if (leaderNameDisplay) leaderNameDisplay.style.display = 'none';
+            const leaderPhoneLinkContainer = document.getElementById('leader-phone-link-container'); // Assuming parent of phoneLink
+            if (leaderPhoneLinkContainer) leaderPhoneLinkContainer.style.display = 'none';
+
 
             showPage('hiking-page');
         }
