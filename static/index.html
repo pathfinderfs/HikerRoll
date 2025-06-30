@@ -545,10 +545,14 @@
             const dayName = days[date.getDay()];
             const monthName = months[date.getMonth()];
             const dayOfMonth = date.getDate();
-            const hours = date.getHours().toString().padStart(2, '0');
+            let hours = date.getHours();
             const minutes = date.getMinutes().toString().padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+            const hoursStr = hours.toString(); // No padStart needed for 12hr format typically
 
-            return `${dayName}, ${monthName} ${dayOfMonth}, ${hours}:${minutes}`;
+            return `${dayName}, ${monthName} ${dayOfMonth}, ${hoursStr}:${minutes} ${ampm}`;
         }
 
         // Initialize autocomplete and flatpickr on page load
@@ -559,7 +563,7 @@
                 altInput: true,
                 altFormat: "F j, Y at h:i K",
                 minDate: "today",
-                time_24hr: true
+                time_24hr: false
             });
             // Initialize the app
             checkUserStatus();
