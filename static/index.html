@@ -73,6 +73,7 @@
             border: 1px solid #ddd;
             border-radius: 10px;
             padding: 15px;
+            padding-top: 0;
             margin-bottom: 10px;
         }
 
@@ -408,13 +409,13 @@
             <h1>Hiker Roll Call</h1>
             <button onclick="showCreateHikePage()">Create New Hike</button>
 
-            <h2>Your RSVPed Hikes</h2>
+            <h2>Upcoming</h2>
             <ul id="rsvped-hikes-list" class="hike-list"></ul>
 
-            <h2>Hikes I'm Leading</h2>
+            <h2>Leading</h2>
             <ul id="leading-hikes-list" class="hike-list"></ul>
 
-            <h2>Nearby Hikes</h2>
+            <h2>Nearby</h2>
             <button class="button-refresh" onclick="fetchAllWelcomePageHikes()">🔄 Refresh All</button>
             <ul id="nearby-hikes" class="hike-list"></ul>
         </div>
@@ -473,7 +474,7 @@
 
         <div id="hike-leader-page" style="display:none;">
             <h1><span id="hike-name-title-display"></span> (TH: <a id="trailhead-link-leader" href="#" target="_blank"><span id="trailhead-name-display"></span></a>)</h1>
-            <p>Start Time: <span id="hike-start-time-leader-display"></span></p>
+            <p><span id="hike-start-time-leader-display"></span></p>
             <p id="leader-org-display"></p>
             <p style="display:none;">Organization: <span id="hike-organization-display"></span></p> <!-- Kept for JS to hide, or remove if JS adapted -->
             <p>Join Hike Link: <a id="join-url" onclick="copyToClipboard(event)">Press to copy</a></p>
@@ -516,13 +517,8 @@
 
         <div id="hiking-page" style="display:none;">
             <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)</h1>
-            <p>Start Time: <span id="hike-start-time-display"></span></p>
+            <p><span id="hike-start-time-display"></span></p>
             <p id="hiking-leader-org"></p>
-            {/* <!-- Hidden old fields --> */}
-            <p style="display:none;">Organization: <span id="current-hike-organization"></span></p>
-            <p style="display:none;">Trailhead: <span id="hiking-page-trailhead-placeholder"></span></p> {/* Original p for trailhead is gone, this is just a placeholder if anything refers to a generic p */}
-            <p style="display:none;">Leader Name: <span id="leader-name-2"></span></p>
-            <p id="leader-phone-link-container" style="display:none;">Leader Phone: <a id="leader-phone-link" href=""></a></p>
             <button class="button-secondary" onclick="leaveHike()">Leave Hike</button>
         </div>
     </div>
@@ -706,7 +702,7 @@
                                 buttonHtml = `<button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>`;
                                 li.innerHTML = `
                                     <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
-                                    <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
+                                    <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
                                 `;
@@ -729,7 +725,7 @@
 
                                 li.innerHTML = `
                                     <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
-                                    <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
+                                    <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
                                 `;
@@ -739,7 +735,7 @@
                                 buttonHtml = `<button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>`;
                                 li.innerHTML = `
                                     <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
-                                    <p>Start Time: ${formatHikeStartTime(hike.startTime)}</p>
+                                    <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${currentUser.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
                                 `;
