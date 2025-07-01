@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv" // Added for Atoi
 	"strings"
 	"testing"
 	"time"
@@ -187,18 +188,61 @@ func TestHikeLifecycle(t *testing.T) {
 	leaderPage.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
 	assert.True(t, isElementVisible(t, leaderPage, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar")
 
-	// Select Month first
-	monthSelector := leaderPage.MustElement("select.flatpickr-monthDropdown-months")
-	// Month value is 0-indexed for JavaScript Date, Go's time.Month() is 1-indexed.
-	monthValue := fmt.Sprintf("%d", int(tomorrow.Month())-1)
-	monthSelector.MustSelect(monthValue) // Rod's MustSelect takes the option's value attribute
-	t.Logf("Selected month: %s", monthValue)
+	// Navigate to correct Month and Year using arrows
+	targetYear := tomorrow.Year()
+	targetMonth := tomorrow.Month() // This is time.Month (1-12)
 
-	// Then Select Year
+	// Helper map for month name to month number (1-12)
+	monthNameToNumber := map[string]time.Month{
+		"january":   time.January, "february":  time.February, "march":     time.March,
+		"april":     time.April,   "may":       time.May,      "june":      time.June,
+		"july":      time.July,    "august":    time.August,   "september": time.September,
+		"october":   time.October, "november":  time.November, "december":  time.December,
+	}
+
+	for i := 0; i < 24; i++ { // Max 24 iterations (2 years) to prevent infinite loop
+		currentYearInput := leaderPage.MustElement(".flatpickr-current-month .numInput.cur-year")
+		currentYear, err := currentYearInput.MustAttribute("value")
+		require.NoError(t, err, "Failed to get current year value from Flatpickr")
+
+		currentMonthStr := strings.ToLower(leaderPage.MustElement(".flatpickr-current-month span.cur-month").MustText())
+		currentMonth, ok := monthNameToNumber[currentMonthStr]
+		if !ok {
+			t.Fatalf("Could not parse current month string: %s", currentMonthStr)
+		}
+
+		t.Logf("Flatpickr: Current view %s %s, Target view %s %d", currentMonth, *currentYear, targetMonth, targetYear)
+
+		if currentMonth == targetMonth && *currentYear == fmt.Sprintf("%d", targetYear) {
+			t.Logf("Flatpickr: Reached target month and year: %s %d", targetMonth, targetYear)
+			break
+		}
+
+		// Determine direction: combine year and month into a comparable number (YYYYMM)
+		currentYearInt, errAtoi := strconv.Atoi(*currentYear)
+		require.NoError(t, errAtoi, "Failed to convert current year string to int")
+		currentCombined := currentYearInt*100 + int(currentMonth)
+		targetCombined := targetYear*100 + int(targetMonth)
+
+		if currentCombined < targetCombined {
+			leaderPage.MustElement(".flatpickr-next-month").MustClick()
+			t.Log("Clicked next month")
+		} else {
+			leaderPage.MustElement(".flatpickr-prev-month").MustClick()
+			t.Log("Clicked prev month")
+		}
+		leaderPage.MustWaitIdle() // Wait for UI to settle after click
+		if i == 23 {
+			t.Fatal("Failed to navigate to target month/year in Flatpickr after 24 attempts")
+		}
+	}
+
+	// Ensure year is definitively set (input field might not update perfectly with arrows over many years)
+	// This also helps if the initial year was far off.
 	yearEl := leaderPage.MustElement(".flatpickr-current-month .numInput.cur-year")
-	yearEl.MustSelectAllText()
-	yearEl.MustInput(fmt.Sprintf("%d", tomorrow.Year()))
-	yearEl.MustType(input.Enter) // This helps confirm the year input
+	yearEl.MustSelectAllText().MustInput(fmt.Sprintf("%d", targetYear)).MustType(input.Enter)
+	t.Logf("Set year definitively to %d", targetYear)
+
 
 	//leaderPage.MustElement(fmt.Sprintf(".flatpickr-monthDropdown-months .flatpickr-monthDropdown-month[value='%d']", int(tomorrow.Month())-1)).MustClick()
 	// monthSelector := leaderPage.MustElement("select.flatpickr-monthDropdown-months")
@@ -445,16 +489,56 @@ func TestCoordinatorConsoleNavigation(t *testing.T) {
 	page.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
 	assert.True(t, isElementVisible(t, page, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar for nav test")
 
-	// Select Month first for Nav Test
-	monthSelectorNav := page.MustElement("select.flatpickr-monthDropdown-months")
-	monthValueNav := fmt.Sprintf("%d", int(tomorrow.Month())-1)
-	monthSelectorNav.MustSelect(monthValueNav)
-	t.Logf("NavTest: Selected month: %s", monthValueNav)
+	// Navigate to correct Month and Year using arrows for Nav Test
+	targetYearNav := tomorrow.Year()
+	targetMonthNav := tomorrow.Month()
 
-	// Then Select Year for Nav Test
+	monthNameToNumberNav := map[string]time.Month{ // Could reuse the global one if defined outside
+		"january":   time.January, "february":  time.February, "march":     time.March,
+		"april":     time.April,   "may":       time.May,      "june":      time.June,
+		"july":      time.July,    "august":    time.August,   "september": time.September,
+		"october":   time.October, "november":  time.November, "december":  time.December,
+	}
+
+	for i := 0; i < 24; i++ { // Max 24 iterations
+		currentYearInputNav := page.MustElement(".flatpickr-current-month .numInput.cur-year")
+		currentYearStrNav, err := currentYearInputNav.MustAttribute("value")
+		require.NoError(t, err, "NavTest: Failed to get current year value")
+
+		currentMonthStrNav := strings.ToLower(page.MustElement(".flatpickr-current-month span.cur-month").MustText())
+		currentMonthNav, ok := monthNameToNumberNav[currentMonthStrNav]
+		if !ok {
+			t.Fatalf("NavTest: Could not parse current month string: %s", currentMonthStrNav)
+		}
+
+		t.Logf("NavTest Flatpickr: Current %s %s, Target %s %d", currentMonthNav, *currentYearStrNav, targetMonthNav, targetYearNav)
+
+		if currentMonthNav == targetMonthNav && *currentYearStrNav == fmt.Sprintf("%d", targetYearNav) {
+			t.Logf("NavTest Flatpickr: Reached target month and year: %s %d", targetMonthNav, targetYearNav)
+			break
+		}
+
+		currentYearIntNav, errAtoi := strconv.Atoi(*currentYearStrNav)
+		require.NoError(t, errAtoi, "NavTest: Failed to convert current year string to int")
+		currentCombinedNav := currentYearIntNav*100 + int(currentMonthNav)
+		targetCombinedNav := targetYearNav*100 + int(targetMonthNav)
+
+		if currentCombinedNav < targetCombinedNav {
+			page.MustElement(".flatpickr-next-month").MustClick()
+			t.Log("NavTest: Clicked next month")
+		} else {
+			page.MustElement(".flatpickr-prev-month").MustClick()
+			t.Log("NavTest: Clicked prev month")
+		}
+		page.MustWaitIdle()
+		if i == 23 {
+			t.Fatal("NavTest: Failed to navigate to target month/year in Flatpickr")
+		}
+	}
+
 	yearElNav := page.MustElement(".flatpickr-current-month .numInput.cur-year")
-	yearElNav.MustSelectAllText().MustInput(fmt.Sprintf("%d", tomorrow.Year()))
-	yearElNav.MustType(input.Enter) // Close year input often helps
+	yearElNav.MustSelectAllText().MustInput(fmt.Sprintf("%d", targetYearNav)).MustType(input.Enter)
+	t.Logf("NavTest: Set year definitively to %d", targetYearNav)
 
 	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
 	assert.True(t, isElementVisible(t, page, daySelector, 5*time.Second), "Flatpickr day for nav test")
