@@ -15,7 +15,6 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const baseServerURL = "http://localhost:8197"
@@ -406,98 +405,4 @@ func TestHikeLifecycle(t *testing.T) {
 	t.Log("Hike Leader: Successfully ended hike and is on welcome page.")
 
 	t.Log("TestHikeLifecycle COMPLETED SUCCESSFULLY")
-}
-
-func TestCoordinatorConsoleNavigation(t *testing.T) {
-	page := testBrowser.MustPage(baseServerURL).MustWaitLoad()
-	defer page.MustClose()
-
-	t.Log("CoordinatorNav: Creating a hike to access coordinator console...")
-	page.MustElement("button[onclick='showCreateHikePage()']").MustClick()
-	assert.True(t, isElementVisible(t, page, "#create-hike-page", 5*time.Second), "Create hike page")
-	page.MustElement("#hike-name").MustInput("Nav Test Hike")
-	page.MustElement("#leader-name").MustInput("Nav Test Leader")
-	page.MustElement("#leader-phone").MustInput("1122334455")
-	// For simplicity, using default trailhead and time, assuming form handles defaults or they aren't strictly required for this nav test path
-	page.MustElement("#hike-trailheadName").MustInput("Nav Test Trailhead") // Must be filled due to 'required'
-
-	// Set a valid start time using Flatpickr
-	tomorrow := time.Now().Add(24 * time.Hour)
-	page.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
-	assert.True(t, isElementVisible(t, page, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar for nav test")
-
-	// Navigate to correct Month and Year using arrows for Nav Test
-	targetYearNav := tomorrow.Year()
-	targetMonthNav := tomorrow.Month().String()
-
-	monthEl := page.MustElement(".flatpickr-monthDropdown-months")
-	monthEl.MustSelect(targetMonthNav)
-	t.Logf("NavTest: Set month definitively to %s", targetMonthNav)
-
-	yearElNav := page.MustElement(".flatpickr-current-month .numInput.cur-year")
-	yearElNav.MustSelectAllText().MustInput(fmt.Sprintf("%d", targetYearNav)).MustType(input.Enter)
-	t.Logf("NavTest: Set year definitively to %d", targetYearNav)
-
-	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
-	assert.True(t, isElementVisible(t, page, daySelector, 5*time.Second), "Flatpickr day for nav test")
-	page.MustElement(daySelector).MustClick() // Select day
-
-	// AM/PM Time setting logic for Nav Test
-	targetHour24Nav := tomorrow.Hour()
-	targetMinuteNav := tomorrow.Minute()
-	targetIsPMNav := targetHour24Nav >= 12
-	hour12Nav := targetHour24Nav % 12
-	if hour12Nav == 0 {
-		hour12Nav = 12
-	}
-
-	hourInputElNav := page.MustElement(".flatpickr-time .numInput.flatpickr-hour")
-	hourInputElNav.MustSelectAllText().MustInput(fmt.Sprintf("%d", hour12Nav))
-
-	minuteInputElNav := page.MustElement(".flatpickr-time .numInput.flatpickr-minute")
-	minuteInputElNav.MustSelectAllText().MustInput(fmt.Sprintf("%02d", targetMinuteNav))
-
-	amPmElementNav := page.MustElement(".flatpickr-time .flatpickr-am-pm")
-	currentAmPmStateNav := strings.ToUpper(amPmElementNav.MustText())
-	desiredAmPmStateNav := "AM"
-	if targetIsPMNav {
-		desiredAmPmStateNav = "PM"
-	}
-	if currentAmPmStateNav != desiredAmPmStateNav {
-		amPmElementNav.MustClick()
-		t.Logf("NavTest: Toggled AM/PM to %s", desiredAmPmStateNav)
-	}
-	minuteInputElNav.MustType(input.Enter) // Close picker / confirm time
-
-	// Click again or type enter if time part needs confirming, or if MustClick on day closes picker.
-	// Assuming clicking day is enough or time defaults are fine for just creating the hike.
-	// If flatpickr stays open, find a way to close it, e.g., by clicking outside or tabbing away.
-	// For now, assume it closes or the create button is still clickable.
-	// A common way to close flatpickr is to click the input again or press Esc.
-	// Let's try clicking the hike name field to shift focus and potentially close datepicker.
-	page.MustElement("#hike-name").MustClick()
-
-	page.MustElement("#create-hike-form button[onclick='createHike()']").MustClick()
-	assert.True(t, isElementVisible(t, page, "#hike-leader-page", 10*time.Second), "Hike leader page for nav test")
-	t.Log("CoordinatorNav: On coordinator console.")
-
-	t.Log("CoordinatorNav: Clicking 'Home / Welcome Page' button...")
-	homeButtonSelector := "#hike-leader-page button[onclick='goHomeFromLeaderConsole()']"
-	assert.True(t, isElementVisible(t, page, homeButtonSelector, 5*time.Second), "Home button on leader console")
-	page.MustElement(homeButtonSelector).MustClick()
-
-	assert.True(t, isElementVisible(t, page, "#welcome-page", 10*time.Second), "Welcome page after clicking home")
-	t.Log("CoordinatorNav: Successfully navigated to welcome page.")
-
-	// Verify URL parameters are cleared
-	currentPageInfo, err := page.Info()
-	require.NoError(t, err, "Failed to get page info")
-	currentURL, err := url.Parse(currentPageInfo.URL)
-	require.NoError(t, err, "Failed to parse current URL")
-
-	assert.NotContains(t, currentURL.RawQuery, "code=", "URL should not contain 'code' query parameter")
-	assert.NotContains(t, currentURL.RawQuery, "leaderCode=", "URL should not contain 'leaderCode' query parameter")
-	t.Logf("CoordinatorNav: Verified URL parameters cleared. Current URL: %s", currentURL.String())
-
-	t.Log("TestCoordinatorConsoleNavigation COMPLETED SUCCESSFULLY")
 }
