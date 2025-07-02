@@ -24,7 +24,7 @@ var testBrowser *rod.Browser
 
 func TestMain(m *testing.M) {
 	initDB(":memory:")
-	//initDB("./test.db")
+	// initDB("./test.db")   // Switching to this can be helpful for debugging
 	defer func() {
 		if db != nil {
 			db.Close()
@@ -81,16 +81,11 @@ func TestMain(m *testing.M) {
 
 func isElementVisible(t *testing.T, page *rod.Page, selector string, timeout time.Duration) bool {
 	t.Helper()
-	// If Activate returns two values (e.g. (*Page, error)) in this Rod version:
-	// if _, errActivate := page.Activate(); errActivate != nil {
-	// Otherwise, if it only returns error:
+
 	if _, errActivate := page.Activate(); errActivate != nil {
 		t.Logf("isElementVisible: Warning - could not activate page for selector '%s': %v", selector, errActivate)
 	}
 
-	// If Do returns two values (e.g. (Value, error)) in this Rod version:
-	// _, errDo := page.Timeout(timeout).Race().Element(selector).MustHandle(func(e *rod.Element) { ... }).Do()
-	// If it only returns error:
 	_, errDo := page.Timeout(timeout).Race().Element(selector).MustHandle(func(e *rod.Element) {
 		e.MustWaitVisible()
 	}).Do()
@@ -152,6 +147,7 @@ func isElementVisible(t *testing.T, page *rod.Page, selector string, timeout tim
 	return true
 }
 
+// uses runes to handle multi-byte characters correctly
 func truncateString(s string, num int) string {
 	runes := []rune(s)
 	if len(runes) <= num {
@@ -160,33 +156,32 @@ func truncateString(s string, num int) string {
 	return string(runes[0:num]) + "..."
 }
 
-func TestHikeLifecycle(t *testing.T) {
-	leaderPage := testBrowser.MustPage(baseServerURL).MustWaitLoad()
-
-	defer leaderPage.MustClose()
-	t.Log("Hike Leader: Starting to create hike...")
-
+// Navigate to create hike page and fill out the form
+func createHike(t *testing.T, page *rod.Page, hikeName, organization, trailheadName, leaderName, leaderPhone string) {
 	// Click the Create Hike button
-	assert.True(t, isElementVisible(t, leaderPage, "button[onclick='showCreateHikePage()']", 10*time.Second), "Create New Hike button")
-	leaderPage.MustElement("button[onclick='showCreateHikePage()']").MustClick()
+	assert.True(t, isElementVisible(t, page, "button[onclick='showCreateHikePage()']", 10*time.Second), "Create New Hike button")
+	page.MustElement("button[onclick='showCreateHikePage()']").MustClick()
 
 	// Fill out hike information
-	assert.True(t, isElementVisible(t, leaderPage, "#create-hike-page", 5*time.Second), "Create hike page")
-	leaderPage.MustElement("#hike-name").MustInput("E2E Test Hike")
-	leaderPage.MustElement("#hike-organization").MustInput("E2E Test Organization")
-	leaderPage.MustElement("#hike-trailheadName").MustInput("Ka")
+	assert.True(t, isElementVisible(t, page, "#create-hike-page", 5*time.Second), "Create hike page")
+	page.MustElement("#hike-name").MustInput(hikeName)
+	page.MustElement("#hike-organization").MustInput(organization)
+	page.MustElement("#hike-trailheadName").MustInput(trailheadName[:2])
 
 	// This is to handle the autocomplete selection for trailname
-	assert.True(t, isElementVisible(t, leaderPage, ".autocomplete-items", 3*time.Second), "Autocomplete items container")
-	leaderPage.MustElementByJS(`
-		() => {
-			const items = document.querySelectorAll('.autocomplete-items div');
-			for (let item of items) { if (item.textContent.includes("Ka'au Crater")) return item; } return null;
-		}
-	`).MustClick()
+	assert.True(t, isElementVisible(t, page, ".autocomplete-items", 3*time.Second), "Autocomplete items container")
 
-	leaderPage.MustElement("#leader-name").MustInput("E2E Leader")
-	leaderPage.MustElement("#leader-phone").MustInput("1234567890")
+	page.MustElementByJS(fmt.Sprintf(`
+	() => {
+		const items = document.querySelectorAll('.autocomplete-items div');
+		for (let item of items) {
+			if (item.textContent.includes(%q)) return item;
+		}
+		return null;
+	}`, trailheadName)).MustClick()
+
+	page.MustElement("#leader-name").MustInput(leaderName)
+	page.MustElement("#leader-phone").MustInput(leaderPhone)
 
 	// Fill out a hike time of 24 hours from now
 	tomorrow := time.Now().Add(24 * time.Hour)
@@ -194,30 +189,20 @@ func TestHikeLifecycle(t *testing.T) {
 	targetMonth := tomorrow.Month().String() // This is time.Month (1-12)
 
 	// Open the date time picker
-	leaderPage.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
-	assert.True(t, isElementVisible(t, leaderPage, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar")
+	page.MustElement("input[placeholder='Click to select date and time'][type='text']").MustClick()
+	assert.True(t, isElementVisible(t, page, ".flatpickr-calendar.open", 5*time.Second), "Flatpickr calendar")
 
-	monthEl := leaderPage.MustElement(".flatpickr-monthDropdown-months")
+	monthEl := page.MustElement(".flatpickr-monthDropdown-months")
 	monthEl.MustSelect(targetMonth)
 	t.Logf("Set month definitively to %s", targetMonth)
 
-	// Ensure year is definitively set (input field might not update perfectly with arrows over many years)
-	// This also helps if the initial year was far off.
-	yearEl := leaderPage.MustElement(".flatpickr-current-month .numInput.cur-year")
+	yearEl := page.MustElement(".flatpickr-current-month .numInput.cur-year")
 	yearEl.MustSelectAllText().MustInput(fmt.Sprintf("%d", targetYear)).MustType(input.Enter)
 	t.Logf("Set year definitively to %d", targetYear)
 
-	//leaderPage.MustElement(fmt.Sprintf(".flatpickr-monthDropdown-months .flatpickr-monthDropdown-month[value='%d']", int(tomorrow.Month())-1)).MustClick()
-	// monthSelector := leaderPage.MustElement("select.flatpickr-monthDropdown-months")
-	// t.Log("2.5")
-	// the following fails for some reason
-	// monthSelector.MustSelect(fmt.Sprintf("%d", (tomorrow.Month())-1))
-	// t.Log("2.7")
-	// leaderPage.MustElement("select.flatpickr-monthDropdown-months").Select([fmt.Sprintf("%d", tomorrow.Month()-1)], true, "test")
-	// t.Log("3")
 	daySelector := fmt.Sprintf(".flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*='%s'][aria-label*='%d']", tomorrow.Format("January"), tomorrow.Day())
-	assert.True(t, isElementVisible(t, leaderPage, daySelector, 5*time.Second), "Flatpickr day")
-	leaderPage.MustElement(daySelector).MustClick()
+	assert.True(t, isElementVisible(t, page, daySelector, 5*time.Second), "Flatpickr day")
+	page.MustElement(daySelector).MustClick()
 
 	// AM/PM Time setting logic
 	targetHour24 := tomorrow.Hour()
@@ -228,15 +213,15 @@ func TestHikeLifecycle(t *testing.T) {
 		hour12 = 12
 	}
 
-	hourInputEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-hour")
+	hourInputEl := page.MustElement(".flatpickr-time .numInput.flatpickr-hour")
 	hourInputEl.MustSelectAllText().MustInput(fmt.Sprintf("%d", hour12)) // Input 12-hour format, no leading zero
 
-	minuteInputEl := leaderPage.MustElement(".flatpickr-time .numInput.flatpickr-minute")
+	minuteInputEl := page.MustElement(".flatpickr-time .numInput.flatpickr-minute")
 	minuteInputEl.MustSelectAllText().MustInput(fmt.Sprintf("%02d", targetMinute))
 
 	// Check current AM/PM state and toggle if necessary
 	// Common Flatpickr selector for the AM/PM toggle/display element
-	amPmElement := leaderPage.MustElement(".flatpickr-time .flatpickr-am-pm")
+	amPmElement := page.MustElement(".flatpickr-time .flatpickr-am-pm")
 	currentAmPmState := strings.ToUpper(amPmElement.MustText())
 	desiredAmPmState := "AM"
 	if targetIsPM {
@@ -247,80 +232,27 @@ func TestHikeLifecycle(t *testing.T) {
 		amPmElement.MustClick() // Click to toggle
 		t.Logf("Toggled AM/PM to %s", desiredAmPmState)
 	}
+
 	// It's good practice to ensure the picker closes or focus moves away.
 	// Clicking the minute input or typing Enter there often helps.
 	minuteInputEl.MustType(input.Enter)
 
-	leaderPage.MustElement("#create-hike-form button[onclick='createHike()']").MustClick()
-	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page")
+	page.MustElement("#create-hike-form button[onclick='createHike()']").MustClick()
+	assert.True(t, isElementVisible(t, page, "#hike-leader-page", 10*time.Second), "Hike leader page")
 	t.Log("Hike Leader: Successfully on Coordinator Console page")
+}
 
-	joinURLElement := leaderPage.MustElement("#join-url")
-	joinURLString, _ := joinURLElement.Attribute("href")
-	parsedJoinURL, _ := url.Parse(*joinURLString)
-	joinCode := parsedJoinURL.Query().Get("code")
-	t.Logf("Hike Leader: Extracted joinCode: %s", joinCode)
-
-	// Leader: Navigate back to Welcome Page to check "Hikes I'm Leading"
-	t.Log("Hike Leader: Navigating to Welcome Page to check 'Hikes I'm Leading' section...")
-	leaderPage.MustElementX(`//button[@onclick="goHomeFromLeaderConsole()"]`).MustClick()
-
-	//leaderPage.MustNavigate(baseServerURL).MustWaitLoad() // Simulate going back to welcome page
-	assert.True(t, isElementVisible(t, leaderPage, "#welcome-page", 10*time.Second), "Welcome page for leader")
-
-	// Assert "Hikes I'm Leading" section title using XPath
-	hikesImLeadingTitleXPath := "//h2[contains(normalize-space(.), \"Hikes I'm Leading\")]"
-	assert.True(t, leaderPage.MustHasX(hikesImLeadingTitleXPath), "Section 'Hikes I'm Leading' title found")
-
-	// XPath for the specific "E2E Test Hike" in the "Hikes I'm Leading" list
-	leadingHikeItemXPath := fmt.Sprintf("//ul[@id='leading-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')]]")
-
-	// Wait for the list item itself to be visible using the XPath
-	leaderPage.Timeout(15 * time.Second).MustElementX(leadingHikeItemXPath).MustWaitVisible()
-	t.Log("Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list is visible") // Log success
-
-	// Optional: Test the "Open Coordinator Console" button from this list item later if needed,
-	// but the primary check is that it appears.
-	// For now, navigate back to the coordinator console using the original leaderPage instance which should still be on it,
-	// or by re-constructing the leader URL if state was lost.
-	// The leaderPage was navigated away, so we need to get back to coordinator console for participant check.
-	// Re-fetch leaderCode (assuming it's stable and was part of currentHike in JS, though not explicitly extracted in test yet)
-	// This part of the test might need the leaderCode if the original page context is lost.
-	// For simplicity, let's assume the leader console URL is known or can be reconstructed if needed later.
-	// The test flow below expects leaderPage to be on the coordinator console.
-	// So, after this check, leader should go back to the console.
-	// The leader's `currentHike` object in JS would have the leaderCode.
-	// We can simulate this by getting the leaderCode from the joinURL's page again.
-	// However, the original leaderPage instance should still be on the coordinator console.
-	// The leaderPage.MustNavigate above changed its URL.
-	// We need to get the leaderCode to go back to the coordinator console.
-
-	// Re-access leader console for the next steps of the test
-	// This assumes leaderCode was implicitly stored or can be retrieved.
-	// The simplest way for the test is to re-extract leaderCode if needed or ensure leader page state is managed.
-	// For the E2E test, the leaderPage was on the coordinator console, then navigated away.
-	// To continue the original flow, it needs to be on the coordinator console.
-	// We need the leaderCode to reconstruct the URL.
-	// Let's assume we need to click the button from the "Hikes I'm Leading" list to get back.
-
-	t.Log("Hike Leader: Clicking 'Open Coordinator Console' from 'Hikes I'm Leading' list to return to console...")
-	// XPath for the button within that li:
-	goToConsoleButtonXPath := fmt.Sprintf("%s//button[contains(@onclick, 'goToLeaderConsole')]", leadingHikeItemXPath)
-	leaderPage.MustElementX(goToConsoleButtonXPath).MustClick()
-	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page (re-accessed)")
-	t.Log("Hike Leader: Successfully back on Coordinator Console page")
-
+func joinHike(t *testing.T, page *rod.Page, joinCode, participantName, participantPhone, licensePlate, emergencyContact string) *rod.Page {
 	t.Log("Participant: Starting to join hike...")
 	participantPage := testBrowser.MustIncognito().MustPage()
-	defer participantPage.MustClose()
 	participantJoinURL := fmt.Sprintf("%s/?code=%s", baseServerURL, joinCode)
 	participantPage.MustNavigate(participantJoinURL).MustWaitLoad()
 
 	assert.True(t, isElementVisible(t, participantPage, "#join-hike-page", 10*time.Second), "Join hike page for participant")
-	participantPage.MustElement("#participant-name").MustInput("E2E Participant")
-	participantPage.MustElement("#participant-phone").MustInput("0987654321")
-	participantPage.MustElement("#participant-licensePlate").MustInput("E2E-PLATE")
-	participantPage.MustElement("#participant-emergencyContact").MustInput("5555555555")
+	participantPage.MustElement("#participant-name").MustInput(participantName)
+	participantPage.MustElement("#participant-phone").MustInput(participantPhone)
+	participantPage.MustElement("#participant-licensePlate").MustInput(licensePlate)
+	participantPage.MustElement("#participant-emergencyContact").MustInput(emergencyContact)
 	participantPage.MustElement("#join-hike-form button[onclick='showWaiverPage()']").MustClick()
 
 	assert.True(t, isElementVisible(t, participantPage, "#waiver-page", 5*time.Second), "Waiver page")
@@ -348,9 +280,51 @@ func TestHikeLifecycle(t *testing.T) {
 
 	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for participant")
 	t.Log("Participant: Successfully on Hiking page")
+	return participantPage
+}
+
+func TestHikeLifecycle(t *testing.T) {
+	leaderPage := testBrowser.MustPage(baseServerURL).MustWaitLoad()
+
+	defer leaderPage.MustClose()
+	t.Log("Hike Leader: Starting to create hike...")
+
+	createHike(t, leaderPage, "E2E Test Hike", "E2E Test Organization", "Ka'au Crater", "E2E Leader", "1234567890")
+
+	// Get join URL from the leader page
+	joinURLElement := leaderPage.MustElement("#join-url")
+	joinURLString, _ := joinURLElement.Attribute("href")
+	parsedJoinURL, _ := url.Parse(*joinURLString)
+	joinCode := parsedJoinURL.Query().Get("code")
+	t.Logf("Hike Leader: Extracted joinCode: %s", joinCode)
+
+	// Leader: Navigate back to Welcome Page to check "Hikes I'm Leading"
+	t.Log("Hike Leader: Navigating to Welcome Page to check 'Leading' section...")
+	leaderPage.MustElementX(`//button[@onclick="goHomeFromLeaderConsole()"]`).MustClick()
+
+	//leaderPage.MustNavigate(baseServerURL).MustWaitLoad() // Simulate going back to welcome page
+	assert.True(t, isElementVisible(t, leaderPage, "#welcome-page", 10*time.Second), "Welcome page for leader")
+
+	// Assert "Hikes I'm Leading" section title using XPath
+	hikesImLeadingTitleXPath := "//h2[contains(normalize-space(.), \"Leading\")]"
+	assert.True(t, leaderPage.MustHasX(hikesImLeadingTitleXPath), "Section 'Leading' title found")
+
+	// XPath for the specific "E2E Test Hike" in the "Leading list
+	leadingHikeItemXPath := "//ul[@id='leading-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')]]"
+	leaderPage.Timeout(15 * time.Second).MustElementX(leadingHikeItemXPath).MustWaitVisible()
+	t.Log("Created hike 'E2E Test Hike' in 'Hikes I'm Leading' list is visible") // Log success
+
+	t.Log("Hike Leader: Clicking 'Open Coordinator Console' from 'Leading' list to return to console...")
+	goToConsoleButtonXPath := fmt.Sprintf("%s//button[contains(@onclick, 'goToLeaderConsole')]", leadingHikeItemXPath)
+	leaderPage.MustElementX(goToConsoleButtonXPath).MustClick()
+
+	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page (re-accessed)")
+	t.Log("Hike Leader: Successfully back on Coordinator Console page")
+
+	participantPage := joinHike(t, leaderPage, joinCode, "E2E Participant", "0987654321", "E2E-PLATE", "5555555555")
+	defer participantPage.MustClose()
 
 	t.Log("Hike Leader: Checking for participant...")
-	// Corrected Activate call for leaderPage if it returns two values
 	if _, errActivate := leaderPage.Activate(); errActivate != nil {
 		t.Logf("Warning: could not activate leaderPage: %v", errActivate)
 	}
