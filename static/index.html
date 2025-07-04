@@ -267,61 +267,83 @@
         /* Styling for paired buttons to sit side-by-side */
         .button-pair {
             display: flex;
-            gap: 10px; /* Space between buttons */
-            margin-top: 10px; /* Add some space above the button pair */
+            gap: 10px;
+            /* Space between buttons */
+            margin-top: 10px;
+            /* Add some space above the button pair */
         }
 
         .button-pair button {
-            flex-grow: 1; /* Allow buttons to share space equally */
-            flex-basis: 0; /* Ensures equal distribution of space, ignoring content width */
-            width: auto; /* Override default 100% width if necessary */
-            margin: 0; /* Remove individual button margins if they interfere */
+            flex-grow: 1;
+            /* Allow buttons to share space equally */
+            flex-basis: 0;
+            /* Ensures equal distribution of space, ignoring content width */
+            width: auto;
+            /* Override default 100% width if necessary */
+            margin: 0;
+            /* Remove individual button margins if they interfere */
         }
+
         /* End of button-pair styling */
 
         /* Compact hike info display adjustments */
         .hike-item h3,
         #hike-leader-page h1,
         #hiking-page h1 {
-            margin-bottom: 5px; /* Reduce space after the main title line */
-            font-size: 1.2em; /* Slightly adjust H3/H1 if needed, can be page-specific */
+            margin-bottom: 5px;
+            /* Reduce space after the main title line */
+            font-size: 1.2em;
+            /* Slightly adjust H3/H1 if needed, can be page-specific */
         }
 
         .hike-item p,
         #hike-leader-page #leader-org-display,
-        #hike-leader-page p[id^="hike-start-time"], /* Catches hike-start-time-leader-display */
+        #hike-leader-page p[id^="hike-start-time"],
+        /* Catches hike-start-time-leader-display */
         #hiking-page #hiking-leader-org,
-        #hiking-page p[id^="hike-start-time"] /* Catches hike-start-time-display */
-         {
+        #hiking-page p[id^="hike-start-time"]
+
+        /* Catches hike-start-time-display */
+            {
             margin-top: 3px;
             margin-bottom: 3px;
-            font-size: 0.9em; /* Ensure info lines are slightly smaller */
+            font-size: 0.9em;
+            /* Ensure info lines are slightly smaller */
         }
 
         /* Specific adjustment for H1 on leader/hiking pages if 1.2em is too small */
         #hike-leader-page h1,
         #hiking-page h1 {
-            font-size: 1.5em; /* Restore or set appropriate H1 size */
-             margin-bottom: 8px;
+            font-size: 1.5em;
+            /* Restore or set appropriate H1 size */
+            margin-bottom: 8px;
         }
+
         /* End of Compact hike info display adjustments */
 
         /* Styling for button groups within the hike leader page */
         #hike-leader-page .button-group {
             display: flex;
-            justify-content: space-between; /* Or space-around, or use 'flex-start' to pack left */
-            gap: 10px; /* Adds space between buttons in the group */
-            margin-bottom: 10px; /* Space below the button group */
+            justify-content: space-between;
+            /* Or space-around, or use 'flex-start' to pack left */
+            gap: 10px;
+            /* Adds space between buttons in the group */
+            margin-bottom: 10px;
+            /* Space below the button group */
         }
 
         #hike-leader-page .button-group button {
-            flex-grow: 1; /* Allows buttons to grow and share space */
-            flex-basis: 0; /* Ensures equal distribution of space, ignoring content width */
-            width: auto; /* Override any specific width to allow flex sizing */
+            flex-grow: 1;
+            /* Allows buttons to grow and share space */
+            flex-basis: 0;
+            /* Ensures equal distribution of space, ignoring content width */
+            width: auto;
+            /* Override any specific width to allow flex sizing */
             /* Consider if full-width default button style needs override here for non-mobile */
             /* For example, if buttons are 100% width by default: */
             /* width: auto; might not be enough, could need max-width or flex-basis */
         }
+
         /* End of button group styling for hike leader page */
 
         @media screen and (max-width: 600px) {
@@ -338,19 +360,23 @@
         /* Coordinator Console Mobile Optimizations */
         @media screen and (max-width: 600px) {
             #hike-leader-page h1 {
-                font-size: 1.5em; /* Slightly reduce title size */
+                font-size: 1.5em;
+                /* Slightly reduce title size */
                 margin-bottom: 10px;
             }
 
             #hike-leader-page p {
-                font-size: 0.9em; /* Reduce font size for info text */
-                margin: 5px 0; /* Reduce vertical margins */
+                font-size: 0.9em;
+                /* Reduce font size for info text */
+                margin: 5px 0;
+                /* Reduce vertical margins */
             }
 
             #hike-leader-page .button-refresh,
             #hike-leader-page .button-secondary,
             #hike-leader-page button,
-            #download-participants-button { /* Ensure download button is included */
+            #download-participants-button {
+                /* Ensure download button is included */
                 padding: 10px 15px;
                 font-size: 0.95em;
                 /* width: auto; remove fixed width if any button has it by default */
@@ -361,48 +387,64 @@
             /* Ensure table cells on mobile are not too padded */
             #hike-leader-page .participant-table th,
             #hike-leader-page .participant-table td {
-                padding: 5px; /* Reduced padding for mobile table view */
+                padding: 5px;
+                /* Reduced padding for mobile table view */
             }
 
             #hike-leader-page .toggle-container {
                 display: flex;
                 align-items: center;
-                justify-content: space-between; /* This will help space out toggle and count */
-                margin-bottom: 10px; /* Give some space below this line */
+                justify-content: space-between;
+                /* This will help space out toggle and count */
+                margin-bottom: 10px;
+                /* Give some space below this line */
             }
 
             /* Styling for the toggle part if needed, e.g., to prevent it from stretching too much */
-            #hike-leader-page .toggle-container > .switch {
-                margin-right: 5px; /* Space between "All" and the count if not using margin-left: auto on count */
+            #hike-leader-page .toggle-container>.switch {
+                margin-right: 5px;
+                /* Space between "All" and the count if not using margin-left: auto on count */
             }
-             #hike-leader-page .toggle-container > .toggle-label {
-                white-space: nowrap; /* Prevent labels from wrapping */
+
+            #hike-leader-page .toggle-container>.toggle-label {
+                white-space: nowrap;
+                /* Prevent labels from wrapping */
             }
 
 
             #hike-leader-page #participant-count {
                 /* margin-left: auto; is now inline, can be controlled here too if preferred */
                 font-size: 0.85em;
-                margin-top: 0; /* Reset top margin */
-                margin-bottom: 0; /* Reset bottom margin */
+                margin-top: 0;
+                /* Reset top margin */
+                margin-bottom: 0;
+                /* Reset bottom margin */
                 /* margin-left: 15px; Remove this if using margin-left: auto */
-                text-align: right; /* Ensure text aligns to right if container is wider */
+                text-align: right;
+                /* Ensure text aligns to right if container is wider */
             }
         }
 
         /* Wider screens: Show wide-only columns */
-        @media screen and (min-width: 768px) { /* Breakpoint for landscape phones / tablets */
+        @media screen and (min-width: 768px) {
+
+            /* Breakpoint for landscape phones / tablets */
             .participant-table .col-wide-only {
-                display: table-cell; /* Or revert to default display for th/td */
+                display: table-cell;
+                /* Or revert to default display for th/td */
             }
         }
     </style>
 </head>
 
 <body>
-    <div id="status-indicators" style="position: fixed; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 5px;">
-      <div id="online-status-indicator" style="padding: 5px 10px; background-color: lightgray; border-radius: 5px; display: none;">Offline</div>
-      <div id="sync-status-indicator" style="padding: 5px 10px; background-color: lightblue; border-radius: 5px; display: none;">Syncing... (0)</div>
+    <div id="status-indicators"
+        style="position: fixed; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 5px;">
+        <div id="online-status-indicator"
+            style="padding: 5px 10px; background-color: lightgray; border-radius: 5px; display: none;">Offline</div>
+        <div id="sync-status-indicator"
+            style="padding: 5px 10px; background-color: lightblue; border-radius: 5px; display: none;">Syncing... (0)
+        </div>
     </div>
     <div class="container">
         <div id="welcome-page" style="display:none;">
@@ -442,7 +484,9 @@
                         <span class="slider"></span>
                     </label>
                 </div>
-                <textarea id="hike-description" placeholder="Hike Description (optional, will auto-populate from your last hike of the same name if left blank)" style="width: 100%; min-height: 80px; margin-top: 8px; padding: 10px; border: 1px solid #ccc; border-radius: 10px; box-sizing: border-box; font-size: 16px;"></textarea>
+                <textarea id="hike-description"
+                    placeholder="Hike Description (optional, will auto-populate from your last hike of the same name if left blank)"
+                    style="width: 100%; min-height: 80px; margin-top: 8px; padding: 10px; border: 1px solid #ccc; border-radius: 10px; box-sizing: border-box; font-size: 16px;"></textarea>
                 <button type="button" onclick="createHike()">Create Hike</button>
                 <button type="button" class="button-secondary" onclick="cancelCreateHike()">Cancel</button>
             </form>
@@ -475,10 +519,13 @@
         </div>
 
         <div id="hike-leader-page" style="display:none;">
-            <h1><a href="#" id="leader-hike-name-link" onclick="showDescriptionPopup(event)"><span id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader" href="#" target="_blank"><span id="trailhead-name-display"></span></a>)</h1>
+            <h1><a href="#" id="leader-hike-name-link" onclick="showDescriptionPopup()"><span
+                        id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader" href="#"
+                    target="_blank"><span id="trailhead-name-display"></span></a>)</h1>
             <p><span id="hike-start-time-leader-display"></span></p>
             <p id="leader-org-display"></p>
-            <p style="display:none;">Organization: <span id="hike-organization-display"></span></p> <!-- Kept for JS to hide, or remove if JS adapted -->
+            <p style="display:none;">Organization: <span id="hike-organization-display"></span></p>
+            <!-- Kept for JS to hide, or remove if JS adapted -->
             <p>Join Hike Link: <a id="join-url" onclick="copyToClipboard(event)">Press to copy</a></p>
             <p>Hike Coordinator Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
             </p>
@@ -495,7 +542,8 @@
                     <span class="slider"></span>
                 </label>
                 <span class="toggle-label">All</span>
-                <p id="participant-count" style="margin-left: auto;"></p> <!-- Moved and added inline style for alignment -->
+                <p id="participant-count" style="margin-left: auto;"></p>
+                <!-- Moved and added inline style for alignment -->
             </div>
             <table id="participant-table" class="participant-table">
                 <thead>
@@ -513,15 +561,19 @@
             </table>
             <div class="button-pair">
                 <button class="button-secondary" onclick="endHike()">End Hike</button>
-                <button type="button" style="background-color: #555;" onclick="goHomeFromLeaderConsole()">Home / Welcome Page</button>
+                <button type="button" style="background-color: #555;" onclick="goHomeFromLeaderConsole()">Home / Welcome
+                    Page</button>
             </div>
         </div>
 
         <div id="hiking-page" style="display:none;">
-            <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)</h1>
+            <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)
+            </h1>
             <p><span id="hike-start-time-display"></span></p>
             <p id="hiking-leader-org"></p>
-            <p id="hiking-page-description" style="white-space: pre-wrap; font-size: 0.9em; color: #333; background-color: #f9f9f9; padding: 10px; border-radius: 5px; margin-top: 5px;"></p>
+            <p id="hiking-page-description"
+                style="white-space: pre-wrap; font-size: 0.9em; color: #333; background-color: #f9f9f9; padding: 10px; border-radius: 5px; margin-top: 5px;">
+            </p>
             <button class="button-secondary" onclick="leaveHike()">Leave Hike</button>
         </div>
     </div>
@@ -729,7 +781,7 @@
                                 }
 
                                 li.innerHTML = `
-                                    <h3><a href="#" class="hike-name-link" data-description="${hike.description || ''}" onclick="showDescriptionPopup(event)">${hike.name}</a> (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3><a href="#" class="hike-name-link" data-description="${hike.description || ''}" onclick="showDescriptionPopup(\'${hike.description}\')">${hike.name}</a> (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
@@ -782,15 +834,15 @@
                     })
                     .then(hikeWithLeaderCode => {
                         if (hikeWithLeaderCode.leaderCode) {
-                             // TODO: This logic is problematic. The getHikeHandler for leaderCode requires the leaderCode.
-                             // The API needs to provide the leaderCode for hikes queried by userUUID where source is 'led_by_user'.
-                             // For now, this button will likely fail if leaderCode isn't in the initial payload.
-                             // A proper fix involves backend sending leaderCode for led_by_user hikes.
-                             // As a temporary measure, this will likely not work as intended without backend change.
+                            // TODO: This logic is problematic. The getHikeHandler for leaderCode requires the leaderCode.
+                            // The API needs to provide the leaderCode for hikes queried by userUUID where source is 'led_by_user'.
+                            // For now, this button will likely fail if leaderCode isn't in the initial payload.
+                            // A proper fix involves backend sending leaderCode for led_by_user hikes.
+                            // As a temporary measure, this will likely not work as intended without backend change.
                             alert("Could not retrieve leader code for this hike. Navigating with join code only.");
                             window.location.href = `${window.location.origin}?code=${joinCode}`; // Fallback
                         } else {
-                             // This will effectively try to load the hike as a participant if leaderCode is missing/wrong
+                            // This will effectively try to load the hike as a participant if leaderCode is missing/wrong
                             window.location.href = `${window.location.origin}?code=${joinCode}`;
                         }
                     })
@@ -798,7 +850,7 @@
                         console.error("Error trying to navigate to leader console:", err);
                         alert("Could not navigate to coordinator console. The hike details might be incomplete or the hike has ended.");
                         // Fallback to just using joinCode if leaderCode is problematic
-                         window.location.href = `${window.location.origin}?code=${joinCode}`;
+                        window.location.href = `${window.location.origin}?code=${joinCode}`;
                     });
                 return;
             }
@@ -1154,9 +1206,10 @@
             showWelcomePage();
         }
 
-        function showDescriptionPopup(event) {
-            event.preventDefault();
-            const description = event.target.getAttribute('data-description');
+        function showDescriptionPopup(description) {
+            if (!description) {
+                description = currentHike.description
+            }
             alert(description || 'No description available.');
         }
 
@@ -1198,49 +1251,49 @@
                 headers: {
                     'Content-Type': 'application/json', // Though no body is sent, this is good practice
                 },
-                body: JSON.stringify({status: 'active'})
+                body: JSON.stringify({ status: 'active' })
             })
-            .then(response => {
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        // Try to parse error if JSON, otherwise use text
-                        try {
-                            const errData = JSON.parse(text);
-                            throw new Error(errData.error || text || 'Failed to start hike.');
-                        } catch (e) {
-                            throw new Error(text || 'Failed to start hike.');
-                        }
-                    });
-                }
-                // Backend should return the full hike object upon successful "start"
-                // For now, we assume the backend returns *at least* the basic hike details needed
-                // or we fetch them. The current backend returns 200 OK empty.
-                // So, we need to fetch the hike details AFTER successfully starting.
-                return fetch(`/api/hike/${joinCode}`); // Fetch full hike details
-            })
-            .then(response => { // This .then is for the fetch /api/hike/${joinCode}
-                if (!response.ok) {
-                    throw new Error('Failed to fetch hike details after starting.');
-                }
-                return response.json();
-            })
-            .then(hikeDetails => {
-                currentHike = hikeDetails; // Populate currentHike with details
-                 // If leader info is not in hikeDetails, we might need to supplement it
-                if (!currentHike.leader || !currentHike.leader.uuid) {
-                    // This is a fallback, ideally the /api/hike/{joinCode} includes full leader User object
-                    console.warn("Leader details not fully provided by /api/hike endpoint, attempting to use currentUser if leader.");
-                    // This assumption might be wrong if someone else is leader.
-                    // The backend's GET /api/hike/{joinCode} should return leader User details.
-                }
-                currentHike.participantId = participantId
-                localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                showHikingPage();
-            })
-            .catch(error => {
-                console.error('Error starting hike:', error);
-                alert(`Failed to start hike: ${error.message}`);
-            });
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            // Try to parse error if JSON, otherwise use text
+                            try {
+                                const errData = JSON.parse(text);
+                                throw new Error(errData.error || text || 'Failed to start hike.');
+                            } catch (e) {
+                                throw new Error(text || 'Failed to start hike.');
+                            }
+                        });
+                    }
+                    // Backend should return the full hike object upon successful "start"
+                    // For now, we assume the backend returns *at least* the basic hike details needed
+                    // or we fetch them. The current backend returns 200 OK empty.
+                    // So, we need to fetch the hike details AFTER successfully starting.
+                    return fetch(`/api/hike/${joinCode}`); // Fetch full hike details
+                })
+                .then(response => { // This .then is for the fetch /api/hike/${joinCode}
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch hike details after starting.');
+                    }
+                    return response.json();
+                })
+                .then(hikeDetails => {
+                    currentHike = hikeDetails; // Populate currentHike with details
+                    // If leader info is not in hikeDetails, we might need to supplement it
+                    if (!currentHike.leader || !currentHike.leader.uuid) {
+                        // This is a fallback, ideally the /api/hike/{joinCode} includes full leader User object
+                        console.warn("Leader details not fully provided by /api/hike endpoint, attempting to use currentUser if leader.");
+                        // This assumption might be wrong if someone else is leader.
+                        // The backend's GET /api/hike/{joinCode} should return leader User details.
+                    }
+                    currentHike.participantId = participantId
+                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                    showHikingPage();
+                })
+                .catch(error => {
+                    console.error('Error starting hike:', error);
+                    alert(`Failed to start hike: ${error.message}`);
+                });
         }
 
         function unRSVP(joinCode, participantId) {
@@ -1264,28 +1317,28 @@
                     'Content-Type': 'application/json', // Good practice
                 }
             })
-            .then(response => {
-                if (!response.ok) {
-                     return response.text().then(text => {
-                        // Try to parse error if JSON, otherwise use text
-                        try {
-                            const errData = JSON.parse(text);
-                            throw new Error(errData.error || text || 'Failed to unRSVP.');
-                        } catch (e) {
-                            throw new Error(text || 'Failed to unRSVP.');
-                        }
-                    });
-                }
-                // Expect HTTP 200 OK with no body, or could return a success message
-                return response.text(); // Or response.json() if backend sends a json response
-            })
-            .then(responseText => { // If response.text() was used
-                fetchAllWelcomePageHikes();
-            })
-            .catch(error => {
-                console.error('Error unRSVPing:', error);
-                alert(`Failed to unRSVP: ${error.message}`);
-            });
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            // Try to parse error if JSON, otherwise use text
+                            try {
+                                const errData = JSON.parse(text);
+                                throw new Error(errData.error || text || 'Failed to unRSVP.');
+                            } catch (e) {
+                                throw new Error(text || 'Failed to unRSVP.');
+                            }
+                        });
+                    }
+                    // Expect HTTP 200 OK with no body, or could return a success message
+                    return response.text(); // Or response.json() if backend sends a json response
+                })
+                .then(responseText => { // If response.text() was used
+                    fetchAllWelcomePageHikes();
+                })
+                .catch(error => {
+                    console.error('Error unRSVPing:', error);
+                    alert(`Failed to unRSVP: ${error.message}`);
+                });
         }
 
         function formatPhoneNumber(phoneNumberString) {
@@ -1620,13 +1673,13 @@
         const syncStatusIndicator = document.getElementById('sync-status-indicator');
 
         function updateOnlineStatusIndicator() {
-          if (navigator.onLine) {
-            onlineStatusIndicator.style.display = 'none';
-          } else {
-            onlineStatusIndicator.textContent = 'Offline';
-            onlineStatusIndicator.style.backgroundColor = 'lightcoral'; // Ensure this is applied
-            onlineStatusIndicator.style.display = 'block';
-          }
+            if (navigator.onLine) {
+                onlineStatusIndicator.style.display = 'none';
+            } else {
+                onlineStatusIndicator.textContent = 'Offline';
+                onlineStatusIndicator.style.backgroundColor = 'lightcoral'; // Ensure this is applied
+                onlineStatusIndicator.style.display = 'block';
+            }
         }
 
         // Set initial status
@@ -1636,47 +1689,47 @@
         window.addEventListener('offline', updateOnlineStatusIndicator);
 
         function updateSyncStatusIndicator() {
-          const queue = JSON.parse(localStorage.getItem('requestQueue')) || [];
-          if (queue.length > 0) {
-            syncStatusIndicator.textContent = `Pending sync: ${queue.length} item(s)`;
-            syncStatusIndicator.style.display = 'block';
-          } else {
-            syncStatusIndicator.style.display = 'none';
-          }
+            const queue = JSON.parse(localStorage.getItem('requestQueue')) || [];
+            if (queue.length > 0) {
+                syncStatusIndicator.textContent = `Pending sync: ${queue.length} item(s)`;
+                syncStatusIndicator.style.display = 'block';
+            } else {
+                syncStatusIndicator.style.display = 'none';
+            }
         }
 
         function addToRequestQueue(url, method, bodyString) { // bodyString is already JSON.stringified
-          const request = { url, method, body: bodyString, timestamp: new Date().toISOString() };
-          let queue = JSON.parse(localStorage.getItem('requestQueue')) || [];
-          queue.push(request);
-          localStorage.setItem('requestQueue', JSON.stringify(queue));
-          updateSyncStatusIndicator();
+            const request = { url, method, body: bodyString, timestamp: new Date().toISOString() };
+            let queue = JSON.parse(localStorage.getItem('requestQueue')) || [];
+            queue.push(request);
+            localStorage.setItem('requestQueue', JSON.stringify(queue));
+            updateSyncStatusIndicator();
 
-          if ('serviceWorker' in navigator && 'SyncManager' in window) {
-            navigator.serviceWorker.ready.then(registration => {
-              registration.sync.register('hike-data-sync')
-                .then(() => console.log('Background sync registered for hike-data-sync'))
-                .catch(err => console.error('Background sync registration failed:', err));
-            }).catch(err => console.error('Service worker not ready for sync registration:', err));
-          } else {
-            console.log('Background sync not supported by this browser.');
-          }
+            if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                navigator.serviceWorker.ready.then(registration => {
+                    registration.sync.register('hike-data-sync')
+                        .then(() => console.log('Background sync registered for hike-data-sync'))
+                        .catch(err => console.error('Background sync registration failed:', err));
+                }).catch(err => console.error('Service worker not ready for sync registration:', err));
+            } else {
+                console.log('Background sync not supported by this browser.');
+            }
         }
         // Call after definitions
         updateSyncStatusIndicator();
     </script>
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('Service Worker registered successfully with scope:', registration.scope);
-            })
-            .catch(error => {
-              console.log('Service Worker registration failed:', error);
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully with scope:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
             });
-        });
-      }
+        }
     </script>
 </body>
 
