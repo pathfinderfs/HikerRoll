@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/yuin/goldmark"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -124,9 +125,11 @@ type Hike struct {
 	StartTime     time.Time `json:"startTime"`
 	Status        string    `json:"Status"`
 	JoinCode      string    `json:"joinCode"`
-	LeaderCode    string    `json:"leaderCode"`
-	PhotoRelease  bool      `json:"photoRelease"`
-	SourceType    string    `json:"sourceType,omitempty"` // Added for combined hike results
+	LeaderCode       string    `json:"leaderCode"`
+	PhotoRelease     bool      `json:"photoRelease"`
+	DescriptionMD    string    `json:"descriptionMd,omitempty"`
+	DescriptionHTML  string    `json:"descriptionHtml,omitempty"`
+	SourceType       string    `json:"sourceType,omitempty"` // Added for combined hike results
 }
 
 // Keep in sync with participants table schema
@@ -172,6 +175,8 @@ func createTables() {
 			join_code TEXT PRIMARY KEY,
 			leader_code TEXT UNIQUE,
             photo_release BOOLEAN DEFAULT FALSE,
+            description_md TEXT,
+            description_html TEXT,
 			FOREIGN KEY (leader_uuid) REFERENCES users(uuid)
 		);
 
@@ -240,12 +245,60 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{participantId}", unRSVPHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler)
+	mux.HandleFunc("PUT /api/hike/{hikeId}/description", updateHikeDescriptionHandler) // New endpoint
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike", getHikesHandler) // Renamed from getNearbyHikesHandler
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
+}
+
+func updateHikeDescriptionHandler(w http.ResponseWriter, r *http.Request) {
+	joinCode := r.PathValue("hikeId")
+	leaderCode := r.URL.Query().Get("leaderCode")
+
+	var requestBody struct {
+		DescriptionMD string `json:"descriptionMd"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var buf strings.Builder
+	if err := goldmark.Convert([]byte(requestBody.DescriptionMD), &buf); err != nil {
+		http.Error(w, "Failed to convert markdown to HTML: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	descriptionHTML := buf.String()
+
+	result, err := db.Exec(`
+		UPDATE hikes
+		SET description_md = ?, description_html = ?
+		WHERE join_code = ? AND leader_code = ? AND status = 'open'
+	`, requestBody.DescriptionMD, descriptionHTML, joinCode, leaderCode)
+
+	if err != nil {
+		http.Error(w, "Failed to update hike description: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Error checking affected rows: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if rowsAffected == 0 {
+		http.Error(w, "Hike not found, not open, or leader code incorrect", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	logAction(fmt.Sprintf("Hike description updated for join_code: %s", joinCode))
 }
 
 // WaiverData is used to populate the waiver template
@@ -402,15 +455,15 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	var hike Hike
 	var err error
 	if leaderCode != "" {
-		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code, COALESCE(h.description_html, '')
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode, &hike.DescriptionHTML)
 	} else {
-		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code, COALESCE(h.description_html, '')
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 						   WHERE h.join_code = ? AND h.status = "open"
-		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode, &hike.DescriptionHTML)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {

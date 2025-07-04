@@ -7,7 +7,9 @@
     <title>Hike Tracker</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -435,6 +437,7 @@
                     <label for="hike-startTime">Hike Start Date and Time:</label>
                     <input type="text" id="hike-startTime" placeholder="Click to select date and time" required>
                 </div>
+                <textarea id="hike-description" placeholder="Hike Description (Markdown supported)" rows="5" style="width: 100%; margin: 8px 0; border: 1px solid #ccc; border-radius: 10px; box-sizing: border-box; font-size: 16px; padding: 12px 20px;"></textarea>
                 <div class="toggle-container">
                     <label for="hike-photo-release" class="toggle-label">Include Photo Release in Waiver?</label>
                     <label class="switch">
@@ -452,6 +455,7 @@
             <p>Organization: <span id="join-hike-organization"></span></p>
             <p>Trailhead: <span id="join-trailhead-name"></span></p>
             <p>Start Time: <span id="join-hike-start-time"></span></p>
+            <div id="join-hike-description-html" style="margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 5px; background-color: #f9f9f9;"></div>
             <p>Please fill out the following to RSVP for this hike.</p>
             <form id="join-hike-form">
                 <input type="text" id="participant-name" placeholder="Your Name" required>
@@ -613,7 +617,12 @@
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('The hike may not exist or has already ended.');
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'The hike may not exist or has already ended.',
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        });
                         clearCurrentHike();
                         showWelcomePage();
                     });
@@ -782,8 +791,14 @@
                              // For now, this button will likely fail if leaderCode isn't in the initial payload.
                              // A proper fix involves backend sending leaderCode for led_by_user hikes.
                              // As a temporary measure, this will likely not work as intended without backend change.
-                            alert("Could not retrieve leader code for this hike. Navigating with join code only.");
-                            window.location.href = `${window.location.origin}?code=${joinCode}`; // Fallback
+                            Swal.fire({
+                                title: 'Warning',
+                                text: "Could not retrieve leader code for this hike. Navigating with join code only.",
+                                icon: 'warning',
+                                confirmButtonText: 'OK'
+                            }).then(() => {
+                                window.location.href = `${window.location.origin}?code=${joinCode}`; // Fallback
+                            });
                         } else {
                              // This will effectively try to load the hike as a participant if leaderCode is missing/wrong
                             window.location.href = `${window.location.origin}?code=${joinCode}`;
@@ -791,9 +806,14 @@
                     })
                     .catch(err => {
                         console.error("Error trying to navigate to leader console:", err);
-                        alert("Could not navigate to coordinator console. The hike details might be incomplete or the hike has ended.");
-                        // Fallback to just using joinCode if leaderCode is problematic
-                         window.location.href = `${window.location.origin}?code=${joinCode}`;
+                        Swal.fire({
+                            title: 'Error!',
+                            text: "Could not navigate to coordinator console. The hike details might be incomplete or the hike has ended.",
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        }).then(() => {
+                            window.location.href = `${window.location.origin}?code=${joinCode}`; // Fallback
+                        });
                     });
                 return;
             }
@@ -818,11 +838,17 @@
                     document.getElementById('join-hike-organization').textContent = currentHike.organization;
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
                     document.getElementById('join-hike-start-time').textContent = formatHikeStartTime(currentHike.startTime);
+                    document.getElementById('join-hike-description-html').innerHTML = currentHike.descriptionHtml || '<p>No description provided.</p>';
                     showPage('join-hike-page');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Failed to join hike. The hike may not exist or has already ended.');
+                    Swal.fire({
+                        title: 'Error!',
+                        text: 'Failed to join hike. The hike may not exist or has already ended.',
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
                     clearCurrentHike();
                     showWelcomePage();
                 });
@@ -837,9 +863,11 @@
             document.getElementById('hike-name').value = '';
             document.getElementById('hike-organization').value = '';
             document.getElementById('hike-trailheadName').value = '';
+            document.getElementById('hike-description').value = ''; // Clear description textarea
             document.getElementById('hike-photo-release').checked = false; // Reset checkbox
             currentHike.name = ''; // Clear hike name in state
             currentHike.trailheadName = ''; // Clear trailhead name in state
+            currentHike.descriptionMd = ''; // Clear markdown description in state
             currentHike.latitude = 0;
             currentHike.longitude = 0;
             currentHike.photoRelease = false; // Reset in currentHike object
@@ -1003,9 +1031,15 @@
             currentUser.phone = document.getElementById('participant-phone').value.replace(/\D/g, '');
             currentUser.emergencyContact = document.getElementById('participant-emergencyContact').value.replace(/\D/g, '');
             const rsvpUrl = `/api/hike/${currentHike.joinCode}/participant`; // Changed endpoint
+            const rsvpBody = JSON.stringify(currentUser); // Define rsvpBody here
             if (!navigator.onLine) {
                 addToRequestQueue(rsvpUrl, 'POST', rsvpBody);
-                alert("You are offline. Your RSVP will be processed when you're back online.");
+                Swal.fire({
+                    title: 'Offline',
+                    text: "You are offline. Your RSVP will be processed when you're back online.",
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
                 // Consider also providing some UI feedback or redirecting.
                 // For now, just returning to prevent fetch.
                 return;
@@ -1029,7 +1063,12 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert(`Failed to RSVP to hike: ${error.message}`);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: `Failed to RSVP to hike: ${error.message}`,
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
                     // Do not clear currentHike here, user might want to retry
                     // showWelcomePage(); // Optionally, still go to welcome page or stay on waiver/join page
                 });
@@ -1038,7 +1077,12 @@
         function createHike() {
             if (!navigator.onLine) {
                 addToRequestQueue('/api/hike', 'POST', JSON.stringify(currentHike));
-                alert("You are offline. Your hike creation will be processed when you're back online.");
+                Swal.fire({
+                    title: 'Offline',
+                    text: "You are offline. Your hike creation will be processed when you're back online.",
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
                 // Similar to joinHike, consider UI feedback or state change.
                 // For now, just returning.
                 return;
@@ -1053,30 +1097,74 @@
                     currentHike.longitude = position.coords.longitude;
                 }, error => {
                     console.error("Error getting location:", error);
-                    alert("GPS location not found, participants will have to join via link code.");
+                    Swal.fire({
+                        title: 'Warning',
+                        text: "GPS location not found, participants will have to join via link code.",
+                        icon: 'warning',
+                        confirmButtonText: 'OK'
+                    });
                 });
             }
+
+            // First, create the hike
             fetch('/api/hike', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(currentHike),
+                body: JSON.stringify(currentHike), // currentHike already has basic info
             })
-                .then(response => response.json())
-                .then(hike => {
-                    currentHike = hike
-                    currentHike.leader = currentUser;
-                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                    showHikeLeaderPage();
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => { throw new Error(text || 'Failed to create hike') });
+                }
+                return response.json();
+            })
+            .then(hike => {
+                currentHike = hike; // Update currentHike with response from server (includes codes)
+                currentHike.leader = currentUser; // Ensure leader info is consistent
+                localStorage.setItem('currentHike', JSON.stringify(currentHike));
+
+                // Then, if there's a description, update it
+                const descriptionMd = document.getElementById('hike-description').value;
+                if (descriptionMd.trim() !== '') {
+                    return fetch(`/api/hike/${currentHike.joinCode}/description?leaderCode=${currentHike.leaderCode}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ descriptionMd: descriptionMd }),
+                    });
+                }
+                return Promise.resolve(); // No description to update
+            })
+            .then(response => {
+                if (response && !response.ok) { // Check if response exists (i.e., description update was attempted)
+                    return response.text().then(text => { throw new Error(text || 'Failed to update hike description') });
+                }
+                showHikeLeaderPage(); // Navigate after all operations are successful
+            })
+            .catch(error => {
+                console.error('Error during hike creation/description update:', error);
+                Swal.fire({
+                    title: 'Error!',
+                    text: `Failed to create or update hike: ${error.message}`,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
                 });
+            });
         }
 
         function endHike() {
             const endHikeUrl = `/api/hike/${currentHike.joinCode}?leaderCode=${currentHike.leaderCode}`;
             if (!navigator.onLine) {
                 addToRequestQueue(endHikeUrl, 'PUT');
-                alert("You are offline. Your request to end the hike will be processed when you're back online.");
+                Swal.fire({
+                    title: 'Offline',
+                    text: "You are offline. Your request to end the hike will be processed when you're back online.",
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
                 // Consider UI feedback here as well
                 return;
             }
@@ -1089,7 +1177,12 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert("An error occurred while trying to end the hike. Please try again.");
+                    Swal.fire({
+                        title: 'Error!',
+                        text: "An error occurred while trying to end the hike. Please try again.",
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
                 });
         }
 
@@ -1127,7 +1220,12 @@
 
         function startHiking(joinCode, participantId) {
             if (!currentUser || !currentUser.uuid) {
-                alert("User information not found. Please reload the page.");
+                Swal.fire({
+                    title: 'Error!',
+                    text: "User information not found. Please reload the page.",
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
                 return;
             }
 
@@ -1136,7 +1234,12 @@
             if (!navigator.onLine) {
                 // It's tricky to handle this offline as "starting a hike" implies an immediate state change
                 // and interaction. For now, we'll require online for this action.
-                alert("You must be online to start hiking.");
+                Swal.fire({
+                    title: 'Offline',
+                    text: "You must be online to start hiking.",
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
                 return;
             }
 
@@ -1186,13 +1289,23 @@
             })
             .catch(error => {
                 console.error('Error starting hike:', error);
-                alert(`Failed to start hike: ${error.message}`);
+                Swal.fire({
+                    title: 'Error!',
+                    text: `Failed to start hike: ${error.message}`,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
             });
         }
 
         function unRSVP(joinCode, participantId) {
             if (!participantId) {
-                alert("Participant ID not found. Cannot unRSVP.");
+                Swal.fire({
+                    title: 'Error!',
+                    text: "Participant ID not found. Cannot unRSVP.",
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
                 return;
             }
 
@@ -1201,7 +1314,12 @@
             if (!navigator.onLine) {
                 // Similar to starting a hike, unRSVPing implies an immediate state change.
                 // Requiring online for now. Could be queued, but adds complexity for UI feedback.
-                alert("You must be online to unRSVP.");
+                Swal.fire({
+                    title: 'Offline',
+                    text: "You must be online to unRSVP.",
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
                 return;
             }
 
@@ -1231,7 +1349,12 @@
             })
             .catch(error => {
                 console.error('Error unRSVPing:', error);
-                alert(`Failed to unRSVP: ${error.message}`);
+                Swal.fire({
+                    title: 'Error!',
+                    text: `Failed to unRSVP: ${error.message}`,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
             });
         }
 
@@ -1263,8 +1386,27 @@
 
             const link = event.target.href;
             navigator.clipboard.writeText(link)
-                .then(() => alert("Link copied to clipboard!"))
-                .catch(err => console.error("Failed to copy: ", err));
+                .then(() => {
+                    Swal.fire({
+                        title: 'Copied!',
+                        text: 'Link copied to clipboard!',
+                        icon: 'success',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true
+                    });
+                })
+                .catch(err => {
+                    console.error("Failed to copy: ", err);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: 'Failed to copy link.',
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
+                });
         }
 
         function toggleParticipants() {
@@ -1387,13 +1529,18 @@
             if (participant.status === 'active') {
                 displayStatus = 'Hiking';
             }
-            alert(`
-                Name: ${participant.user.name}
-                Phone: ${formatPhoneNumber(participant.user.phone)}
-                License Plate: ${participant.user.licensePlate || 'N/A'}
-                Emergency Contact: ${formatPhoneNumber(participant.user.emergencyContact) || 'N/A'}
-                Status: ${displayStatus}
-            `);
+            Swal.fire({
+                title: 'Participant Details',
+                html: `
+                    <p><strong>Name:</strong> ${participant.user.name}</p>
+                    <p><strong>Phone:</strong> ${formatPhoneNumber(participant.user.phone)}</p>
+                    <p><strong>License Plate:</strong> ${participant.user.licensePlate || 'N/A'}</p>
+                    <p><strong>Emergency Contact:</strong> ${formatPhoneNumber(participant.user.emergencyContact) || 'N/A'}</p>
+                    <p><strong>Status:</strong> ${displayStatus}</p>
+                `,
+                icon: 'info',
+                confirmButtonText: 'Close'
+            });
         }
 
         function toggleParticipantStatus(participantId, newStatus, currentStatus) { // Added currentStatus parameter
@@ -1401,7 +1548,7 @@
             // RSVP status cannot be changed by the leader here.
             if (currentStatus !== undefined && currentStatus !== 'active' && currentStatus !== 'finished') {
                 // alert("This participant's status cannot be changed by the leader from its current state (" + currentStatus + "). RSVP status is managed by the participant.");
-                console.log("Leader attempted to toggle status for user " + userUUID + " with current status " + currentStatus + ". No action taken.");
+                console.log("Leader attempted to toggle status for user " + participantId + " with current status " + currentStatus + ". No action taken."); // Corrected userUUID to participantId
                 return;
             }
 
@@ -1409,7 +1556,12 @@
             const toggleBody = JSON.stringify({ status: newStatus });
             if (!navigator.onLine) {
                 addToRequestQueue(toggleUrl, 'PUT', toggleBody);
-                alert("You are offline. The participant status update will be processed when you're back online.");
+                Swal.fire({
+                    title: 'Offline',
+                    text: "You are offline. The participant status update will be processed when you're back online.",
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
                 // Consider UI feedback
                 return;
             }
@@ -1429,7 +1581,12 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Failed to update participant status. Please try again.');
+                    Swal.fire({
+                        title: 'Error!',
+                        text: 'Failed to update participant status. Please try again.',
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
                 });
         }
 
@@ -1469,7 +1626,12 @@
         function downloadParticipantList() {
             refreshParticipants();
             if (allParticipants.length === 0) {
-                alert("No participants to download.");
+                Swal.fire({
+                    title: 'Info',
+                    text: "No participants to download.",
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
                 return;
             }
             const csvContent = generateParticipantCSV();
