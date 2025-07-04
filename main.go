@@ -127,7 +127,7 @@ type Hike struct {
 	LeaderCode    string    `json:"leaderCode"`
 	PhotoRelease  bool      `json:"photoRelease"`
 	SourceType    string    `json:"sourceType,omitempty"` // Added for combined hike results
-	Description   string    `json:"description,omitempty"`
+	Description   string    `json:"description"`
 }
 
 // Keep in sync with participants table schema
@@ -246,7 +246,7 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike/lastdescription", getLastHikeDescriptionHandler) // New endpoint
-	mux.HandleFunc("GET /api/hike", getHikesHandler) // Renamed from getNearbyHikesHandler
+	mux.HandleFunc("GET /api/hike", getHikesHandler)                               // Renamed from getNearbyHikesHandler
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
 }
