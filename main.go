@@ -127,6 +127,7 @@ type Hike struct {
 	LeaderCode    string    `json:"leaderCode"`
 	PhotoRelease  bool      `json:"photoRelease"`
 	SourceType    string    `json:"sourceType,omitempty"` // Added for combined hike results
+	Description   string    `json:"description,omitempty"`
 }
 
 // Keep in sync with participants table schema
@@ -172,6 +173,7 @@ func createTables() {
 			join_code TEXT PRIMARY KEY,
 			leader_code TEXT UNIQUE,
             photo_release BOOLEAN DEFAULT FALSE,
+            description TEXT,
 			FOREIGN KEY (leader_uuid) REFERENCES users(uuid)
 		);
 
@@ -378,11 +380,30 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: If join or leader code already exist, generate new codes
 
+	// Auto-populate description if empty and a previous hike with the same name by the same leader exists
+	if hike.Description == "" {
+		var lastDescription sql.NullString
+		err = db.QueryRow(`
+			SELECT description
+			FROM hikes
+			WHERE name = ? AND leader_uuid = ?
+			ORDER BY created_at DESC
+			LIMIT 1
+		`, hike.Name, hike.Leader.UUID).Scan(&lastDescription)
+		if err != nil && err != sql.ErrNoRows {
+			http.Error(w, "Failed to query for last description: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if lastDescription.Valid {
+			hike.Description = lastDescription.String
+		}
+	}
+
 	// Add hike to the HIkes table
 	_, err = db.Exec(`
-		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code, photo_release)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.PhotoRelease)
+		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code, photo_release, description)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.PhotoRelease, hike.Description)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -400,17 +421,18 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Retrieve Hike record based on leaderCode if provided otherwise by joinCode
 	var hike Hike
+	var description sql.NullString // Use sql.NullString for description as it can be NULL
 	var err error
 	if leaderCode != "" {
-		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code, h.description
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode, &description)
 	} else {
-		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code, h.description
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 						   WHERE h.join_code = ? AND h.status = "open"
-		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode, &description)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -419,6 +441,9 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
+	}
+	if description.Valid {
+		hike.Description = description.String
 	}
 
 	// Return retrieved Hike
@@ -767,7 +792,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		rows, err := db.Query(`
 			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name as leader_name, u.phone as leader_phone,
-			       h.latitude, h.longitude, h.start_time, h.status
+			       h.latitude, h.longitude, h.start_time, h.status, h.description
 			FROM hikes AS h
 			JOIN users AS u ON h.leader_uuid = u.uuid
 			WHERE h.latitude BETWEEN (? - 0.003623) AND (? + 0.003623)
@@ -784,12 +809,16 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var h Hike
+			var description sql.NullString
 			err := rows.Scan(&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status)
+				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status, &description)
 			if err != nil {
 				http.Error(w, "Error scanning location hike: "+err.Error(), http.StatusInternalServerError)
 				// Consider logging rows.Err() as well
 				return
+			}
+			if description.Valid {
+				h.Description = description.String
 			}
 			h.SourceType = "location"
 			allHikes = append(allHikes, h)
@@ -803,7 +832,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 	// Fetch by userUUID (RSVP'd hikes)
 	if userUUID != "" {
 		rows, err := db.Query(`
-			SELECT h.name, h.organization, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code, h.status,
+			SELECT h.name, h.organization, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code, h.status, h.description,
 			       hu.id AS participant_id, l.uuid AS leader_uuid, l.name AS leader_name, l.phone AS leader_phone
 			FROM hikes AS h
 			JOIN hike_users AS hu ON h.join_code = hu.hike_join_code
@@ -820,13 +849,17 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var h Hike
+			var description sql.NullString
 			err := rows.Scan(
-				&h.Name, &h.Organization, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode, &h.Status,
+				&h.Name, &h.Organization, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode, &h.Status, &description,
 				&h.ParticipantId, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
 			)
 			if err != nil {
 				http.Error(w, "Error scanning RSVP hike: "+err.Error(), http.StatusInternalServerError)
 				return
+			}
+			if description.Valid {
+				h.Description = description.String
 			}
 			h.SourceType = "rsvp"
 			allHikes = append(allHikes, h)
@@ -841,7 +874,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 	if userUUID != "" {
 		rows, err := db.Query(`
 			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name AS leader_name, u.phone AS leader_phone,
-			       h.latitude, h.longitude, h.start_time, h.status, h.leader_code
+			       h.latitude, h.longitude, h.start_time, h.status, h.leader_code, h.description
 			FROM hikes AS h
 			JOIN users AS u ON h.leader_uuid = u.uuid
 			WHERE h.leader_uuid = ? AND h.status = 'open'
@@ -856,13 +889,17 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var h Hike
+			var description sql.NullString
 			err := rows.Scan(
 				&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status, &h.LeaderCode, // Added h.LeaderCode
+				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status, &h.LeaderCode, &description, // Added h.LeaderCode
 			)
 			if err != nil {
 				http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
 				return
+			}
+			if description.Valid {
+				h.Description = description.String
 			}
 			h.SourceType = "led_by_user" // New SourceType
 			allHikes = append(allHikes, h)

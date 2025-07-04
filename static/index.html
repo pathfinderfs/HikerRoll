@@ -442,6 +442,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <textarea id="hike-description" placeholder="Hike Description (optional, will auto-populate from your last hike of the same name if left blank)" style="width: 100%; min-height: 80px; margin-top: 8px; padding: 10px; border: 1px solid #ccc; border-radius: 10px; box-sizing: border-box; font-size: 16px;"></textarea>
                 <button type="button" onclick="createHike()">Create Hike</button>
                 <button type="button" class="button-secondary" onclick="cancelCreateHike()">Cancel</button>
             </form>
@@ -452,6 +453,7 @@
             <p>Organization: <span id="join-hike-organization"></span></p>
             <p>Trailhead: <span id="join-trailhead-name"></span></p>
             <p>Start Time: <span id="join-hike-start-time"></span></p>
+            <p>Description: <span id="join-hike-description" style="white-space: pre-wrap;"></span></p>
             <p>Please fill out the following to RSVP for this hike.</p>
             <form id="join-hike-form">
                 <input type="text" id="participant-name" placeholder="Your Name" required>
@@ -473,7 +475,7 @@
         </div>
 
         <div id="hike-leader-page" style="display:none;">
-            <h1><span id="hike-name-title-display"></span> (TH: <a id="trailhead-link-leader" href="#" target="_blank"><span id="trailhead-name-display"></span></a>)</h1>
+            <h1><a href="#" id="leader-hike-name-link" onclick="showDescriptionPopup(event)"><span id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader" href="#" target="_blank"><span id="trailhead-name-display"></span></a>)</h1>
             <p><span id="hike-start-time-leader-display"></span></p>
             <p id="leader-org-display"></p>
             <p style="display:none;">Organization: <span id="hike-organization-display"></span></p> <!-- Kept for JS to hide, or remove if JS adapted -->
@@ -519,6 +521,7 @@
             <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)</h1>
             <p><span id="hike-start-time-display"></span></p>
             <p id="hiking-leader-org"></p>
+            <p id="hiking-page-description" style="white-space: pre-wrap; font-size: 0.9em; color: #333; background-color: #f9f9f9; padding: 10px; border-radius: 5px; margin-top: 5px;"></p>
             <button class="button-secondary" onclick="leaveHike()">Leave Hike</button>
         </div>
     </div>
@@ -554,6 +557,7 @@
                 latitude: 0,
                 longitude: 0,
                 photoRelease: false,
+                description: '',
             };
         }
 
@@ -704,6 +708,7 @@
                                     <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
+                                    <p class="hike-description-display" style="white-space: pre-wrap; font-size: 0.85em; color: #555;">${hike.description || 'No description available.'}</p>
                                     ${buttonHtml}
                                 `;
                                 nearbyList.appendChild(li);
@@ -724,7 +729,7 @@
                                 }
 
                                 li.innerHTML = `
-                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3><a href="#" class="hike-name-link" data-description="${hike.description || ''}" onclick="showDescriptionPopup(event)">${hike.name}</a> (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
@@ -818,6 +823,7 @@
                     document.getElementById('join-hike-organization').textContent = currentHike.organization;
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
                     document.getElementById('join-hike-start-time').textContent = formatHikeStartTime(currentHike.startTime);
+                    document.getElementById('join-hike-description').textContent = currentHike.description || 'No description provided.';
                     showPage('join-hike-page');
                 })
                 .catch(error => {
@@ -843,8 +849,10 @@
             currentHike.latitude = 0;
             currentHike.longitude = 0;
             currentHike.photoRelease = false; // Reset in currentHike object
+            currentHike.description = ''; // Reset description
             localStorage.setItem('currentHike', JSON.stringify(currentHike)); // Save cleared state
 
+            document.getElementById('hike-description').value = ''; // Clear textarea
             document.getElementById('hike-name').focus(); // Focus on the custom hike name field first
             startTimeFlatpikr.setDate(formatDate(new Date()));
             showPage('create-hike-page');
@@ -891,19 +899,22 @@
             phone: value => value.replace(/\D/g, ''), // Store only digits
             licensePlate: value => value.toUpperCase(),
             emergencyContact: value => value.replace(/\D/g, ''),
-            startTime: value => new Date(value).toISOString() // This is what SQLite expects
+            startTime: value => new Date(value).toISOString(), // This is what SQLite expects
+            description: value => value // No specific processing for description, just assign
         };
 
         function showHikeLeaderPage() {
             // Line 1: Hike Name (TH: linked trailheadname)
-            const h1Title = document.getElementById('hike-name-title-display');
+            const h1TitleSpan = document.getElementById('hike-name-title-display');
+            const leaderHikeNameLink = document.getElementById('leader-hike-name-link');
             const trailheadLinkLeader = document.getElementById('trailhead-link-leader');
             const trailheadNameSpan = document.getElementById('trailhead-name-display');
 
-            h1Title.textContent = currentHike.name;
+            h1TitleSpan.textContent = currentHike.name;
+            leaderHikeNameLink.setAttribute('data-description', currentHike.description || '');
             trailheadLinkLeader.href = makeTrailheadURL(currentHike);
             trailheadNameSpan.textContent = currentHike.trailheadName;
-            // The H1 structure in HTML will be: <h1><span id="hike-name-title-display"></span> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
+            // The H1 structure in HTML will be: <h1><a id="leader-hike-name-link"><span id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
 
             // Line 2: Start Time
             document.getElementById('hike-start-time-leader-display').textContent = formatHikeStartTime(currentHike.startTime);
@@ -954,6 +965,9 @@
             // Need a new element or repurpose. Let's assume <p id="hiking-leader-org"></p>
             const hikingLeaderOrgDisplay = document.getElementById('hiking-leader-org'); // Assuming this element will be added
             hikingLeaderOrgDisplay.textContent = `${currentHike.leader.name} ${currentHike.organization ? '(' + currentHike.organization + ')' : ''}`;
+
+            // Line 4: Description
+            document.getElementById('hiking-page-description').textContent = currentHike.description || 'No description available.';
 
             // Hide old individual displays if they are separate and no longer needed
             const orgDisplay = document.getElementById('current-hike-organization');
@@ -1045,6 +1059,7 @@
             }
 
             currentHike.photoRelease = document.getElementById('hike-photo-release').checked;
+            currentHike.description = document.getElementById('hike-description').value;
 
             // Get current location if not a predefined trail
             if (currentHike.latitude === 0 || currentHike.longitude === 0) {
@@ -1105,6 +1120,12 @@
             toggleParticipantStatus(currentHike.participantId, 'finished');
             clearCurrentHike();
             showWelcomePage();
+        }
+
+        function showDescriptionPopup(event) {
+            event.preventDefault();
+            const description = event.target.getAttribute('data-description');
+            alert(description || 'No description available.');
         }
 
         function goHomeFromLeaderConsole() {

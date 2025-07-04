@@ -34,6 +34,7 @@ func TestCreateHike(t *testing.T) {
 		Longitude:     -74.0060,
 		StartTime:     time.Now().Add(24 * time.Hour),
 		PhotoRelease:  false, // Default to false for this test
+		Description:   "A beautiful test hike.",
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -53,6 +54,72 @@ func TestCreateHike(t *testing.T) {
 	assert.Equal(t, hike.Organization, response.Organization)
 	assert.Equal(t, hike.Leader.Name, response.Leader.Name)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
+	assert.Equal(t, hike.Description, response.Description)
+}
+
+func TestCreateHike_AutoPopulateDescription(t *testing.T) {
+	mux := setupTestMux()
+	leader := User{
+		UUID:  "leader-autopopulate-" + time.Now().Format("20060102150405"), // Unique leader UUID
+		Name:  "AutoPopulate Leader",
+		Phone: "1234560000",
+	}
+	initialDescription := "This is the first hike's description."
+
+	// Create the first hike with a description
+	hike1 := Hike{
+		Name:         "AutoPopulate Test Hike", // Same name for both hikes
+		Organization: "Test Org",
+		Leader:       leader,
+		TrailheadName: "Trail A",
+		StartTime:     time.Now().Add(24 * time.Hour),
+		Description:   initialDescription,
+	}
+	body1, _ := json.Marshal(hike1)
+	req1, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body1))
+	rr1 := httptest.NewRecorder()
+	mux.ServeHTTP(rr1, req1)
+	assert.Equal(t, http.StatusOK, rr1.Code, "Failed to create first hike: %s", rr1.Body.String())
+	var response1 Hike
+	json.Unmarshal(rr1.Body.Bytes(), &response1)
+	assert.Equal(t, initialDescription, response1.Description, "First hike should have the initial description")
+
+	// Create the second hike with the same name and leader, but no description
+	hike2 := Hike{
+		Name:         "AutoPopulate Test Hike", // Same name
+		Organization: "Test Org",
+		Leader:       leader, // Same leader
+		TrailheadName: "Trail B",
+		StartTime:     time.Now().Add(48 * time.Hour),
+		Description:   "", // Empty description
+	}
+	body2, _ := json.Marshal(hike2)
+	req2, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body2))
+	rr2 := httptest.NewRecorder()
+	mux.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusOK, rr2.Code, "Failed to create second hike: %s", rr2.Body.String())
+	var response2 Hike
+	json.Unmarshal(rr2.Body.Bytes(), &response2)
+	assert.Equal(t, initialDescription, response2.Description, "Second hike should auto-populate description from the first hike")
+
+	// Create a third hike with a new description to ensure it's not overwritten
+	newDescription := "A brand new description."
+	hike3 := Hike{
+		Name:         "AutoPopulate Test Hike", // Same name
+		Organization: "Test Org",
+		Leader:       leader, // Same leader
+		TrailheadName: "Trail C",
+		StartTime:     time.Now().Add(72 * time.Hour),
+		Description:   newDescription, // Provided description
+	}
+	body3, _ := json.Marshal(hike3)
+	req3, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body3))
+	rr3 := httptest.NewRecorder()
+	mux.ServeHTTP(rr3, req3)
+	assert.Equal(t, http.StatusOK, rr3.Code, "Failed to create third hike: %s", rr3.Body.String())
+	var response3 Hike
+	json.Unmarshal(rr3.Body.Bytes(), &response3)
+	assert.Equal(t, newDescription, response3.Description, "Third hike should use its own provided description")
 }
 
 func TestRSVPToHike_Success(t *testing.T) {
@@ -495,6 +562,8 @@ func TestGetHikes_Location(t *testing.T) {
 		if h.JoinCode == createdHike.JoinCode {
 			assert.Equal(t, "location", h.SourceType, "SourceType should be 'location'")
 			assert.Equal(t, createdHike.Name, h.Name)
+			assert.NotEmpty(t, h.Description, "Hike description should not be empty for location search")
+			assert.Equal(t, createdHike.Description, h.Description, "Hike description should match created hike's description")
 			found = true
 			break
 		}
@@ -551,21 +620,26 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 
 
 	for _, h := range hikes {
+		assert.NotEmpty(t, h.Description, "Hike description should not be empty for user specific search. Hike: %s, Source: %s", h.Name, h.SourceType)
 		if h.JoinCode == hikeRsvp.JoinCode {
 			assert.Equal(t, "rsvp", h.SourceType)
+			assert.Equal(t, hikeRsvp.Description, h.Description)
 			isHikeRsvpPresentAsRsvp = true
 			foundRsvp++
 		} else if h.JoinCode == hikeLedByUser.JoinCode {
 			assert.Equal(t, "led_by_user", h.SourceType)
 			assert.Equal(t, testUser.UUID, h.Leader.UUID)
+			assert.Equal(t, hikeLedByUser.Description, h.Description)
 			isHikeLedByUserPresentAsLed = true
 			foundLedByUser++
 		} else if h.JoinCode == hikeRsvpAndLed.JoinCode {
 			if h.SourceType == "rsvp" {
+				assert.Equal(t, hikeRsvpAndLed.Description, h.Description)
 				isHikeRsvpAndLedPresentAsRsvp = true
 				foundRsvp++
 			} else if h.SourceType == "led_by_user" {
 				assert.Equal(t, testUser.UUID, h.Leader.UUID)
+				assert.Equal(t, hikeRsvpAndLed.Description, h.Description)
 				isHikeRsvpAndLedPresentAsLed = true
 				foundLedByUser++
 			} else {
@@ -641,11 +715,26 @@ func TestGetHikes_Combined(t *testing.T) {
 	hikeCounts := make(map[string]map[string]bool) // hikeJoinCode -> sourceType -> present
 
 	for _, h := range hikes {
+		assert.NotEmpty(t, h.Description, "Hike description should not be empty for combined search. Hike: %s, Source: %s", h.Name, h.SourceType)
 		sourceCounts[h.SourceType]++
 		if _, ok := hikeCounts[h.JoinCode]; !ok {
 			hikeCounts[h.JoinCode] = make(map[string]bool)
 		}
 		hikeCounts[h.JoinCode][h.SourceType] = true
+
+		// Verify description matches the original created hike's description
+		switch h.JoinCode {
+		case hike1_allMatch.JoinCode:
+			assert.Equal(t, hike1_allMatch.Description, h.Description)
+		case hike2_led_rsvp.JoinCode:
+			assert.Equal(t, hike2_led_rsvp.Description, h.Description)
+		case hike3_rsvp_only.JoinCode:
+			assert.Equal(t, hike3_rsvp_only.Description, h.Description)
+		case hike4_location_only.JoinCode:
+			assert.Equal(t, hike4_location_only.Description, h.Description)
+		case hike5_led_only.JoinCode:
+			assert.Equal(t, hike5_led_only.Description, h.Description)
+		}
 	}
 
 	// Verify hike1_allMatch
@@ -767,6 +856,7 @@ func TestGetHikeByCode(t *testing.T) {
 	assert.Equal(t, hike.Name, response.Name)
 	assert.Equal(t, hike.JoinCode, response.JoinCode)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
+	assert.Equal(t, hike.Description, response.Description) // Added assertion for description
 }
 
 func TestTableCreation(t *testing.T) {
@@ -1028,6 +1118,7 @@ func createTestHike(t *testing.T) Hike {
 		Longitude:     -74.0060,
 		StartTime:     time.Now(),
 		PhotoRelease:  false, // Default
+		Description:   "Default test hike description", // Added default description
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -1059,6 +1150,7 @@ func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName s
 		Longitude:     lon,
 		StartTime:     startTime,
 		PhotoRelease:  false, // Default, can be overridden by specific test setups if needed by creating hike directly
+		Description:   "Test hike " + hikeName + " description", // Default description based on name
 	}
 	body, err := json.Marshal(hike)
 	require.NoError(t, err)
