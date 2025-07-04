@@ -709,8 +709,9 @@
 
                             if (hike.sourceType === 'location') {
                                 buttonHtml = `<button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>`;
+                                const hikeNameHtml = hike.descriptionHtml ? `<a href="#" onclick="showHikeDescriptionPopup('${hike.joinCode}', event)">${hike.name}</a>` : hike.name;
                                 li.innerHTML = `
-                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3>${hikeNameHtml} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
@@ -731,9 +732,9 @@
                                 } else if (hike.organization) { // Fallback if only organization is known for the hike
                                     leaderLineRsvp = `<p>Organization: ${hike.organization}</p>`;
                                 }
-
+                                const hikeNameHtml = hike.descriptionHtml ? `<a href="#" onclick="showHikeDescriptionPopup('${hike.joinCode}', event)">${hike.name}</a>` : hike.name;
                                 li.innerHTML = `
-                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3>${hikeNameHtml} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
@@ -742,8 +743,9 @@
                                 foundRsvp = true;
                             } else if (hike.sourceType === 'led_by_user') {
                                 buttonHtml = `<button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>`;
+                                const hikeNameHtml = hike.descriptionHtml ? `<a href="#" onclick="showHikeDescriptionPopup('${hike.joinCode}', event)">${hike.name}</a>` : hike.name;
                                 li.innerHTML = `
-                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3>${hikeNameHtml} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${currentUser.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
@@ -928,7 +930,11 @@
             const trailheadLinkLeader = document.getElementById('trailhead-link-leader');
             const trailheadNameSpan = document.getElementById('trailhead-name-display');
 
-            h1Title.textContent = currentHike.name;
+            if (currentHike.descriptionHtml && currentHike.descriptionHtml.trim() !== '') {
+                h1Title.innerHTML = `<a href="#" onclick="showHikeDescriptionPopup('${currentHike.joinCode}', event)">${currentHike.name}</a>`;
+            } else {
+                h1Title.textContent = currentHike.name;
+            }
             trailheadLinkLeader.href = makeTrailheadURL(currentHike);
             trailheadNameSpan.textContent = currentHike.trailheadName;
             // The H1 structure in HTML will be: <h1><span id="hike-name-title-display"></span> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
@@ -970,10 +976,15 @@
         function showHikingPage() {
             // Line 1: Hike Name (TH: linked trailheadname)
             // Assuming h1 is: <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)</h1>
-            document.getElementById('current-hike-name').textContent = currentHike.name;
+            const currentHikeNameEl = document.getElementById('current-hike-name');
+            if (currentHike.descriptionHtml && currentHike.descriptionHtml.trim() !== '') {
+                currentHikeNameEl.innerHTML = `<a href="#" onclick="showHikeDescriptionPopup('${currentHike.joinCode}', event)">${currentHike.name}</a>`;
+            } else {
+                currentHikeNameEl.textContent = currentHike.name;
+            }
             const trailheadLink = document.getElementById('current-trailhead-name');
             trailheadLink.textContent = currentHike.trailheadName;
-            trailheadLink.href = makeTrailheadURL();
+            trailheadLink.href = makeTrailheadURL(currentHike); // Pass currentHike
 
             // Line 2: Start Time
             document.getElementById('hike-start-time-display').textContent = formatHikeStartTime(currentHike.startTime);
@@ -1773,6 +1784,66 @@
         }
         // Call after definitions
         updateSyncStatusIndicator();
+
+        function showHikeDescriptionPopup(joinCode, event) {
+            if (event) event.preventDefault(); // Prevent default link behavior
+
+            // Find the hike details from local storage or fetch if necessary.
+            // For simplicity, we'll try to find it in what might be loaded for the page,
+            // or make a new fetch. A more robust solution might cache these.
+            let hikeToShow = null;
+            if (currentHike && currentHike.joinCode === joinCode && currentHike.descriptionHtml) {
+                hikeToShow = currentHike;
+            } else {
+                // Attempt to find in lists if on welcome page (less direct, might need refinement)
+                // This part is a bit tricky as allHikes isn't directly accessible here in this exact form
+                // For now, let's assume a fetch is needed if not currentHike
+            }
+
+            if (hikeToShow && hikeToShow.descriptionHtml) {
+                Swal.fire({
+                    title: hikeToShow.name,
+                    html: hikeToShow.descriptionHtml,
+                    showCloseButton: true,
+                    focusConfirm: false,
+                    confirmButtonText: 'Close',
+                });
+            } else {
+                // Fetch hike details if not readily available or no description found locally
+                fetch(`/api/hike/${joinCode}`)
+                    .then(response => {
+                        if (!response.ok) throw new Error('Hike not found or error fetching details.');
+                        return response.json();
+                    })
+                    .then(hikeData => {
+                        if (hikeData.descriptionHtml && hikeData.descriptionHtml.trim() !== '') {
+                            Swal.fire({
+                                title: hikeData.name,
+                                html: hikeData.descriptionHtml,
+                                showCloseButton: true,
+                                focusConfirm: false,
+                                confirmButtonText: 'Close',
+                            });
+                        } else {
+                            Swal.fire({
+                                title: hikeData.name,
+                                text: 'No description available for this hike.',
+                                icon: 'info',
+                                confirmButtonText: 'Close'
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching hike description for popup:', error);
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'Could not load hike description.',
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        });
+                    });
+            }
+        }
     </script>
     <script>
       if ('serviceWorker' in navigator) {
