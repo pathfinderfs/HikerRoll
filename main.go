@@ -245,6 +245,7 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
+	mux.HandleFunc("GET /api/hike/lastdescription", getLastHikeDescriptionHandler) // New endpoint
 	mux.HandleFunc("GET /api/hike", getHikesHandler) // Renamed from getNearbyHikesHandler
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
@@ -323,6 +324,46 @@ func getHikeWaiverHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, waiverText)
 }
 
+func getLastHikeDescriptionHandler(w http.ResponseWriter, r *http.Request) {
+	hikeName := r.URL.Query().Get("hikeName")
+	leaderUUID := r.URL.Query().Get("leaderUUID")
+
+	if hikeName == "" || leaderUUID == "" {
+		http.Error(w, "hikeName and leaderUUID query parameters are required", http.StatusBadRequest)
+		return
+	}
+
+	var lastDescription sql.NullString
+	err := db.QueryRow(`
+		SELECT description
+		FROM hikes
+		WHERE name = ? AND leader_uuid = ?
+		ORDER BY created_at DESC, rowid DESC
+		LIMIT 1
+	`, hikeName, leaderUUID).Scan(&lastDescription)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// No previous hike found, return empty successfully
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"description": ""})
+			return
+		}
+		http.Error(w, "Error querying for last description: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := make(map[string]string)
+	if lastDescription.Valid {
+		response["description"] = lastDescription.String
+	} else {
+		response["description"] = "" // Explicitly return empty string if DB description is NULL
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 func main() {
 	initDB("./hiketracker.db")
 
@@ -379,25 +420,6 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: If join or leader code already exist, generate new codes
-
-	// Auto-populate description if empty and a previous hike with the same name by the same leader exists
-	if hike.Description == "" {
-		var lastDescription sql.NullString
-		err = db.QueryRow(`
-			SELECT description
-			FROM hikes
-			WHERE name = ? AND leader_uuid = ?
-			ORDER BY created_at DESC
-			LIMIT 1
-		`, hike.Name, hike.Leader.UUID).Scan(&lastDescription)
-		if err != nil && err != sql.ErrNoRows {
-			http.Error(w, "Failed to query for last description: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if lastDescription.Valid {
-			hike.Description = lastDescription.String
-		}
-	}
 
 	// Add hike to the HIkes table
 	_, err = db.Exec(`

@@ -57,70 +57,105 @@ func TestCreateHike(t *testing.T) {
 	assert.Equal(t, hike.Description, response.Description)
 }
 
-func TestCreateHike_AutoPopulateDescription(t *testing.T) {
-	mux := setupTestMux()
-	leader := User{
-		UUID:  "leader-autopopulate-" + time.Now().Format("20060102150405"), // Unique leader UUID
-		Name:  "AutoPopulate Leader",
-		Phone: "1234560000",
-	}
-	initialDescription := "This is the first hike's description."
+// TestCreateHike_AutoPopulateDescription is removed as auto-population is now frontend driven.
+// The basic TestCreateHike already ensures that a provided description is saved correctly.
 
-	// Create the first hike with a description
+func TestGetLastHikeDescription(t *testing.T) {
+	mux := setupTestMux()
+	// Unique leader UUID for this test to avoid interference
+	leaderUUID := "leader-last-desc-" + time.Now().Format("20060102150405")
+	leader := User{UUID: leaderUUID, Name: "Last Desc Leader"}
+	hikeName := "Last Description Test Hike"
+
+	// 1. Test case: No previous hike
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var descResp map[string]string
+	json.Unmarshal(rr.Body.Bytes(), &descResp)
+	assert.Equal(t, "", descResp["description"], "Should return empty description when no prior hike exists")
+
+	// 2. Create a hike with a description
+	desc1 := "This is the first version of the description."
 	hike1 := Hike{
-		Name:         "AutoPopulate Test Hike", // Same name for both hikes
-		Organization: "Test Org",
-		Leader:       leader,
+		Name:        hikeName,
+		Leader:      leader,
+		Description: desc1,
+		StartTime:   time.Now().Add(1 * time.Hour),
+		// Other required fields ...
 		TrailheadName: "Trail A",
-		StartTime:     time.Now().Add(24 * time.Hour),
-		Description:   initialDescription,
 	}
 	body1, _ := json.Marshal(hike1)
 	req1, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body1))
 	rr1 := httptest.NewRecorder()
 	mux.ServeHTTP(rr1, req1)
-	assert.Equal(t, http.StatusOK, rr1.Code, "Failed to create first hike: %s", rr1.Body.String())
-	var response1 Hike
-	json.Unmarshal(rr1.Body.Bytes(), &response1)
-	assert.Equal(t, initialDescription, response1.Description, "First hike should have the initial description")
+	assert.Equal(t, http.StatusOK, rr1.Code, "Failed to create first hike for last description test")
 
-	// Create the second hike with the same name and leader, but no description
+	// 3. Test case: Fetch the last description (should be desc1)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	json.Unmarshal(rr.Body.Bytes(), &descResp)
+	assert.Equal(t, desc1, descResp["description"], "Should return the description of the first hike")
+
+	// 4. Create another hike by the same leader with the same name but a new description (simulating an update later)
+	// To ensure we get the *most recent*, we need to control creation time or rely on implicit rowid ordering if timestamps are identical.
+	// For simplicity in test, we assume createTestHikeWithOptionsAndStartTime handles distinct enough timestamps or order.
+	time.Sleep(10 * time.Millisecond) // Ensure a different timestamp if created_at is auto-generated now()
+	desc2 := "This is the second, updated description."
 	hike2 := Hike{
-		Name:         "AutoPopulate Test Hike", // Same name
-		Organization: "Test Org",
-		Leader:       leader, // Same leader
+		Name:        hikeName,
+		Leader:      leader,
+		Description: desc2,
+		StartTime:   time.Now().Add(2 * time.Hour),
 		TrailheadName: "Trail B",
-		StartTime:     time.Now().Add(48 * time.Hour),
-		Description:   "", // Empty description
 	}
 	body2, _ := json.Marshal(hike2)
 	req2, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body2))
 	rr2 := httptest.NewRecorder()
 	mux.ServeHTTP(rr2, req2)
-	assert.Equal(t, http.StatusOK, rr2.Code, "Failed to create second hike: %s", rr2.Body.String())
-	var response2 Hike
-	json.Unmarshal(rr2.Body.Bytes(), &response2)
-	assert.Equal(t, initialDescription, response2.Description, "Second hike should auto-populate description from the first hike")
+	assert.Equal(t, http.StatusOK, rr2.Code, "Failed to create second hike for last description test")
 
-	// Create a third hike with a new description to ensure it's not overwritten
-	newDescription := "A brand new description."
-	hike3 := Hike{
-		Name:         "AutoPopulate Test Hike", // Same name
-		Organization: "Test Org",
-		Leader:       leader, // Same leader
-		TrailheadName: "Trail C",
-		StartTime:     time.Now().Add(72 * time.Hour),
-		Description:   newDescription, // Provided description
-	}
-	body3, _ := json.Marshal(hike3)
-	req3, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body3))
-	rr3 := httptest.NewRecorder()
-	mux.ServeHTTP(rr3, req3)
-	assert.Equal(t, http.StatusOK, rr3.Code, "Failed to create third hike: %s", rr3.Body.String())
-	var response3 Hike
-	json.Unmarshal(rr3.Body.Bytes(), &response3)
-	assert.Equal(t, newDescription, response3.Description, "Third hike should use its own provided description")
+
+	// 5. Test case: Fetch the last description again (should be desc2)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	json.Unmarshal(rr.Body.Bytes(), &descResp)
+	assert.Equal(t, desc2, descResp["description"], "Should return the description of the most recent hike (desc2)")
+
+	// 6. Test case: Different hike name, same leader
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", "SomeOtherHikeName", leaderUUID), nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	json.Unmarshal(rr.Body.Bytes(), &descResp)
+	assert.Equal(t, "", descResp["description"], "Should return empty for a different hike name")
+
+	// 7. Test case: Same hike name, different leader
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, "someOtherLeaderUUID"), nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	json.Unmarshal(rr.Body.Bytes(), &descResp)
+	assert.Equal(t, "", descResp["description"], "Should return empty for a different leader")
+
+	// 8. Test case: Missing hikeName query parameter
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?leaderUUID=%s", leaderUUID), nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "Should return 400 if hikeName is missing")
+
+	// 9. Test case: Missing leaderUUID query parameter
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s", hikeName), nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "Should return 400 if leaderUUID is missing")
 }
+
 
 func TestRSVPToHike_Success(t *testing.T) {
 	hike := createTestHike(t)
