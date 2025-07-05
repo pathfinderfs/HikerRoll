@@ -54,7 +54,12 @@ func TestCreateHike(t *testing.T) {
 	assert.Equal(t, hike.Organization, response.Organization)
 	assert.Equal(t, hike.Leader.Name, response.Leader.Name)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
-	assert.Equal(t, hike.Description, response.Description)
+
+	// Convert original markdown description to HTML for comparison
+	var expectedHTMLDesc strings.Builder
+	errConv := goldmark.Convert([]byte(hike.Description), &expectedHTMLDesc)
+	require.NoError(t, errConv)
+	assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(response.Description))
 }
 
 // TestCreateHike_AutoPopulateDescription is removed as auto-population is now frontend driven.
@@ -598,7 +603,10 @@ func TestGetHikes_Location(t *testing.T) {
 			assert.Equal(t, "location", h.SourceType, "SourceType should be 'location'")
 			assert.Equal(t, createdHike.Name, h.Name)
 			assert.NotEmpty(t, h.Description, "Hike description should not be empty for location search")
-			assert.Equal(t, createdHike.Description, h.Description, "Hike description should match created hike's description")
+			var expectedHTMLDesc strings.Builder
+			errConv := goldmark.Convert([]byte(createdHike.Description), &expectedHTMLDesc)
+			require.NoError(t, errConv)
+			assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(h.Description), "Hike description should match created hike's description")
 			found = true
 			break
 		}
@@ -656,30 +664,37 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 
 	for _, h := range hikes {
 		assert.NotEmpty(t, h.Description, "Hike description should not be empty for user specific search. Hike: %s, Source: %s", h.Name, h.SourceType)
+		var expectedHTMLDesc strings.Builder
+		var originalMarkdownDesc string
+
 		if h.JoinCode == hikeRsvp.JoinCode {
 			assert.Equal(t, "rsvp", h.SourceType)
-			assert.Equal(t, hikeRsvp.Description, h.Description)
+			originalMarkdownDesc = hikeRsvp.Description
 			isHikeRsvpPresentAsRsvp = true
 			foundRsvp++
 		} else if h.JoinCode == hikeLedByUser.JoinCode {
 			assert.Equal(t, "led_by_user", h.SourceType)
 			assert.Equal(t, testUser.UUID, h.Leader.UUID)
-			assert.Equal(t, hikeLedByUser.Description, h.Description)
+			originalMarkdownDesc = hikeLedByUser.Description
 			isHikeLedByUserPresentAsLed = true
 			foundLedByUser++
 		} else if h.JoinCode == hikeRsvpAndLed.JoinCode {
+			originalMarkdownDesc = hikeRsvpAndLed.Description
 			if h.SourceType == "rsvp" {
-				assert.Equal(t, hikeRsvpAndLed.Description, h.Description)
 				isHikeRsvpAndLedPresentAsRsvp = true
 				foundRsvp++
 			} else if h.SourceType == "led_by_user" {
 				assert.Equal(t, testUser.UUID, h.Leader.UUID)
-				assert.Equal(t, hikeRsvpAndLed.Description, h.Description)
 				isHikeRsvpAndLedPresentAsLed = true
 				foundLedByUser++
 			} else {
 				t.Errorf("Unexpected sourceType %s for hikeRsvpAndLed", h.SourceType)
 			}
+		}
+		if originalMarkdownDesc != "" {
+			errConv := goldmark.Convert([]byte(originalMarkdownDesc), &expectedHTMLDesc)
+			require.NoError(t, errConv)
+			assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(h.Description))
 		}
 	}
 
@@ -758,17 +773,24 @@ func TestGetHikes_Combined(t *testing.T) {
 		hikeCounts[h.JoinCode][h.SourceType] = true
 
 		// Verify description matches the original created hike's description
+		var originalMarkdownDesc string
 		switch h.JoinCode {
 		case hike1_allMatch.JoinCode:
-			assert.Equal(t, hike1_allMatch.Description, h.Description)
+			originalMarkdownDesc = hike1_allMatch.Description
 		case hike2_led_rsvp.JoinCode:
-			assert.Equal(t, hike2_led_rsvp.Description, h.Description)
+			originalMarkdownDesc = hike2_led_rsvp.Description
 		case hike3_rsvp_only.JoinCode:
-			assert.Equal(t, hike3_rsvp_only.Description, h.Description)
+			originalMarkdownDesc = hike3_rsvp_only.Description
 		case hike4_location_only.JoinCode:
-			assert.Equal(t, hike4_location_only.Description, h.Description)
+			originalMarkdownDesc = hike4_location_only.Description
 		case hike5_led_only.JoinCode:
-			assert.Equal(t, hike5_led_only.Description, h.Description)
+			originalMarkdownDesc = hike5_led_only.Description
+		}
+		if originalMarkdownDesc != "" {
+			var expectedHTMLDesc strings.Builder
+			errConv := goldmark.Convert([]byte(originalMarkdownDesc), &expectedHTMLDesc)
+			require.NoError(t, errConv)
+			assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(h.Description))
 		}
 	}
 
@@ -891,7 +913,11 @@ func TestGetHikeByCode(t *testing.T) {
 	assert.Equal(t, hike.Name, response.Name)
 	assert.Equal(t, hike.JoinCode, response.JoinCode)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
-	assert.Equal(t, hike.Description, response.Description) // Added assertion for description
+	// Convert original markdown description to HTML for comparison
+	var expectedHTMLDesc strings.Builder
+	errConv := goldmark.Convert([]byte(hike.Description), &expectedHTMLDesc)
+	require.NoError(t, errConv)
+	assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(response.Description))
 }
 
 func TestTableCreation(t *testing.T) {
