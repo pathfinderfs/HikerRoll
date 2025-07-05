@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/yuin/goldmark"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -468,6 +469,17 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 		hike.Description = description.String
 	}
 
+	// Convert description from Markdown to HTML
+	if hike.Description != "" {
+		var buf strings.Builder
+		if err := goldmark.Convert([]byte(hike.Description), &buf); err != nil {
+			// Log error but don't fail the request, send raw markdown instead
+			log.Printf("Error converting description to HTML: %v", err)
+		} else {
+			hike.Description = buf.String()
+		}
+	}
+
 	// Return retrieved Hike
 	json.NewEncoder(w).Encode(hike)
 }
@@ -842,6 +854,15 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			if description.Valid {
 				h.Description = description.String
 			}
+			// Convert description from Markdown to HTML for location hikes
+			if h.Description != "" {
+				var buf strings.Builder
+				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
+					h.Description = buf.String()
+				} else {
+					log.Printf("Error converting description to HTML for location hike %s: %v", h.JoinCode, err)
+				}
+			}
 			h.SourceType = "location"
 			allHikes = append(allHikes, h)
 		}
@@ -883,6 +904,15 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			if description.Valid {
 				h.Description = description.String
 			}
+			// Convert description from Markdown to HTML for RSVP hikes
+			if h.Description != "" {
+				var buf strings.Builder
+				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
+					h.Description = buf.String()
+				} else {
+					log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
+				}
+			}
 			h.SourceType = "rsvp"
 			allHikes = append(allHikes, h)
 		}
@@ -922,6 +952,15 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if description.Valid {
 				h.Description = description.String
+			}
+			// Convert description from Markdown to HTML for led_by_user hikes
+			if h.Description != "" {
+				var buf strings.Builder
+				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
+					h.Description = buf.String()
+				} else {
+					log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
+				}
 			}
 			h.SourceType = "led_by_user" // New SourceType
 			allHikes = append(allHikes, h)

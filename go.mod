@@ -16,5 +16,6 @@ require (
 	github.com/ysmood/got v0.40.0 // indirect
 	github.com/ysmood/gson v0.7.3 // indirect
 	github.com/ysmood/leakless v0.9.0 // indirect
+	github.com/yuin/goldmark v1.7.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

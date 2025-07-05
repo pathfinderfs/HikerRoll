@@ -8,6 +8,8 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -760,7 +762,7 @@
                                     <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
-                                    <p class="hike-description-display" style="white-space: pre-wrap; font-size: 0.85em; color: #555;">${hike.description || 'No description available.'}</p>
+                                    <div class="hike-description-display" style="font-size: 0.85em; color: #555;">${hike.description || 'No description available.'}</div>
                                     ${buttonHtml}
                                 `;
                                 nearbyList.appendChild(li);
@@ -875,7 +877,7 @@
                     document.getElementById('join-hike-organization').textContent = currentHike.organization;
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
                     document.getElementById('join-hike-start-time').textContent = formatHikeStartTime(currentHike.startTime);
-                    document.getElementById('join-hike-description').textContent = currentHike.description || 'No description provided.';
+                    document.getElementById('join-hike-description').innerHTML = currentHike.description || 'No description provided.'; // Use innerHTML
                     showPage('join-hike-page');
                 })
                 .catch(error => {
@@ -1051,7 +1053,7 @@
             hikingLeaderOrgDisplay.textContent = `${currentHike.leader.name} ${currentHike.organization ? '(' + currentHike.organization + ')' : ''}`;
 
             // Line 4: Description
-            document.getElementById('hiking-page-description').textContent = currentHike.description || 'No description available.';
+            document.getElementById('hiking-page-description').innerHTML = currentHike.description || 'No description available.'; // Use innerHTML
 
             // Hide old individual displays if they are separate and no longer needed
             const orgDisplay = document.getElementById('current-hike-organization');
@@ -1208,9 +1210,13 @@
 
         function showDescriptionPopup(description) {
             if (!description || description.trim() === '') {
-                description = currentHike.description
+                description = currentHike.description // This will be HTML from the backend
             }
-            alert(description || 'No description available.');
+            Swal.fire({
+                title: 'Hike Description',
+                html: description || 'No description available.',
+                confirmButtonText: 'Close'
+            });
         }
 
         function escapeHTML(unsafeStr) {
