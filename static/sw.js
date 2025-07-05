@@ -122,18 +122,5 @@ self.addEventListener('fetch', event => {
   }
 });
 
-// Sync event listener
-self.addEventListener('sync', event => {
-  if (event.tag === 'hike-data-sync') {
-    console.log('Service Worker: Sync event received for hike-data-sync.');
-    // Normally, we would process the queue here.
-    // For now, this just acknowledges the event.
-    // Actual queue processing from localStorage would require client-to-SW communication
-    // or moving the queue to IndexedDB.
-    event.waitUntil(
-      Promise.resolve().then(() => { // Ensure waitUntil is called with a promise
-        console.log('Service Worker: Sync event for hike-data-sync processed (placeholder).');
-      })
-    );
-  }
-});
+// Sync event listener for 'hike-data-sync' was removed as the client-side queuing mechanism
+// that triggered it has been removed.
