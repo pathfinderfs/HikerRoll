@@ -1137,8 +1137,10 @@
 
         function joinHike() {
             // The following two lines are because mobile browsers don't always trigger the change event
-            currentUser.phone = document.getElementById('participant-phone').value.replace(/\D/g, '');
-            currentUser.emergencyContact = document.getElementById('participant-emergencyContact').value.replace(/\D/g, '');
+            saveFieldChange(currentUser, 'currentUser', 'participant-phone', document.getElementById('participant-phone').value, 'participant-');
+            saveFieldChange(currentUser, 'currentUser', 'participant-emergencyContact', document.getElementById('participant-emergencyContact').value, 'participant-');
+            //currentUser.phone = document.getElementById('participant-phone').value.replace(/\D/g, '');
+            //currentUser.emergencyContact = document.getElementById('participant-emergencyContact').value.replace(/\D/g, '');
             const rsvpUrl = `/api/hike/${currentHike.joinCode}/participant`; // Changed endpoint
             if (!navigator.onLine) {
                 // addToRequestQueue(rsvpUrl, 'POST', rsvpBody); // Removed
@@ -1293,7 +1295,7 @@
         }
 
         function cancelJoinHike() {
-    window.history.pushState({}, document.title, window.location.pathname); // Clear URL params
+            window.history.pushState({}, document.title, window.location.pathname); // Clear URL params
             clearCurrentHike();
             showWelcomePage();
         }
