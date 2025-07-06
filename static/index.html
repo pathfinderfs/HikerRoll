@@ -1165,6 +1165,7 @@
                     return response.json();
                 })
                 .then(hike => { // hike object is returned on successful RSVP from backend
+                    window.history.pushState({}, document.title, window.location.pathname); // Clear URL params
                     clearCurrentHike(); // Clear hike details as user is not actively hiking yet
                     showWelcomePage(); // Show welcome page which will refresh RSVP list
                 })
