@@ -611,7 +611,15 @@ func TestGetHikes_Location(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "Created hike was not found in location search results. Response: %s", rr.Body.String())
-	assert.GreaterOrEqual(t, len(hikes), 1, "Should find at least one hike")
+	// This assertion might be too strict if other tests create hikes at the same location.
+	// A more robust test would be to ensure *only* the createdHike (or specific set) is returned,
+	// or that the list *contains* the createdHike.
+	// For now, GreaterOrEqual(1) is fine if the DB is clean per test.
+	// assert.GreaterOrEqual(t, len(hikes), 1, "Should find at least one hike")
+	// Since location search is removed, this test is no longer valid as is.
+	// It could be removed or adapted if there's another way to test general hike retrieval without specific criteria.
+	// For now, let's assert that no hikes are returned if only location is provided.
+	assert.Empty(t, hikes, "Should find no hikes when only location is provided, as location search is removed.")
 }
 
 func TestGetHikes_UserSpecific(t *testing.T) {
@@ -747,16 +755,15 @@ func TestGetHikes_Combined(t *testing.T) {
 	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
 
 	// Expected results based on queryUser and searchLat/searchLon:
-	// hike1_allMatch (source: location)
+	// Expected results based on queryUser (location query part is removed):
 	// hike1_allMatch (source: rsvp)
 	// hike1_allMatch (source: led_by_user)
 	// hike2_led_rsvp (source: rsvp)
 	// hike2_led_rsvp (source: led_by_user)
 	// hike3_rsvp_only (source: rsvp)
-	// hike4_location_only (source: location)
 	// hike5_led_only (source: led_by_user)
-	// Total: 8 entries
-	assert.Len(t, hikes, 8, "Should return 8 entries for combined query. Got: %s", rr.Body.String())
+	// Total: 6 entries (hike4_location_only is no longer fetched by this query)
+	assert.Len(t, hikes, 6, "Should return 6 entries for combined query (userUUID only). Got: %s", rr.Body.String())
 
 	sourceCounts := make(map[string]int)
 	hikeCounts := make(map[string]map[string]bool) // hikeJoinCode -> sourceType -> present
@@ -778,8 +785,8 @@ func TestGetHikes_Combined(t *testing.T) {
 			originalMarkdownDesc = hike2_led_rsvp.Description
 		case hike3_rsvp_only.JoinCode:
 			originalMarkdownDesc = hike3_rsvp_only.Description
-		case hike4_location_only.JoinCode:
-			originalMarkdownDesc = hike4_location_only.Description
+		// case hike4_location_only.JoinCode: // Not expected anymore
+		// 	originalMarkdownDesc = hike4_location_only.Description
 		case hike5_led_only.JoinCode:
 			originalMarkdownDesc = hike5_led_only.Description
 		}
@@ -792,7 +799,7 @@ func TestGetHikes_Combined(t *testing.T) {
 	}
 
 	// Verify hike1_allMatch
-	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["location"], "hike1_allMatch missing location source")
+	assert.False(t, hikeCounts[hike1_allMatch.JoinCode]["location"], "hike1_allMatch should not have location source from userUUID query")
 	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["rsvp"], "hike1_allMatch missing rsvp source")
 	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["led_by_user"], "hike1_allMatch missing led_by_user source")
 
@@ -806,17 +813,15 @@ func TestGetHikes_Combined(t *testing.T) {
 	assert.False(t, hikeCounts[hike3_rsvp_only.JoinCode]["led_by_user"], "hike3_rsvp_only should not have led_by_user source")
 	assert.False(t, hikeCounts[hike3_rsvp_only.JoinCode]["location"], "hike3_rsvp_only should not have location source")
 
-	// Verify hike4_location_only
-	assert.True(t, hikeCounts[hike4_location_only.JoinCode]["location"], "hike4_location_only missing location source")
-	assert.False(t, hikeCounts[hike4_location_only.JoinCode]["rsvp"], "hike4_location_only should not have rsvp source")
-	assert.False(t, hikeCounts[hike4_location_only.JoinCode]["led_by_user"], "hike4_location_only should not have led_by_user source")
+	// Verify hike4_location_only (should NOT be present)
+	assert.Nil(t, hikeCounts[hike4_location_only.JoinCode], "hike4_location_only should not be present in results")
 
 	// Verify hike5_led_only
 	assert.True(t, hikeCounts[hike5_led_only.JoinCode]["led_by_user"], "hike5_led_only missing led_by_user source")
 	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["rsvp"], "hike5_led_only should not have rsvp source")
 	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["location"], "hike5_led_only should not have location source")
 
-	assert.Equal(t, 2, sourceCounts["location"], "Expected 2 total hikes from location")       // hike1_allMatch, hike4_location_only
+	assert.Equal(t, 0, sourceCounts["location"], "Expected 0 total hikes from location")       // Location search removed from this query type
 	assert.Equal(t, 3, sourceCounts["rsvp"], "Expected 3 total hikes from rsvp")               // hike1_allMatch, hike2_led_rsvp, hike3_rsvp_only
 	assert.Equal(t, 3, sourceCounts["led_by_user"], "Expected 3 total hikes from led_by_user") // hike1_allMatch, hike2_led_rsvp, hike5_led_only
 }

@@ -463,7 +463,6 @@
             <ul id="leading-hikes-list" class="hike-list"></ul>
 
             <h2>Nearby</h2>
-            <button class="button-refresh" onclick="fetchAllWelcomePageHikes()">🔄 Refresh All</button>
             <ul id="nearby-hikes" class="hike-list"></ul>
         </div>
 
@@ -699,44 +698,30 @@
         function showWelcomePage() {
             showPage('welcome-page');
             // All data fetching for welcome page is now consolidated
-            fetchAllWelcomePageHikes();
+            fetchUserHikes();
         }
 
-        function fetchAllWelcomePageHikes() {
-            const nearbyList = document.getElementById('nearby-hikes');
+        function fetchUserHikes() { // Renamed from fetchAllWelcomePageHikes
             const rsvpList = document.getElementById('rsvped-hikes-list');
             const leadingList = document.getElementById('leading-hikes-list');
 
             // Clear previous content and set loading messages
-            nearbyList.innerHTML = '<li>Loading nearby hikes...</li>';
             rsvpList.innerHTML = '<li>Loading RSVPed hikes...</li>';
             leadingList.innerHTML = '<li>Loading hikes you are leading...</li>';
 
             let apiUrl = `/api/hike?userUUID=${currentUser.uuid}`;
+            // Geolocation and nearby hikes logic removed
 
-            if ("geolocations" in navigator) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    apiUrl += `&latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`;
-                    fetchHikes(apiUrl);
-                }, error => {
-                    console.error("Error getting location for welcome page:", error);
-                    // Proceed without location data if geolocation fails
-                    fetchHikes(apiUrl);
-                });
-            } else {
-                console.log("Geolocation is not supported by this browser. Cannot fetch nearby hikes.");
-                // Proceed without location data
-                fetchHikes(apiUrl);
-            }
+            fetchHikes(apiUrl); // Call fetchHikes directly with the user-specific URL
         }
 
         function fetchHikes(url) {
-            const nearbyList = document.getElementById('nearby-hikes');
+            // Nearby list related variables and logic removed
             const rsvpList = document.getElementById('rsvped-hikes-list');
             const leadingList = document.getElementById('leading-hikes-list');
 
             // Ensure lists are cleared before processing new data or error messages
-            nearbyList.innerHTML = '';
+            // nearbyList.innerHTML = ''; // Removed
             rsvpList.innerHTML = '';
             leadingList.innerHTML = '';
 
@@ -748,7 +733,7 @@
                     return response.json();
                 })
                 .then(hikes => {
-                    let foundNearby = false;
+                    // let foundNearby = false; // Removed
                     let foundRsvp = false;
                     let foundLeading = false;
 
@@ -760,18 +745,8 @@
                             li.className = 'hike-item';
                             let buttonHtml = '';
 
-                            if (hike.sourceType === 'location') {
-                                buttonHtml = `<button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>`;
-                                li.innerHTML = `
-                                    <h3>${hike.name}</h3> <span class="trailhead-info">(TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</span>
-                                    <p>${formatHikeStartTime(hike.startTime)}</p>
-                                    <p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
-                                    <div class="hike-description-display" style="font-size: 0.85em; color: #555;">${hike.description || 'No description available.'}</div>
-                                    ${buttonHtml}
-                                `;
-                                nearbyList.appendChild(li);
-                                foundNearby = true;
-                            } else if (hike.sourceType === 'rsvp') {
+                            // 'location' sourceType case removed
+                            if (hike.sourceType === 'rsvp') {
                                 const participantId = hike.participantId || 0;
                                 buttonHtml = `
                                 <div class="button-pair">
@@ -808,9 +783,9 @@
                         });
                     }
 
-                    if (!foundNearby) {
-                        nearbyList.innerHTML = '<li class="hike-item">No nearby hikes (refresh to check again).</li>';
-                    }
+                    // if (!foundNearby) { // Removed
+                    // nearbyList.innerHTML = '<li class="hike-item">No nearby hikes (refresh to check again).</li>'; // Removed
+                    // } // Removed
                     if (!foundRsvp) {
                         rsvpList.innerHTML = '<li class="hike-item">You have not RSVPed to any hikes yet.</li>';
                     }
@@ -819,8 +794,8 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Error fetching all welcome page hikes:', error);
-                    nearbyList.innerHTML = '<li>Error loading nearby hikes.</li>';
+                    console.error('Error fetching user hikes:', error); // Changed error message context
+                    // nearbyList.innerHTML = '<li>Error loading nearby hikes.</li>'; // Removed
                     rsvpList.innerHTML = '<li>Error loading your RSVPed hikes.</li>';
                     leadingList.innerHTML = '<li>Error loading hikes you lead.</li>';
                 });
@@ -864,7 +839,7 @@
             window.location.href = `${window.location.origin}?code=${joinCode}&leaderCode=${leaderCode}`;
         }
 
-        // getNearbyHikes, getRSVPedHikes, and getLeadingHikes are now consolidated into fetchAllWelcomePageHikes
+        // getRSVPedHikes, and getLeadingHikes are now consolidated into fetchUserHikes
 
         function showJoinHikePage(joinCode) {
             // Load currentUser into the form
@@ -1195,14 +1170,18 @@
             currentHike.photoRelease = document.getElementById('hike-photo-release').checked;
             currentHike.description = document.getElementById('hike-description').value;
 
-            // Get current location if not a predefined trail
+            // Get current location if not a predefined trail - This specific geolocation call was for setting hike's lat/lon if not a known trailhead.
+            // This is not directly related to "nearby hikes" list, so it can remain if creating hikes at current location is still desired.
+            // However, if the intent is to remove *all* geolocation usage, this would also be removed.
+            // For now, assuming this part of geolocation (for hike creation) is still desired.
+            // If not, the following block would be removed.
             if (currentHike.latitude === 0 || currentHike.longitude === 0) {
                 navigator.geolocation.getCurrentPosition(position => {
                     currentHike.latitude = position.coords.latitude;
                     currentHike.longitude = position.coords.longitude;
                 }, error => {
-                    console.error("Error getting location:", error);
-                    alert("GPS location not found, participants will have to join via link code.");
+                    console.error("Error getting location for hike creation:", error); // Clarified error message
+                    alert("GPS location not found for hike creation. Participants may need to join via link code if this isn't a known trailhead.");
                 });
             }
             fetch('/api/hike', {
@@ -1405,7 +1384,7 @@
                     return response.text(); // Or response.json() if backend sends a json response
                 })
                 .then(responseText => { // If response.text() was used
-                    fetchAllWelcomePageHikes();
+                    fetchUserHikes(); // Changed from fetchAllWelcomePageHikes
                 })
                 .catch(error => {
                     console.error('Error unRSVPing:', error);

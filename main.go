@@ -803,74 +803,15 @@ func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 // - userUUID: hikes user has RSVPd to
 // - leaderID: hikes led by the leader
 func getHikesHandler(w http.ResponseWriter, r *http.Request) {
-	latitude := r.URL.Query().Get("latitude")
-	longitude := r.URL.Query().Get("longitude")
+	// latitude := r.URL.Query().Get("latitude") // Removed
+	// longitude := r.URL.Query().Get("longitude") // Removed
 	userUUID := r.URL.Query().Get("userUUID")
 	// leaderID parameter is removed
 
 	var allHikes []Hike
-	now := time.Now() // For time-based filtering
+	// now := time.Now() // For time-based filtering - Removed as only user-specific hikes don't need this complex time window here
 
-	// Fetch by location
-	if latitude != "" && longitude != "" {
-		// Ensure lat/lon can be parsed to float for query, or handle error
-		// For this implementation, we assume they are valid float strings as per original behavior.
-		// The original query used latitude and longitude directly in SQL string comparisons with fixed offsets.
-		// It's better to use BETWEEN for ranges.
-		// latRange = 0.003623 (approx 0.25 miles / 69 miles/degree)
-		// lonRange = 0.003896 (approx 0.25 miles / (69 * cos(lat)) ) - this was a fixed value in original, so keeping it fixed.
-
-		// Time window for nearby hikes
-		oneHourAgo := now.Add(-1 * time.Hour)
-		oneHourFromNow := now.Add(1 * time.Hour)
-
-		rows, err := db.Query(`
-			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name as leader_name, u.phone as leader_phone,
-			       h.latitude, h.longitude, h.start_time, h.status, h.description
-			FROM hikes AS h
-			JOIN users AS u ON h.leader_uuid = u.uuid
-			WHERE h.latitude BETWEEN (? - 0.003623) AND (? + 0.003623)
-			  AND h.longitude BETWEEN (? - 0.003896) AND (? + 0.003896)
-			  AND h.status = 'open'
-			  AND h.start_time BETWEEN ? AND ?
-		`, latitude, latitude, longitude, longitude, oneHourAgo, oneHourFromNow)
-
-		if err != nil {
-			http.Error(w, "Error querying location hikes: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var h Hike
-			var description sql.NullString
-			err := rows.Scan(&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status, &description)
-			if err != nil {
-				http.Error(w, "Error scanning location hike: "+err.Error(), http.StatusInternalServerError)
-				// Consider logging rows.Err() as well
-				return
-			}
-			if description.Valid {
-				h.Description = description.String
-			}
-			// Convert description from Markdown to HTML for location hikes
-			if h.Description != "" {
-				var buf strings.Builder
-				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
-					h.Description = buf.String()
-				} else {
-					log.Printf("Error converting description to HTML for location hike %s: %v", h.JoinCode, err)
-				}
-			}
-			h.SourceType = "location"
-			allHikes = append(allHikes, h)
-		}
-		if err = rows.Err(); err != nil {
-			http.Error(w, "Error iterating location hikes: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
+	// Fetch by location logic removed
 
 	// Fetch by userUUID (RSVP'd hikes)
 	if userUUID != "" {
