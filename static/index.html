@@ -1526,13 +1526,25 @@
             if (participant.status === 'active') {
                 displayStatus = 'Hiking';
             }
-            alert(`
-                Name: ${participant.user.name}
-                Phone: ${formatPhoneNumber(participant.user.phone)}
-                License Plate: ${participant.user.licensePlate || 'N/A'}
-                Emergency Contact: ${formatPhoneNumber(participant.user.emergencyContact) || 'N/A'}
-                Status: ${displayStatus}
-            `);
+
+            const emergencyContact = participant.user.emergencyContact;
+            const emergencyContactHTML = emergencyContact
+                ? `<a href="tel:${emergencyContact.replace(/\D/g, '')}">${formatPhoneNumber(emergencyContact)}</a>`
+                : 'N/A';
+
+            Swal.fire({
+                title: `<strong>${participant.user.name}</strong>`,
+                html: `
+                    <div style="text-align: left;">
+                        <p><strong>Phone:</strong> <a href="tel:${participant.user.phone.replace(/\D/g, '')}">${formatPhoneNumber(participant.user.phone)}</a></p>
+                        <p><strong>License Plate:</strong> ${participant.user.licensePlate || 'N/A'}</p>
+                        <p><strong>Emergency Contact:</strong> ${emergencyContactHTML}</p>
+                        <p><strong>Status:</strong> ${displayStatus}</p>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'Close'
+            });
         }
 
         function toggleParticipantStatus(participantId, newStatus, currentStatus) { // Added currentStatus parameter
