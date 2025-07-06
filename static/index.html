@@ -348,6 +348,11 @@
 
         /* End of button group styling for hike leader page */
 
+        .trailhead-info {
+            font-size: 0.8em;
+            font-weight: normal;
+        }
+
         @media screen and (max-width: 600px) {
             .participant-table {
                 font-size: 14px;
@@ -494,7 +499,7 @@
 
         <div id="join-hike-page" style="display:none;">
             <h1 style="text-align: center;">RSVP</h1>
-            <p><strong><span id="join-hike-name"></span> (<span id="join-trailhead-name"></span>)</strong></p>
+            <p><strong><span id="join-hike-name"></span></strong> <span class="trailhead-info">(<span id="join-trailhead-name"></span>)</span></p>
             <p><span id="join-hike-start-time"></span></p>
             <p><span id="join-leader-name"></span> <span id="join-hike-organization-with-parens"></span></p>
             <p id="join-hike-description-container"><span id="join-hike-description"></span></p>
@@ -520,8 +525,8 @@
 
         <div id="hike-leader-page" style="display:none;">
             <h1><a href="#" id="leader-hike-name-link" onclick="showDescriptionPopup()"><span
-                        id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader" href="#"
-                    target="_blank"><span id="trailhead-name-display"></span></a>)</h1>
+                        id="hike-name-title-display"></span></a></h1> <span class="trailhead-info">(TH: <a id="trailhead-link-leader" href="#"
+                    target="_blank"><span id="trailhead-name-display"></span></a>)</span>
             <p><span id="hike-start-time-leader-display"></span></p>
             <p id="leader-org-display"></p>
             <p style="display:none;">Organization: <span id="hike-organization-display"></span></p>
@@ -566,8 +571,7 @@
         </div>
 
         <div id="hiking-page" style="display:none;">
-            <h1><span id="current-hike-name"></span> (TH: <a id="current-trailhead-name" href="" target="_blank"></a>)
-            </h1>
+            <h1><span id="current-hike-name"></span></h1> <span class="trailhead-info">(TH: <a id="current-trailhead-name" href="" target="_blank"></a>)</span>
             <p><span id="hike-start-time-display"></span></p>
             <p id="hiking-leader-org"></p>
             <p>Leader Phone: <a id="hiking-leader-phone" href=""></a></p>
@@ -757,7 +761,7 @@
                             if (hike.sourceType === 'location') {
                                 buttonHtml = `<button onclick="showJoinHikePage('${hike.joinCode}')">RSVP to Hike</button>`;
                                 li.innerHTML = `
-                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3>${hike.name}</h3> <span class="trailhead-info">(TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</span>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${hike.leader.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     <div class="hike-description-display" style="font-size: 0.85em; color: #555;">${hike.description || 'No description available.'}</div>
@@ -781,7 +785,7 @@
                                 }
 
                                 li.innerHTML = `
-                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a> (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</span>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
@@ -791,7 +795,7 @@
                             } else if (hike.sourceType === 'led_by_user') {
                                 buttonHtml = `<button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>`;
                                 li.innerHTML = `
-                                    <h3>${hike.name} (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3>${hike.name}</h3> <span class="trailhead-info">(TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</span>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${currentUser.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
