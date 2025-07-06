@@ -1049,6 +1049,16 @@
             const hikingLeaderOrgDisplay = document.getElementById('hiking-leader-org'); // Assuming this element will be added
             hikingLeaderOrgDisplay.textContent = `${currentHike.leader.name} ${currentHike.organization ? '(' + currentHike.organization + ')' : ''}`;
 
+            // Add leader phone number
+            const leaderPhoneElement = document.createElement('p');
+            const leaderPhoneLink = document.createElement('a');
+            leaderPhoneLink.href = `tel:${currentHike.leader.phone}`;
+            leaderPhoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
+            leaderPhoneElement.appendChild(document.createTextNode('Leader Phone: '));
+            leaderPhoneElement.appendChild(leaderPhoneLink);
+            // Insert the phone number element after the leader/org element
+            hikingLeaderOrgDisplay.parentNode.insertBefore(leaderPhoneElement, hikingLeaderOrgDisplay.nextSibling);
+
             // Line 4: Description
             document.getElementById('hiking-page-description').innerHTML = currentHike.description || 'No description available.'; // Use innerHTML
 
