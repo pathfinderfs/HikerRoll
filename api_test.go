@@ -13,6 +13,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yuin/goldmark"
 )
 
 func setupTestMux() *http.ServeMux {
@@ -111,10 +112,10 @@ func TestGetLastHikeDescription(t *testing.T) {
 	time.Sleep(10 * time.Millisecond) // Ensure a different timestamp if created_at is auto-generated now()
 	desc2 := "This is the second, updated description."
 	hike2 := Hike{
-		Name:        hikeName,
-		Leader:      leader,
-		Description: desc2,
-		StartTime:   time.Now().Add(2 * time.Hour),
+		Name:          hikeName,
+		Leader:        leader,
+		Description:   desc2,
+		StartTime:     time.Now().Add(2 * time.Hour),
 		TrailheadName: "Trail B",
 	}
 	body2, _ := json.Marshal(hike2)
@@ -122,7 +123,6 @@ func TestGetLastHikeDescription(t *testing.T) {
 	rr2 := httptest.NewRecorder()
 	mux.ServeHTTP(rr2, req2)
 	assert.Equal(t, http.StatusOK, rr2.Code, "Failed to create second hike for last description test")
-
 
 	// 5. Test case: Fetch the last description again (should be desc2)
 	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
@@ -160,7 +160,6 @@ func TestGetLastHikeDescription(t *testing.T) {
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Should return 400 if leaderUUID is missing")
 }
-
 
 func TestRSVPToHike_Success(t *testing.T) {
 	hike := createTestHike(t)
@@ -634,7 +633,6 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 	unrelatedLeader := User{UUID: "unrelated-leader", Name: "Unrelated Leader"}
 	_ = createTestHikeWithOptions(t, unrelatedLeader)
 
-
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", testUser.UUID), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
@@ -660,7 +658,6 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 	isHikeLedByUserPresentAsLed := false
 	isHikeRsvpAndLedPresentAsRsvp := false
 	isHikeRsvpAndLedPresentAsLed := false
-
 
 	for _, h := range hikes {
 		assert.NotEmpty(t, h.Description, "Hike description should not be empty for user specific search. Hike: %s, Source: %s", h.Name, h.SourceType)
@@ -737,7 +734,7 @@ func TestGetHikes_Combined(t *testing.T) {
 	hike5_led_only := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led Only", 25.5555, -161.5555, hikeTime)
 
 	// Unrelated hike
-	_ = createTestHikeWithOptionsAndStartTime(t, User{UUID:"unrelated", Name:"Unrelated"}, "Unrelated Hike", 0,0, hikeTime)
+	_ = createTestHikeWithOptionsAndStartTime(t, User{UUID: "unrelated", Name: "Unrelated"}, "Unrelated Hike", 0, 0, hikeTime)
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s&latitude=%.4f&longitude=%.4f", queryUser.UUID, searchLat, searchLon), nil)
 	rr := httptest.NewRecorder()
@@ -819,12 +816,10 @@ func TestGetHikes_Combined(t *testing.T) {
 	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["rsvp"], "hike5_led_only should not have rsvp source")
 	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["location"], "hike5_led_only should not have location source")
 
-
-	assert.Equal(t, 2, sourceCounts["location"], "Expected 2 total hikes from location")    // hike1_allMatch, hike4_location_only
-	assert.Equal(t, 3, sourceCounts["rsvp"], "Expected 3 total hikes from rsvp")          // hike1_allMatch, hike2_led_rsvp, hike3_rsvp_only
+	assert.Equal(t, 2, sourceCounts["location"], "Expected 2 total hikes from location")       // hike1_allMatch, hike4_location_only
+	assert.Equal(t, 3, sourceCounts["rsvp"], "Expected 3 total hikes from rsvp")               // hike1_allMatch, hike2_led_rsvp, hike3_rsvp_only
 	assert.Equal(t, 3, sourceCounts["led_by_user"], "Expected 3 total hikes from led_by_user") // hike1_allMatch, hike2_led_rsvp, hike5_led_only
 }
-
 
 func TestGetHikes_NoParams(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/api/hike", nil) // No query parameters
@@ -838,7 +833,6 @@ func TestGetHikes_NoParams(t *testing.T) {
 	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
 	assert.Empty(t, hikes, "Should return an empty list when no parameters are provided")
 }
-
 
 func TestHikeParticipants(t *testing.T) {
 	hike := createTestHike(t)
@@ -1178,7 +1172,7 @@ func createTestHike(t *testing.T) Hike {
 		Latitude:      40.7128,
 		Longitude:     -74.0060,
 		StartTime:     time.Now(),
-		PhotoRelease:  false, // Default
+		PhotoRelease:  false,                           // Default
 		Description:   "Default test hike description", // Added default description
 	}
 	body, _ := json.Marshal(hike)
@@ -1210,7 +1204,7 @@ func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName s
 		Latitude:      lat,
 		Longitude:     lon,
 		StartTime:     startTime,
-		PhotoRelease:  false, // Default, can be overridden by specific test setups if needed by creating hike directly
+		PhotoRelease:  false,                                    // Default, can be overridden by specific test setups if needed by creating hike directly
 		Description:   "Test hike " + hikeName + " description", // Default description based on name
 	}
 	body, err := json.Marshal(hike)
