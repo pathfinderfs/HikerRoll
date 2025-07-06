@@ -493,11 +493,11 @@
         </div>
 
         <div id="join-hike-page" style="display:none;">
-            <h1>RSVP to: <span id="join-hike-name"></span></h1>
-            <p>Organization: <span id="join-hike-organization"></span></p>
-            <p>Trailhead: <span id="join-trailhead-name"></span></p>
-            <p>Start Time: <span id="join-hike-start-time"></span></p>
-            <p>Description: <span id="join-hike-description"></span></p>
+            <h1 style="text-align: center;">RSVP</h1>
+            <p><strong><span id="join-hike-name"></span> (<span id="join-trailhead-name"></span>)</strong></p>
+            <p><span id="join-hike-start-time"></span></p>
+            <p><span id="join-leader-name"></span> <span id="join-hike-organization-with-parens"></span></p>
+            <p id="join-hike-description-container"><span id="join-hike-description"></span></p>
             <p>Please fill out the following to RSVP for this hike.</p>
             <form id="join-hike-form">
                 <input type="text" id="participant-name" placeholder="Your Name" required>
@@ -872,10 +872,38 @@
                     currentHike = hike;
                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
                     document.getElementById('join-hike-name').textContent = currentHike.name;
-                    document.getElementById('join-hike-organization').textContent = currentHike.organization;
+                    // No longer need to separately handle the old 'join-hike-organization' span's visibility here
+                    // as it's replaced by 'join-hike-organization-with-parens'.
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
                     document.getElementById('join-hike-start-time').textContent = formatHikeStartTime(currentHike.startTime);
-                    document.getElementById('join-hike-description').innerHTML = currentHike.description || 'No description provided.'; // Use innerHTML
+
+                    // Display leader name
+                    const leaderNameSpan = document.getElementById('join-leader-name');
+                    if (currentHike.leader && currentHike.leader.name) {
+                        leaderNameSpan.textContent = currentHike.leader.name;
+                    } else {
+                        leaderNameSpan.textContent = ''; // Clear if no leader name
+                    }
+
+                    // Display organization with parentheses
+                    const orgWithParensSpan = document.getElementById('join-hike-organization-with-parens');
+                    if (currentHike.organization) {
+                        orgWithParensSpan.textContent = `(${currentHike.organization})`;
+                        orgWithParensSpan.style.display = ''; // Ensure it's visible
+                    } else {
+                        orgWithParensSpan.textContent = ''; // Clear and hide if no organization
+                        orgWithParensSpan.style.display = 'none';
+                    }
+
+                    const descriptionSpan = document.getElementById('join-hike-description');
+                    const descriptionContainer = document.getElementById('join-hike-description-container');
+                    if (currentHike.description) {
+                        descriptionSpan.innerHTML = currentHike.description;
+                        descriptionContainer.style.display = ''; // Show container if description exists
+                    } else {
+                        descriptionSpan.innerHTML = ''; // Clear previous description
+                        descriptionContainer.style.display = 'none'; // Hide container if no description
+                    }
                     showPage('join-hike-page');
                 })
                 .catch(error => {
