@@ -570,6 +570,7 @@
             </h1>
             <p><span id="hike-start-time-display"></span></p>
             <p id="hiking-leader-org"></p>
+            <p>Leader Phone: <a id="hiking-leader-phone" href=""></a></p>
             <p id="hiking-page-description"
                 style="font-size: 0.9em; color: #333; background-color: #f9f9f9; padding: 10px; border-radius: 5px; margin-top: 5px;">
             </p>
@@ -1049,15 +1050,17 @@
             const hikingLeaderOrgDisplay = document.getElementById('hiking-leader-org'); // Assuming this element will be added
             hikingLeaderOrgDisplay.textContent = `${currentHike.leader.name} ${currentHike.organization ? '(' + currentHike.organization + ')' : ''}`;
 
-            // Add leader phone number
-            const leaderPhoneElement = document.createElement('p');
-            const leaderPhoneLink = document.createElement('a');
-            leaderPhoneLink.href = `tel:${currentHike.leader.phone}`;
-            leaderPhoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
-            leaderPhoneElement.appendChild(document.createTextNode('Leader Phone: '));
-            leaderPhoneElement.appendChild(leaderPhoneLink);
-            // Insert the phone number element after the leader/org element
-            hikingLeaderOrgDisplay.parentNode.insertBefore(leaderPhoneElement, hikingLeaderOrgDisplay.nextSibling);
+            // Populate leader phone
+            const leaderPhoneLink = document.getElementById('hiking-leader-phone');
+            if (currentHike.leader && currentHike.leader.phone) {
+                leaderPhoneLink.href = `tel:${currentHike.leader.phone}`;
+                leaderPhoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
+                leaderPhoneLink.parentNode.style.display = ''; // Ensure the parent <p> is visible
+            } else {
+                leaderPhoneLink.textContent = 'N/A';
+                leaderPhoneLink.href = '#';
+                leaderPhoneLink.parentNode.style.display = 'none'; // Hide the parent <p> if no phone
+            }
 
             // Line 4: Description
             document.getElementById('hiking-page-description').innerHTML = currentHike.description || 'No description available.'; // Use innerHTML
