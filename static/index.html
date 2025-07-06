@@ -489,8 +489,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
-                <textarea id="hike-description"
-                    placeholder="Hike Description (optional, will auto-populate from your last hike of the same name if left blank)"
+                <textarea id="hike-description" placeholder="Hike Description (can use markdown)"
                     style="width: 100%; min-height: 80px; margin-top: 8px; padding: 10px; border: 1px solid #ccc; border-radius: 10px; box-sizing: border-box; font-size: 16px;"></textarea>
                 <button type="button" onclick="createHike()">Create Hike</button>
                 <button type="button" class="button-secondary" onclick="cancelCreateHike()">Cancel</button>
@@ -810,7 +809,7 @@
                     }
 
                     if (!foundNearby) {
-                        nearbyList.innerHTML = '<li class="hike-item">No nearby hikes currently. Enable location or refresh.</li>';
+                        nearbyList.innerHTML = '<li class="hike-item">No nearby hikes (refresh to check again).</li>';
                     }
                     if (!foundRsvp) {
                         rsvpList.innerHTML = '<li class="hike-item">You have not RSVPed to any hikes yet.</li>';
