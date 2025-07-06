@@ -462,9 +462,8 @@
             <h2>Leading</h2>
             <ul id="leading-hikes-list" class="hike-list"></ul>
 
-            <h2>Nearby</h2>
-            <button class="button-refresh" onclick="fetchAllWelcomePageHikes()">🔄 Refresh All</button>
-            <ul id="nearby-hikes" class="hike-list"></ul>
+            <!-- Nearby Hikes section removed -->
+            <button class="button-refresh" onclick="fetchAllWelcomePageHikes()">🔄 Refresh My Hikes</button>
         </div>
 
         <div id="create-hike-page" style="display:none;">
@@ -475,6 +474,7 @@
                 <div class="autocomplete">
                     <input type="text" id="hike-trailheadName" placeholder="Trailhead Name (Type to search)" required>
                 </div>
+                <input type="text" id="hike-mapLink" placeholder="Google Maps Link (Auto-filled or enter manually for new trailheads)" required readonly>
                 <input type="text" id="leader-name" placeholder="Your Name" required>
                 <input type="tel" id="leader-phone" placeholder="Your Phone (10 digits)" required maxlength="10"
                     pattern="\d{3}-\d{3}-\d{4}">
@@ -612,8 +612,7 @@
                 joinCode: '',
                 leader: currentUser,
                 startTime: new Date().toISOString(),
-                latitude: 0,
-                longitude: 0,
+                mapLink: '', // Replaces latitude and longitude
                 photoRelease: false,
                 description: '',
             };
@@ -703,40 +702,27 @@
         }
 
         function fetchAllWelcomePageHikes() {
-            const nearbyList = document.getElementById('nearby-hikes');
+            // const nearbyList = document.getElementById('nearby-hikes'); // Nearby list removed
             const rsvpList = document.getElementById('rsvped-hikes-list');
             const leadingList = document.getElementById('leading-hikes-list');
 
             // Clear previous content and set loading messages
-            nearbyList.innerHTML = '<li>Loading nearby hikes...</li>';
+            // nearbyList.innerHTML = '<li>Loading nearby hikes...</li>'; // Nearby list removed
             rsvpList.innerHTML = '<li>Loading RSVPed hikes...</li>';
             leadingList.innerHTML = '<li>Loading hikes you are leading...</li>';
 
+            // API URL no longer includes latitude/longitude for nearby hikes
             let apiUrl = `/api/hike?userUUID=${currentUser.uuid}`;
-
-            if ("geolocations" in navigator) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    apiUrl += `&latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`;
-                    fetchHikes(apiUrl);
-                }, error => {
-                    console.error("Error getting location for welcome page:", error);
-                    // Proceed without location data if geolocation fails
-                    fetchHikes(apiUrl);
-                });
-            } else {
-                console.log("Geolocation is not supported by this browser. Cannot fetch nearby hikes.");
-                // Proceed without location data
-                fetchHikes(apiUrl);
-            }
+            fetchHikes(apiUrl); // Directly fetch hikes without geolocation
         }
 
         function fetchHikes(url) {
-            const nearbyList = document.getElementById('nearby-hikes');
+            // const nearbyList = document.getElementById('nearby-hikes'); // Nearby list removed
             const rsvpList = document.getElementById('rsvped-hikes-list');
             const leadingList = document.getElementById('leading-hikes-list');
 
             // Ensure lists are cleared before processing new data or error messages
-            nearbyList.innerHTML = '';
+            // nearbyList.innerHTML = ''; // Nearby list removed
             rsvpList.innerHTML = '';
             leadingList.innerHTML = '';
 
@@ -748,7 +734,7 @@
                     return response.json();
                 })
                 .then(hikes => {
-                    let foundNearby = false;
+                    // let foundNearby = false; // Nearby logic removed
                     let foundRsvp = false;
                     let foundLeading = false;
 
@@ -929,11 +915,12 @@
             document.getElementById('hike-name').value = '';
             document.getElementById('hike-organization').value = '';
             document.getElementById('hike-trailheadName').value = '';
+            document.getElementById('hike-mapLink').value = ''; // Clear map link field
+            document.getElementById('hike-mapLink').readOnly = true; // Reset to readonly
             document.getElementById('hike-photo-release').checked = false; // Reset checkbox
             currentHike.name = ''; // Clear hike name in state
             currentHike.trailheadName = ''; // Clear trailhead name in state
-            currentHike.latitude = 0;
-            currentHike.longitude = 0;
+            currentHike.mapLink = ''; // Clear mapLink in state
             currentHike.photoRelease = false; // Reset in currentHike object
             currentHike.description = ''; // Reset description
             localStorage.setItem('currentHike', JSON.stringify(currentHike)); // Save cleared state
@@ -1018,7 +1005,8 @@
             licensePlate: value => value.toUpperCase(),
             emergencyContact: value => value.replace(/\D/g, ''),
             startTime: value => new Date(value).toISOString(), // This is what SQLite expects
-            description: value => value // No specific processing for description, just assign
+            description: value => value, // No specific processing for description, just assign
+            mapLink: value => value // Store mapLink as is
         };
 
         function showHikeLeaderPage() {
@@ -1030,7 +1018,7 @@
 
             h1TitleSpan.textContent = currentHike.name;
             leaderHikeNameLink.setAttribute('data-description', escapeHTML(currentHike.description || ''));
-            trailheadLinkLeader.href = makeTrailheadURL(currentHike);
+            trailheadLinkLeader.href = currentHike.mapLink || "#"; // Use direct mapLink
             trailheadNameSpan.textContent = currentHike.trailheadName;
             // The H1 structure in HTML will be: <h1><a id="leader-hike-name-link"><span id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
 
@@ -1058,15 +1046,15 @@
             return `${window.location.origin}?${codeType}=${code}`;
         }
 
-        function makeTrailheadURL(hike) {
-            if (!hike || typeof hike.latitude === 'undefined' || typeof hike.longitude === 'undefined') {
-                // console.error("Invalid hike object passed to makeTrailheadURL", hike);
-                return "#"; // Return a safe default or handle error appropriately
-            }
-            // Use hike.trailheadName for the query_place_id if available, otherwise hike.name
-            const placeIdQuery = hike.trailheadName || hike.name || '';
-            return `https://www.google.com/maps/search/?api=1&query=${hike.latitude},${hike.longitude}&query_place_id=${encodeURIComponent(placeIdQuery)}`;
-        }
+        // function makeTrailheadURL(hike) { // This function is no longer needed as we store the full mapLink.
+        //     if (!hike || typeof hike.latitude === 'undefined' || typeof hike.longitude === 'undefined') {
+        //         // console.error("Invalid hike object passed to makeTrailheadURL", hike);
+        //         return "#"; // Return a safe default or handle error appropriately
+        //     }
+        //     // Use hike.trailheadName for the query_place_id if available, otherwise hike.name
+        //     const placeIdQuery = hike.trailheadName || hike.name || '';
+        //     return `https://www.google.com/maps/search/?api=1&query=${hike.latitude},${hike.longitude}&query_place_id=${encodeURIComponent(placeIdQuery)}`;
+        // }
 
         function showHikingPage() {
             // Line 1: Hike Name (TH: linked trailheadname)
@@ -1074,7 +1062,7 @@
             document.getElementById('current-hike-name').textContent = currentHike.name;
             const trailheadLink = document.getElementById('current-trailhead-name');
             trailheadLink.textContent = currentHike.trailheadName;
-            trailheadLink.href = makeTrailheadURL();
+            trailheadLink.href = currentHike.mapLink || "#"; // Use direct mapLink
 
             // Line 2: Start Time
             document.getElementById('hike-start-time-display').textContent = formatHikeStartTime(currentHike.startTime);
@@ -1195,16 +1183,10 @@
             currentHike.photoRelease = document.getElementById('hike-photo-release').checked;
             currentHike.description = document.getElementById('hike-description').value;
 
-            // Get current location if not a predefined trail
-            if (currentHike.latitude === 0 || currentHike.longitude === 0) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    currentHike.latitude = position.coords.latitude;
-                    currentHike.longitude = position.coords.longitude;
-                }, error => {
-                    console.error("Error getting location:", error);
-                    alert("GPS location not found, participants will have to join via link code.");
-                });
-            }
+            // The mapLink is now expected to be set either from autocomplete or manually by the user.
+            // No more geolocation fallback for new trailheads here.
+            // currentHike.mapLink should already be populated.
+
             fetch('/api/hike', {
                 method: 'POST',
                 headers: {
@@ -1677,12 +1659,23 @@
             inp.addEventListener("input", function (e) {
                 var a, b, i, val = this.value;
                 closeAllLists();
-                if (!val) { return false; }
+                if (!val) {
+                    // If input is cleared, make mapLink editable
+                    document.getElementById('hike-mapLink').value = '';
+                    document.getElementById('hike-mapLink').readOnly = false;
+                    currentHike.mapLink = '';
+                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                    return false;
+                }
                 currentFocus = -1;
                 a = document.createElement("DIV");
                 a.setAttribute("id", this.id + "autocomplete-list");
                 a.setAttribute("class", "autocomplete-items");
                 this.parentNode.appendChild(a);
+
+                // When user types, assume it's a new trailhead, make mapLink editable
+                document.getElementById('hike-mapLink').readOnly = false;
+
 
                 fetch(`/api/trailhead?q=${val}`)
                     .then(response => response.json())
@@ -1698,20 +1691,30 @@
                                 } else {
                                     b.innerHTML = data[i].name;
                                 }
-                                // Store trailhead info in hidden input attributes
-                                b.innerHTML += '<input type="hidden" value="' + data[i].name + '" data-lat="' + data[i].latitude + '" data-lon="' + data[i].longitude + '">';
+                                // Store trailhead info (name and mapLink)
+                                b.innerHTML += '<input type="hidden" value="' + escapeHTML(data[i].name) + '" data-maplink="' + escapeHTML(data[i].mapLink) + '">';
                                 b.addEventListener("click", function (e) {
                                     const selectedInput = this.getElementsByTagName("input")[0];
-                                    inp.value = selectedInput.value; // Set the input field value
+                                    inp.value = selectedInput.value; // Set the trailhead name input field value
+
+                                    const mapLinkVal = selectedInput.getAttribute("data-maplink");
+                                    document.getElementById('hike-mapLink').value = mapLinkVal;
+                                    document.getElementById('hike-mapLink').readOnly = true; // Make it readonly
+
                                     // Update currentHike with trailhead info
                                     currentHike.trailheadName = selectedInput.value;
-                                    currentHike.latitude = parseFloat(selectedInput.getAttribute("data-lat"));
-                                    currentHike.longitude = parseFloat(selectedInput.getAttribute("data-lon"));
+                                    currentHike.mapLink = mapLinkVal;
                                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
                                     closeAllLists();
                                 });
                                 a.appendChild(b);
                             }
+                        } else {
+                             // No suggestions, ensure mapLink is editable
+                            document.getElementById('hike-mapLink').value = ''; // Clear if no suggestions and user is typing new name
+                            document.getElementById('hike-mapLink').readOnly = false;
+                            currentHike.mapLink = '';
+                            localStorage.setItem('currentHike', JSON.stringify(currentHike));
                         }
                     });
             });

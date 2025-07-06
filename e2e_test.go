@@ -182,6 +182,14 @@ func createHike(t *testing.T, page *rod.Page, hikeName, organization, trailheadN
 	page.MustElement("#leader-name").MustInput(leaderName)
 	page.MustElement("#leader-phone").MustInput(leaderPhone)
 
+	// Assert that the map link field is populated and readonly after autocomplete selection
+	mapLinkValue := page.MustElement("#hike-mapLink").MustAttribute("value")
+	assert.NotEmpty(t, *mapLinkValue, "Map link field should be populated by autocomplete")
+	isReadOnly, err := page.MustElement("#hike-mapLink").Attribute("readonly")
+	assert.NoError(t, err, "Error getting readonly attribute")
+	assert.NotNil(t, isReadOnly, "Map link field should be readonly after autocomplete")
+
+
 	// Fill out a hike time of 24 hours from now
 	tomorrow := time.Now().Add(24 * time.Hour)
 	targetYear := tomorrow.Year()
@@ -279,6 +287,12 @@ func joinHike(t *testing.T, page *rod.Page, joinCode, participantName, participa
 
 	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for participant")
 	t.Log("Participant: Successfully on Hiking page")
+
+	// Verify trailhead link on participant's hiking page
+	participantTrailheadLink := participantPage.MustElement("#current-trailhead-name").MustAttribute("href")
+	assert.Equal(t, "https://www.google.com/maps?q=21.31108,-157.78189", *participantTrailheadLink, "Trailhead link on participant hiking page is incorrect")
+	t.Logf("Participant: Verified trailhead link: %s", *participantTrailheadLink)
+
 	return participantPage
 }
 
@@ -296,6 +310,12 @@ func TestHikeLifecycle(t *testing.T) {
 	parsedJoinURL, _ := url.Parse(*joinURLString)
 	joinCode := parsedJoinURL.Query().Get("code")
 	t.Logf("Hike Leader: Extracted joinCode: %s", joinCode)
+
+	// Verify trailhead link on leader page
+	leaderTrailheadLink := leaderPage.MustElement("#trailhead-link-leader").MustAttribute("href")
+	assert.Equal(t, "https://www.google.com/maps?q=21.31108,-157.78189", *leaderTrailheadLink, "Trailhead link on leader page is incorrect")
+	t.Logf("Hike Leader: Verified trailhead link: %s", *leaderTrailheadLink)
+
 
 	// Leader: Navigate back to Welcome Page to check "Hikes I'm Leading"
 	t.Log("Hike Leader: Navigating to Welcome Page to check 'Leading' section...")

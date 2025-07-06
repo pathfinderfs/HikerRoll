@@ -19,89 +19,89 @@ import (
 
 // Keep in sync with trailheads table schema
 type Trailhead struct {
-	Name      string  `json:"name"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
+	Name    string `json:"name"`
+	MapLink string `json:"mapLink"`
 }
 
 // List of predefined trailheads
+// MapLink format: https://www.google.com/maps?q=lat,lon
 var predefinedTrailheads = []Trailhead{
-	{Name: "Aiea Loop (upper)", Latitude: 21.39880, Longitude: -157.90022},
-	{Name: "Aihualama (Lyon Arboretum)", Latitude: 21.3323, Longitude: -157.8016},
-	{Name: "Bowman (Radar Hill)", Latitude: 21.34992, Longitude: -157.87685},
-	{Name: "Crouching Lion (Manamana)", Latitude: 21.55816, Longitude: -157.86619},
-	{Name: "Diamond Head Crater (Le'ahi)", Latitude: 21.26360, Longitude: -157.80603},
-	{Name: "Ehukai Pillbox (Sunset Pillbox)", Latitude: 21.66465, Longitude: -158.04936},
-	{Name: "Friendship Garden", Latitude: 21.40622, Longitude: -157.77751},
-	{Name: "Haha'ione", Latitude: 21.310139, Longitude: -157.712835},
-	{Name: "Hamana Falls", Latitude: 21.45293, Longitude: -157.85281},
-	{Name: "Hau'ula Loop", Latitude: 21.60980, Longitude: -157.91544},
-	{Name: "Hawaii Loa Ridge", Latitude: 21.29749, Longitude: -157.74593},
-	{Name: "Ho'omaluhia Botanical Garden", Latitude: 21.38647, Longitude: -157.80956},
-	{Name: "Judd", Latitude: 21.34717, Longitude: -157.82082},
-	{Name: "Ka'au Crater", Latitude: 21.31108, Longitude: -157.78189},
-	{Name: "Ka'ena Point (Mokule'ia Side)", Latitude: 21.57976, Longitude: -158.23773},
-	{Name: "Ka'ena Point (Waianae Side)", Latitude: 21.55673, Longitude: -158.24884},
-	{Name: "Kahana Valley", Latitude: 21.55023, Longitude: -157.88163},
-	{Name: "Kahekili Ridge", Latitude: 21.55410, Longitude: -157.85579},
-	{Name: "Kaipapa'u Gulch", Latitude: 21.61809, Longitude: -157.91893},
-	{Name: "Ka'iwa Ridge (Lanikai Side)", Latitude: 21.39031, Longitude: -157.71943},
-	{Name: "Ka'iwa Ridge (Keolu Side)", Latitude: 21.38174, Longitude: -157.72553},
-	{Name: "Kalawahine", Latitude: 21.33125, Longitude: -157.82128},
-	{Name: "Kamana'iki", Latitude: 21.34960, Longitude: -157.85821},
-	{Name: "Kamilo'iki", Latitude: 21.300515, Longitude: -157.692755},
-	{Name: "Kaniakapupu Ruins", Latitude: 21.351083, Longitude: -157.81698},
-	{Name: "Kapa'ele'ele", Latitude: 21.55501, Longitude: -157.87682},
-	{Name: "Kapena Falls", Latitude: 21.32401, Longitude: -157.84699},
-	{Name: "Kaunala", Latitude: 21.64290, Longitude: -158.02590},
-	{Name: "Kealia", Latitude: 21.57750, Longitude: -158.20816},
-	{Name: "Kea'au Middle Ridge", Latitude: 21.50296, Longitude: -158.22544},
-	{Name: "Koko Crater (Arch)", Latitude: 21.28069, Longitude: -157.67854},
-	{Name: "Koko Crater (Railway)", Latitude: 21.28117, Longitude: -157.69192},
-	{Name: "Koko Head (Hanauma)", Latitude: 21.27532, Longitude: -157.69363},
-	{Name: "Koloa Gulch", Latitude: 21.62817, Longitude: -157.923531},
-	{Name: "Kuliʻouʻou Ridge", Latitude: 21.30343, Longitude: -157.72426},
-	{Name: "Kulepeamoa Ridge", Latitude: 21.29218, Longitude: -157.74093},
-	{Name: "Laie Falls (parking)", Latitude: 21.65053, Longitude: -157.93147},
-	{Name: "Lanihuli", Latitude: 21.33986, Longitude: -157.84751},
-	{Name: "Lanipo", Latitude: 21.29787, Longitude: -157.78574},
-	{Name: "Likeke Falls (First Pres)", Latitude: 21.37281, Longitude: -157.79209},
-	{Name: "Lulumahu Falls", Latitude: 21.354438, Longitude: -157.81114},
-	{Name: "Makapu'u Point Lighthouse", Latitude: 21.30499, Longitude: -157.65480},
-	{Name: "Makiki Valley Loop (Nature Center)", Latitude: 21.31717, Longitude: -157.82700},
-	{Name: "Manana Ridge", Latitude: 21.43038, Longitude: -157.93889},
-	{Name: "Manoa Cliff", Latitude: 21.32612, Longitude: -157.81308},
-	{Name: "Manoa Falls", Latitude: 21.33255, Longitude: -157.80055},
-	{Name: "Maunawili Falls", Latitude: 21.35929, Longitude: -157.76355},
-	{Name: "Maunawili Demonstration (Pali)", Latitude: 21.36496, Longitude: -157.77998},
-	{Name: "Maunawili Ditch (Wakupanaha)", Latitude: 21.34294, Longitude: -157.74341},
-	{Name: "Maunawili Ditch (Mahiku)", Latitude: 21.34918, Longitude: -157.73400},
-	{Name: "Moanalua Valley", Latitude: 21.37412, Longitude: -157.88061},
-	{Name: "Mount Ka'ala", Latitude: 21.47597, Longitude: -158.15193},
-	{Name: "Nahuina", Latitude: 21.32978, Longitude: -158.82265},
-	{Name: "Ohana Bike (N)", Latitude: 21.37203, Longitude: -157.74520},
-	{Name: "Ohana Bike (S)", Latitude: 21.35772, Longitude: -157.73318},
-	{Name: "Olomana", Latitude: 21.36845, Longitude: -157.76097},
-	{Name: "Pali Notches", Latitude: 21.36670, Longitude: -157.79322},
-	{Name: "Pali Puka", Latitude: 21.36682, Longitude: -157.79417},
-	{Name: "Puʻu Māʻeliʻel", Latitude: 21.43429, Longitude: -157.82463},
-	{Name: "Pu'u Manamana", Latitude: 21.55410, Longitude: -157.85579},
-	{Name: "Pu'u Ohia", Latitude: 21.33109, Longitude: -157.81465},
-	{Name: "Pu'u O Hulu (Pink Pillbox)", Latitude: 21.40478, Longitude: -158.17268},
-	{Name: "Pu'u Pia Trail", Latitude: 21.32168, Longitude: -157.79873},
-	{Name: "Tantalus Arboretum", Latitude: 21.32582, Longitude: -157.82771},
-	{Name: "Tom Tom", Latitude: 21.32499, Longitude: -157.69683},
-	{Name: "Ualakaa", Latitude: 21.31645, Longitude: -157.82037},
-	{Name: "Wa'ahila Ridge", Latitude: 21.30729, Longitude: -157.79765},
-	{Name: "Wahiawa Hills", Latitude: 21.50846, Longitude: -157.98648},
-	{Name: "Waiau (parking)", Latitude: 21.41257, Longitude: -157.93985},
-	{Name: "Wailupe Valley (Hao)", Latitude: 21.29861, Longitude: -157.75663},
-	{Name: "Wailupe Valley (Mona)", Latitude: 21.29999, Longitude: -157.75466},
-	{Name: "Waimalu Ditch", Latitude: 21.39888, Longitude: -157.91763},
-	{Name: "Waimano Ridge", Latitude: 21.41725, Longitude: -157.95104},
-	{Name: "Waipuilani Falls", Latitude: 21.3643, Longitude: -157.7959},
-	{Name: "Waipuhia Falls", Latitude: 21.36173, Longitude: -157.80544},
-	{Name: "Wiliwilinui Ridge", Latitude: 21.29927, Longitude: -157.76274},
+	{Name: "Aiea Loop (upper)", MapLink: "https://www.google.com/maps?q=21.39880,-157.90022"},
+	{Name: "Aihualama (Lyon Arboretum)", MapLink: "https://www.google.com/maps?q=21.3323,-157.8016"},
+	{Name: "Bowman (Radar Hill)", MapLink: "https://www.google.com/maps?q=21.34992,-157.87685"},
+	{Name: "Crouching Lion (Manamana)", MapLink: "https://www.google.com/maps?q=21.55816,-157.86619"},
+	{Name: "Diamond Head Crater (Le'ahi)", MapLink: "https://www.google.com/maps?q=21.26360,-157.80603"},
+	{Name: "Ehukai Pillbox (Sunset Pillbox)", MapLink: "https://www.google.com/maps?q=21.66465,-158.04936"},
+	{Name: "Friendship Garden", MapLink: "https://www.google.com/maps?q=21.40622,-157.77751"},
+	{Name: "Haha'ione", MapLink: "https://www.google.com/maps?q=21.310139,-157.712835"},
+	{Name: "Hamana Falls", MapLink: "https://www.google.com/maps?q=21.45293,-157.85281"},
+	{Name: "Hau'ula Loop", MapLink: "https://www.google.com/maps?q=21.60980,-157.91544"},
+	{Name: "Hawaii Loa Ridge", MapLink: "https://www.google.com/maps?q=21.29749,-157.74593"},
+	{Name: "Ho'omaluhia Botanical Garden", MapLink: "https://www.google.com/maps?q=21.38647,-157.80956"},
+	{Name: "Judd", MapLink: "https://www.google.com/maps?q=21.34717,-157.82082"},
+	{Name: "Ka'au Crater", MapLink: "https://www.google.com/maps?q=21.31108,-157.78189"},
+	{Name: "Ka'ena Point (Mokule'ia Side)", MapLink: "https://www.google.com/maps?q=21.57976,-158.23773"},
+	{Name: "Ka'ena Point (Waianae Side)", MapLink: "https://www.google.com/maps?q=21.55673,-158.24884"},
+	{Name: "Kahana Valley", MapLink: "https://www.google.com/maps?q=21.55023,-157.88163"},
+	{Name: "Kahekili Ridge", MapLink: "https://www.google.com/maps?q=21.55410,-157.85579"},
+	{Name: "Kaipapa'u Gulch", MapLink: "https://www.google.com/maps?q=21.61809,-157.91893"},
+	{Name: "Ka'iwa Ridge (Lanikai Side)", MapLink: "https://www.google.com/maps?q=21.39031,-157.71943"},
+	{Name: "Ka'iwa Ridge (Keolu Side)", MapLink: "https://www.google.com/maps?q=21.38174,-157.72553"},
+	{Name: "Kalawahine", MapLink: "https://www.google.com/maps?q=21.33125,-157.82128"},
+	{Name: "Kamana'iki", MapLink: "https://www.google.com/maps?q=21.34960,-157.85821"},
+	{Name: "Kamilo'iki", MapLink: "https://www.google.com/maps?q=21.300515,-157.692755"},
+	{Name: "Kaniakapupu Ruins", MapLink: "https://www.google.com/maps?q=21.351083,-157.81698"},
+	{Name: "Kapa'ele'ele", MapLink: "https://www.google.com/maps?q=21.55501,-157.87682"},
+	{Name: "Kapena Falls", MapLink: "https://www.google.com/maps?q=21.32401,-157.84699"},
+	{Name: "Kaunala", MapLink: "https://www.google.com/maps?q=21.64290,-158.02590"},
+	{Name: "Kealia", MapLink: "https://www.google.com/maps?q=21.57750,-158.20816"},
+	{Name: "Kea'au Middle Ridge", MapLink: "https://www.google.com/maps?q=21.50296,-158.22544"},
+	{Name: "Koko Crater (Arch)", MapLink: "https://www.google.com/maps?q=21.28069,-157.67854"},
+	{Name: "Koko Crater (Railway)", MapLink: "https://www.google.com/maps?q=21.28117,-157.69192"},
+	{Name: "Koko Head (Hanauma)", MapLink: "https://www.google.com/maps?q=21.27532,-157.69363"},
+	{Name: "Koloa Gulch", MapLink: "https://www.google.com/maps?q=21.62817,-157.923531"},
+	{Name: "Kuliʻouʻou Ridge", MapLink: "https://www.google.com/maps?q=21.30343,-157.72426"},
+	{Name: "Kulepeamoa Ridge", MapLink: "https://www.google.com/maps?q=21.29218,-157.74093"},
+	{Name: "Laie Falls (parking)", MapLink: "https://www.google.com/maps?q=21.65053,-157.93147"},
+	{Name: "Lanihuli", MapLink: "https://www.google.com/maps?q=21.33986,-157.84751"},
+	{Name: "Lanipo", MapLink: "https://www.google.com/maps?q=21.29787,-157.78574"},
+	{Name: "Likeke Falls (First Pres)", MapLink: "https://www.google.com/maps?q=21.37281,-157.79209"},
+	{Name: "Lulumahu Falls", MapLink: "https://www.google.com/maps?q=21.354438,-157.81114"},
+	{Name: "Makapu'u Point Lighthouse", MapLink: "https://www.google.com/maps?q=21.30499,-157.65480"},
+	{Name: "Makiki Valley Loop (Nature Center)", MapLink: "https://www.google.com/maps?q=21.31717,-157.82700"},
+	{Name: "Manana Ridge", MapLink: "https://www.google.com/maps?q=21.43038,-157.93889"},
+	{Name: "Manoa Cliff", MapLink: "https://www.google.com/maps?q=21.32612,-157.81308"},
+	{Name: "Manoa Falls", MapLink: "https://www.google.com/maps?q=21.33255,-157.80055"},
+	{Name: "Maunawili Falls", MapLink: "https://www.google.com/maps?q=21.35929,-157.76355"},
+	{Name: "Maunawili Demonstration (Pali)", MapLink: "https://www.google.com/maps?q=21.36496,-157.77998"},
+	{Name: "Maunawili Ditch (Wakupanaha)", MapLink: "https://www.google.com/maps?q=21.34294,-157.74341"},
+	{Name: "Maunawili Ditch (Mahiku)", MapLink: "https://www.google.com/maps?q=21.34918,-157.73400"},
+	{Name: "Moanalua Valley", MapLink: "https://www.google.com/maps?q=21.37412,-157.88061"},
+	{Name: "Mount Ka'ala", MapLink: "https://www.google.com/maps?q=21.47597,-158.15193"},
+	{Name: "Nahuina", MapLink: "https://www.google.com/maps?q=21.32978,-158.82265"}, // Note: This lat/lon seems off for Oahu, might be an error in original data
+	{Name: "Ohana Bike (N)", MapLink: "https://www.google.com/maps?q=21.37203,-157.74520"},
+	{Name: "Ohana Bike (S)", MapLink: "https://www.google.com/maps?q=21.35772,-157.73318"},
+	{Name: "Olomana", MapLink: "https://www.google.com/maps?q=21.36845,-157.76097"},
+	{Name: "Pali Notches", MapLink: "https://www.google.com/maps?q=21.36670,-157.79322"},
+	{Name: "Pali Puka", MapLink: "https://www.google.com/maps?q=21.36682,-157.79417"},
+	{Name: "Puʻu Māʻeliʻel", MapLink: "https://www.google.com/maps?q=21.43429,-157.82463"},
+	{Name: "Pu'u Manamana", MapLink: "https://www.google.com/maps?q=21.55410,-157.85579"}, // Same as Kahekili Ridge
+	{Name: "Pu'u Ohia", MapLink: "https://www.google.com/maps?q=21.33109,-157.81465"},
+	{Name: "Pu'u O Hulu (Pink Pillbox)", MapLink: "https://www.google.com/maps?q=21.40478,-158.17268"},
+	{Name: "Pu'u Pia Trail", MapLink: "https://www.google.com/maps?q=21.32168,-157.79873"},
+	{Name: "Tantalus Arboretum", MapLink: "https://www.google.com/maps?q=21.32582,-157.82771"},
+	{Name: "Tom Tom", MapLink: "https://www.google.com/maps?q=21.32499,-157.69683"},
+	{Name: "Ualakaa", MapLink: "https://www.google.com/maps?q=21.31645,-157.82037"},
+	{Name: "Wa'ahila Ridge", MapLink: "https://www.google.com/maps?q=21.30729,-157.79765"},
+	{Name: "Wahiawa Hills", MapLink: "https://www.google.com/maps?q=21.50846,-157.98648"},
+	{Name: "Waiau (parking)", MapLink: "https://www.google.com/maps?q=21.41257,-157.93985"},
+	{Name: "Wailupe Valley (Hao)", MapLink: "https://www.google.com/maps?q=21.29861,-157.75663"},
+	{Name: "Wailupe Valley (Mona)", MapLink: "https://www.google.com/maps?q=21.29999,-157.75466"},
+	{Name: "Waimalu Ditch", MapLink: "https://www.google.com/maps?q=21.39888,-157.91763"},
+	{Name: "Waimano Ridge", MapLink: "https://www.google.com/maps?q=21.41725,-157.95104"},
+	{Name: "Waipuilani Falls", MapLink: "https://www.google.com/maps?q=21.3643,-157.7959"},
+	{Name: "Waipuhia Falls", MapLink: "https://www.google.com/maps?q=21.36173,-157.80544"},
+	{Name: "Wiliwilinui Ridge", MapLink: "https://www.google.com/maps?q=21.29927,-157.76274"},
 }
 
 type User struct {
@@ -119,9 +119,8 @@ type Hike struct {
 	Organization  string    `json:"organization"`
 	TrailheadName string    `json:"trailheadName"`
 	Leader        User      `json:"leader"`
-	Latitude      float64   `json:"latitude"`
-	Longitude     float64   `json:"longitude"`
-	CreatedAt     time.Time `json:"-"` // don't send this field in JSON response
+	MapLink       string    `json:"mapLink"` // Replaces Latitude and Longitude
+	CreatedAt     time.Time `json:"-"`     // don't send this field in JSON response
 	StartTime     time.Time `json:"startTime"`
 	Status        string    `json:"Status"`
 	JoinCode      string    `json:"joinCode"`
@@ -149,8 +148,7 @@ func createTables() {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS trailheads (
 			name TEXT PRIMARY KEY,
-			latitude REAL NOT NULL,
-			longitude REAL NOT NULL
+			map_link TEXT NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS users (
@@ -166,8 +164,7 @@ func createTables() {
             organization TEXT,
 			trailhead_name TEXT,
 			leader_uuid TEXT NOT NULL,
-			latitude REAL,
-			longitude REAL,
+			map_link TEXT, // Replaces latitude and longitude
 			created_at DATETIME NOT NULL,
 			start_time DATETIME NOT NULL,
 			status TEXT DEFAULT 'open',
@@ -216,13 +213,150 @@ func populateTrailheads() {
 
 	if count == 0 {
 		for _, trailhead := range predefinedTrailheads {
-			_, err := db.Exec("INSERT INTO trailheads (name, latitude, longitude) VALUES (?, ?, ?)", trailhead.Name, trailhead.Latitude, trailhead.Longitude)
+			_, err := db.Exec("INSERT INTO trailheads (name, map_link) VALUES (?, ?)", trailhead.Name, trailhead.MapLink)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
+		log.Println("Predefined trailheads populated.")
 	}
 }
+
+func migrateDBIfNeeded() {
+	// Check if migration is needed by looking for the old 'latitude' column in 'trailheads'
+	var latitudeColumn string
+	err := db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='trailheads' AND sql LIKE '%latitude REAL%'").Scan(&latitudeColumn)
+	if err == nil { // Old schema detected
+		log.Println("Old database schema detected. Starting migration...")
+
+		tx, err := db.Begin()
+		if err != nil {
+			log.Fatalf("Failed to begin transaction for migration: %v", err)
+		}
+		defer tx.Rollback() // Rollback in case of error
+
+		// 1. Rename old tables
+		log.Println("Renaming old tables...")
+		if _, err := tx.Exec("ALTER TABLE trailheads RENAME TO trailheads_old"); err != nil {
+			log.Fatalf("Failed to rename trailheads to trailheads_old: %v", err)
+		}
+		// Check if hikes table exists and has latitude column before trying to rename
+		var hikesTableSQLExists string
+		errHikesExistCheck := tx.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='hikes' AND sql LIKE '%latitude REAL%'").Scan(&hikesTableSQLExists)
+		if errHikesExistCheck == nil { // hikes table with old schema exists
+			if _, err := tx.Exec("ALTER TABLE hikes RENAME TO hikes_old"); err != nil {
+				log.Fatalf("Failed to rename hikes to hikes_old: %v", err)
+			}
+		} else if errHikesExistCheck != sql.ErrNoRows {
+			log.Fatalf("Error checking old hikes table schema: %v", errHikesExistCheck)
+		}
+
+
+		// 2. Create new tables with the new schema (createTables will do this)
+		log.Println("Creating new tables with updated schema...")
+		// Temporarily remove the original createTables call from initDB and call it here,
+		// or ensure createTables can be called multiple times safely (IF NOT EXISTS helps).
+		// For this flow, we assume createTables() defines the *new* schema.
+		// We need to call it within the transaction if it's not already called or if it's safe.
+		// The original createTables() is called in initDB. We will call it again here to make sure new tables are created.
+		// This is fine because of "IF NOT EXISTS".
+		createTables() // Call it here to ensure tables are created with new schema if they don't exist
+
+		log.Println("Migrating data to new trailheads table...")
+		rowsOldTH, err := tx.Query("SELECT name, latitude, longitude FROM trailheads_old")
+		if err != nil {
+			log.Fatalf("Failed to query trailheads_old: %v", err)
+		}
+		defer rowsOldTH.Close()
+
+		stmtTH, err := tx.Prepare("INSERT INTO trailheads (name, map_link) VALUES (?, ?)")
+		if err != nil {
+			log.Fatalf("Failed to prepare insert statement for new trailheads: %v", err)
+		}
+		defer stmtTH.Close()
+
+		for rowsOldTH.Next() {
+			var name string
+			var latitude, longitude float64
+			if err := rowsOldTH.Scan(&name, &latitude, &longitude); err != nil {
+				log.Fatalf("Failed to scan row from trailheads_old: %v", err)
+			}
+			mapLink := fmt.Sprintf("https://www.google.com/maps?q=%f,%f", latitude, longitude)
+			if _, err := stmtTH.Exec(name, mapLink); err != nil {
+				log.Fatalf("Failed to insert migrated data into new trailheads: %v", err)
+			}
+		}
+		if err = rowsOldTH.Err(); err != nil {
+			log.Fatalf("Error after iterating trailheads_old: %v", err)
+		}
+
+		// Migrate hikes data only if hikes_old table was created
+		if errHikesExistCheck == nil { // hikes_old was created
+			log.Println("Migrating data to new hikes table...")
+			rowsOldHikes, err := tx.Query("SELECT name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, status, join_code, leader_code, photo_release, description FROM hikes_old")
+			if err != nil {
+				log.Fatalf("Failed to query hikes_old: %v", err)
+			}
+			defer rowsOldHikes.Close()
+
+			// Note: The order of columns in INSERT must match the table definition.
+			// The new hikes table has map_link instead of latitude, longitude.
+			stmtHikes, err := tx.Prepare("INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, map_link, created_at, start_time, status, join_code, leader_code, photo_release, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			if err != nil {
+				log.Fatalf("Failed to prepare insert statement for new hikes: %v", err)
+			}
+			defer stmtHikes.Close()
+
+			for rowsOldHikes.Next() {
+				var name, organization, trailhead_name, leader_uuid, status, join_code, leader_code, description sql.NullString
+				var latitude, longitude sql.NullFloat64
+				var created_at, start_time time.Time
+				var photo_release sql.NullBool
+
+				// Scan from hikes_old
+				if err := rowsOldHikes.Scan(&name, &organization, &trailhead_name, &leader_uuid, &latitude, &longitude, &created_at, &start_time, &status, &join_code, &leader_code, &photo_release, &description); err != nil {
+					log.Fatalf("Failed to scan row from hikes_old: %v", err)
+				}
+
+				var mapLink sql.NullString
+				if latitude.Valid && longitude.Valid {
+					mapLink.String = fmt.Sprintf("https://www.google.com/maps?q=%f,%f", latitude.Float64, longitude.Float64)
+					mapLink.Valid = true
+				}
+
+				// Insert into new hikes table
+				if _, err := stmtHikes.Exec(name, organization, trailhead_name, leader_uuid, mapLink, created_at, start_time, status, join_code, leader_code, photo_release, description); err != nil {
+					log.Fatalf("Failed to insert migrated data into new hikes: %v", err)
+				}
+			}
+			if err = rowsOldHikes.Err(); err != nil {
+				log.Fatalf("Error after iterating hikes_old: %v", err)
+			}
+			log.Println("Dropping old hikes table (hikes_old)...")
+			if _, err := tx.Exec("DROP TABLE hikes_old"); err != nil {
+				log.Fatalf("Failed to drop hikes_old: %v", err)
+			}
+		}
+
+
+		log.Println("Dropping old trailheads table (trailheads_old)...")
+		if _, err := tx.Exec("DROP TABLE trailheads_old"); err != nil {
+			log.Fatalf("Failed to drop trailheads_old: %v", err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			log.Fatalf("Failed to commit migration transaction: %v", err)
+		}
+		log.Println("Database migration completed successfully.")
+
+	} else if err != sql.ErrNoRows {
+		// An actual error occurred querying sqlite_master, not just that the column wasn't found
+		log.Fatalf("Error checking database schema for migration: %v", err)
+	} else {
+		log.Println("Database schema is up to date. No migration needed.")
+	}
+}
+
 
 // Database initialization should be in its own function so that it can be called from tests rather than in init()
 func initDB(databaseName string) {
@@ -231,8 +365,12 @@ func initDB(databaseName string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	createTables()
-	populateTrailheads()
+
+	// Run migration first, then create tables (which handles IF NOT EXISTS for new setups),
+	// then populate predefined trailheads.
+	migrateDBIfNeeded() // Checks and performs migration if necessary.
+	createTables()      // Ensures tables exist with the current schema.
+	populateTrailheads() // Populates trailheads if the table is empty.
 }
 
 // Add routes to ServeMux (sparate function so it can be used in testing)
@@ -424,9 +562,9 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add hike to the HIkes table
 	_, err = db.Exec(`
-		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, latitude, longitude, created_at, start_time, join_code, leader_code, photo_release, description)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.Latitude, hike.Longitude, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.PhotoRelease, hike.Description)
+		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, map_link, created_at, start_time, join_code, leader_code, photo_release, description)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.MapLink, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.PhotoRelease, hike.Description)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -445,17 +583,18 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	// Retrieve Hike record based on leaderCode if provided otherwise by joinCode
 	var hike Hike
 	var description sql.NullString // Use sql.NullString for description as it can be NULL
+	var mapLink sql.NullString     // Use sql.NullString for map_link as it can be NULL
 	var err error
 	if leaderCode != "" {
-		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code, h.description
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.map_link, h.start_time, h.join_code, h.description
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode, &description)
+		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &mapLink, &hike.StartTime, &hike.JoinCode, &description)
 	} else {
-		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code, h.description
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.map_link, h.start_time, h.join_code, h.description
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 						   WHERE h.join_code = ? AND h.status = "open"
-		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode, &description)
+		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &mapLink, &hike.StartTime, &hike.JoinCode, &description)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -467,6 +606,9 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if description.Valid {
 		hike.Description = description.String
+	}
+	if mapLink.Valid {
+		hike.MapLink = mapLink.String
 	}
 
 	// Convert description from Markdown to HTML
@@ -522,10 +664,15 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 
 	// Get hike
 	var hike Hike
-	err = db.QueryRow(`SELECT h.status, h.name, h.organization, h.trailhead_name, u.name, u.phone, h.latitude, h.longitude, h.start_time, h.join_code
+	var mapLink sql.NullString // To scan the map_link which might be null
+	err = db.QueryRow(`SELECT h.status, h.name, h.organization, h.trailhead_name, u.name, u.phone, h.map_link, h.start_time, h.join_code
 					   FROM hikes AS h JOIN users AS u ON leader_uuid = uuid
 					   WHERE h.join_code = ?
-					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.Latitude, &hike.Longitude, &hike.StartTime, &hike.JoinCode)
+					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &mapLink, &hike.StartTime, &hike.JoinCode)
+
+	if mapLink.Valid {
+		hike.MapLink = mapLink.String
+	}
 
 	// Check if the hike exists and is open
 	if err != nil {
@@ -799,83 +946,19 @@ func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getHikesHandler returns hikes based on query parameters:
-// - latitude, longitude: nearby hikes
-// - userUUID: hikes user has RSVPd to
-// - leaderID: hikes led by the leader
+// - userUUID: hikes user has RSVPd to or is leading.
+// Location-based search (latitude, longitude parameters) has been removed.
 func getHikesHandler(w http.ResponseWriter, r *http.Request) {
-	latitude := r.URL.Query().Get("latitude")
-	longitude := r.URL.Query().Get("longitude")
 	userUUID := r.URL.Query().Get("userUUID")
-	// leaderID parameter is removed
+	// latitude and longitude parameters are no longer used.
 
 	var allHikes []Hike
-	now := time.Now() // For time-based filtering
-
-	// Fetch by location
-	if latitude != "" && longitude != "" {
-		// Ensure lat/lon can be parsed to float for query, or handle error
-		// For this implementation, we assume they are valid float strings as per original behavior.
-		// The original query used latitude and longitude directly in SQL string comparisons with fixed offsets.
-		// It's better to use BETWEEN for ranges.
-		// latRange = 0.003623 (approx 0.25 miles / 69 miles/degree)
-		// lonRange = 0.003896 (approx 0.25 miles / (69 * cos(lat)) ) - this was a fixed value in original, so keeping it fixed.
-
-		// Time window for nearby hikes
-		oneHourAgo := now.Add(-1 * time.Hour)
-		oneHourFromNow := now.Add(1 * time.Hour)
-
-		rows, err := db.Query(`
-			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name as leader_name, u.phone as leader_phone,
-			       h.latitude, h.longitude, h.start_time, h.status, h.description
-			FROM hikes AS h
-			JOIN users AS u ON h.leader_uuid = u.uuid
-			WHERE h.latitude BETWEEN (? - 0.003623) AND (? + 0.003623)
-			  AND h.longitude BETWEEN (? - 0.003896) AND (? + 0.003896)
-			  AND h.status = 'open'
-			  AND h.start_time BETWEEN ? AND ?
-		`, latitude, latitude, longitude, longitude, oneHourAgo, oneHourFromNow)
-
-		if err != nil {
-			http.Error(w, "Error querying location hikes: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var h Hike
-			var description sql.NullString
-			err := rows.Scan(&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status, &description)
-			if err != nil {
-				http.Error(w, "Error scanning location hike: "+err.Error(), http.StatusInternalServerError)
-				// Consider logging rows.Err() as well
-				return
-			}
-			if description.Valid {
-				h.Description = description.String
-			}
-			// Convert description from Markdown to HTML for location hikes
-			if h.Description != "" {
-				var buf strings.Builder
-				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
-					h.Description = buf.String()
-				} else {
-					log.Printf("Error converting description to HTML for location hike %s: %v", h.JoinCode, err)
-				}
-			}
-			h.SourceType = "location"
-			allHikes = append(allHikes, h)
-		}
-		if err = rows.Err(); err != nil {
-			http.Error(w, "Error iterating location hikes: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
+	// now := time.Now() // For time-based filtering - currently not used after removing location search
 
 	// Fetch by userUUID (RSVP'd hikes)
 	if userUUID != "" {
 		rows, err := db.Query(`
-			SELECT h.name, h.organization, h.trailhead_name, h.latitude, h.longitude, h.start_time, h.join_code, h.status, h.description,
+			SELECT h.name, h.organization, h.trailhead_name, h.map_link, h.start_time, h.join_code, h.status, h.description,
 			       hu.id AS participant_id, l.uuid AS leader_uuid, l.name AS leader_name, l.phone AS leader_phone
 			FROM hikes AS h
 			JOIN hike_users AS hu ON h.join_code = hu.hike_join_code
@@ -892,9 +975,9 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var h Hike
-			var description sql.NullString
+			var description, mapLink sql.NullString
 			err := rows.Scan(
-				&h.Name, &h.Organization, &h.TrailheadName, &h.Latitude, &h.Longitude, &h.StartTime, &h.JoinCode, &h.Status, &description,
+				&h.Name, &h.Organization, &h.TrailheadName, &mapLink, &h.StartTime, &h.JoinCode, &h.Status, &description,
 				&h.ParticipantId, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
 			)
 			if err != nil {
@@ -903,6 +986,9 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if description.Valid {
 				h.Description = description.String
+			}
+			if mapLink.Valid {
+				h.MapLink = mapLink.String
 			}
 			// Convert description from Markdown to HTML for RSVP hikes
 			if h.Description != "" {
@@ -926,7 +1012,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 	if userUUID != "" {
 		rows, err := db.Query(`
 			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name AS leader_name, u.phone AS leader_phone,
-			       h.latitude, h.longitude, h.start_time, h.status, h.leader_code, h.description
+			       h.map_link, h.start_time, h.status, h.leader_code, h.description
 			FROM hikes AS h
 			JOIN users AS u ON h.leader_uuid = u.uuid
 			WHERE h.leader_uuid = ? AND h.status = 'open'
@@ -941,10 +1027,10 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var h Hike
-			var description sql.NullString
+			var description, mapLink sql.NullString
 			err := rows.Scan(
 				&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&h.Latitude, &h.Longitude, &h.StartTime, &h.Status, &h.LeaderCode, &description, // Added h.LeaderCode
+				&mapLink, &h.StartTime, &h.Status, &h.LeaderCode, &description,
 			)
 			if err != nil {
 				http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
@@ -952,6 +1038,9 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if description.Valid {
 				h.Description = description.String
+			}
+			if mapLink.Valid {
+				h.MapLink = mapLink.String
 			}
 			// Convert description from Markdown to HTML for led_by_user hikes
 			if h.Description != "" {
@@ -973,6 +1062,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Note: As per plan, if a hike matches multiple criteria, it will appear multiple times
 	// in allHikes, each with its respective SourceType. No deduplication is done.
+	// Location-based search has been removed.
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(allHikes)
@@ -986,7 +1076,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.Query("SELECT name, latitude, longitude FROM trailheads WHERE REPLACE(name, '''', '') LIKE ? LIMIT 5", "%"+query+"%")
+	rows, err := db.Query("SELECT name, map_link FROM trailheads WHERE REPLACE(name, '''', '') LIKE ? LIMIT 5", "%"+query+"%")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -996,7 +1086,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	var suggestions []Trailhead
 	for rows.Next() {
 		var th Trailhead
-		if err := rows.Scan(&th.Name, &th.Latitude, &th.Longitude); err != nil {
+		if err := rows.Scan(&th.Name, &th.MapLink); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
