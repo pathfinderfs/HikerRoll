@@ -1052,15 +1052,8 @@
 
             // Populate leader phone
             const leaderPhoneLink = document.getElementById('hiking-leader-phone');
-            if (currentHike.leader && currentHike.leader.phone) {
-                leaderPhoneLink.href = `tel:${currentHike.leader.phone}`;
-                leaderPhoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
-                leaderPhoneLink.parentNode.style.display = ''; // Ensure the parent <p> is visible
-            } else {
-                leaderPhoneLink.textContent = 'N/A';
-                leaderPhoneLink.href = '#';
-                leaderPhoneLink.parentNode.style.display = 'none'; // Hide the parent <p> if no phone
-            }
+            leaderPhoneLink.href = `tel:${currentHike.leader.phone}`;
+            leaderPhoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
 
             // Line 4: Description
             document.getElementById('hiking-page-description').innerHTML = currentHike.description || 'No description available.'; // Use innerHTML
