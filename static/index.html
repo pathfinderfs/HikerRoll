@@ -781,7 +781,7 @@
                                 }
 
                                 li.innerHTML = `
-                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${escapeHTML(hike.description)}\`)">${hike.name}</a> (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
+                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a> (TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</h3>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
