@@ -31,7 +31,8 @@ func TestCreateHike(t *testing.T) {
 			Phone: "1234567890",
 		},
 		TrailheadName: "Test Trailhead",
-		MapLink:       "https://www.google.com/maps?q=40.7128,-74.0060", // Replaced Latitude/Longitude
+		Latitude:      40.7128,
+		Longitude:     -74.0060,
 		StartTime:     time.Now().Add(24 * time.Hour),
 		PhotoRelease:  false, // Default to false for this test
 		Description:   "A beautiful test hike.",
@@ -54,7 +55,6 @@ func TestCreateHike(t *testing.T) {
 	assert.Equal(t, hike.Organization, response.Organization)
 	assert.Equal(t, hike.Leader.Name, response.Leader.Name)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
-	assert.Equal(t, hike.MapLink, response.MapLink) // Check MapLink
 
 	// Convert original markdown description to HTML for comparison
 	var expectedHTMLDesc strings.Builder
@@ -576,21 +576,57 @@ func TestUpdateParticipantStatus_PreventRSVPChange(t *testing.T) {
 	// For now, this test confirms current behavior. A future task might be to restrict updateParticipantStatusHandler.
 }
 
-// TestGetHikes_Location has been removed as the location-based search functionality was removed from the handler.
+func TestGetHikes_Location(t *testing.T) {
+	// Create a hike that should be found by location
+	hikeTime := time.Now().Add(30 * time.Minute) // Ensure it's within the +/- 1 hour window
+	leader := User{UUID: "leader-location-test", Name: "Location Test Leader"}
+	createdHike := createTestHikeWithOptionsAndStartTime(t, leader, "Location Test Hike", 21.3000, -157.8500, hikeTime)
+
+	// Make sure DB has some trailheads populated if your createTestHike doesn't handle it
+	// populateTrailheads() // Usually called by initDB in TestMain
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?latitude=%.4f&longitude=%.4f", 21.3000, -157.8500), nil)
+	rr := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
+
+	var hikes []Hike
+	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
+
+	found := false
+	for _, h := range hikes {
+		if h.JoinCode == createdHike.JoinCode {
+			assert.Equal(t, "location", h.SourceType, "SourceType should be 'location'")
+			assert.Equal(t, createdHike.Name, h.Name)
+			assert.NotEmpty(t, h.Description, "Hike description should not be empty for location search")
+			var expectedHTMLDesc strings.Builder
+			errConv := goldmark.Convert([]byte(createdHike.Description), &expectedHTMLDesc)
+			require.NoError(t, errConv)
+			assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(h.Description), "Hike description should match created hike's description")
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Created hike was not found in location search results. Response: %s", rr.Body.String())
+	assert.GreaterOrEqual(t, len(hikes), 1, "Should find at least one hike")
+}
 
 func TestGetHikes_UserSpecific(t *testing.T) {
 	testUser := User{UUID: "user-specific-test", Name: "User Specific TestUser"}
 
 	// Hike 1: User RSVPs to this hike (led by someone else)
 	otherLeader := User{UUID: "other-leader-specific", Name: "Other Leader Specific"}
-	hikeRsvp := createTestHikeWithOptionsAndStartTime(t, otherLeader, "RSVPd Hike", "https://maps.google.com/?q=30.0,-100.0", time.Now().Add(10*time.Minute))
+	hikeRsvp := createTestHikeWithOptionsAndStartTime(t, otherLeader, "RSVPd Hike", 30.0, -100.0, time.Now().Add(10*time.Minute))
 	joinTestHikeWithOptions(t, hikeRsvp, testUser)
 
 	// Hike 2: User is leading this hike
-	hikeLedByUser := createTestHikeWithOptionsAndStartTime(t, testUser, "Led by User Hike", "https://maps.google.com/?q=31.0,-101.0", time.Now().Add(20*time.Minute))
+	hikeLedByUser := createTestHikeWithOptionsAndStartTime(t, testUser, "Led by User Hike", 31.0, -101.0, time.Now().Add(20*time.Minute))
 
 	// Hike 3: User RSVPs to a hike they are also leading
-	hikeRsvpAndLed := createTestHikeWithOptionsAndStartTime(t, testUser, "RSVP & Led Hike", "https://maps.google.com/?q=32.0,-102.0", time.Now().Add(30*time.Minute))
+	hikeRsvpAndLed := createTestHikeWithOptionsAndStartTime(t, testUser, "RSVP & Led Hike", 32.0, -102.0, time.Now().Add(30*time.Minute))
 	joinTestHikeWithOptions(t, hikeRsvpAndLed, testUser)
 
 	// Hike 4: Unrelated hike
@@ -672,38 +708,35 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 
 func TestGetHikes_Combined(t *testing.T) {
 	hikeTime := time.Now().Add(30 * time.Minute)
-	// searchLat, searchLon := 22.2222, -158.2222 // Location search removed
+	searchLat, searchLon := 22.2222, -158.2222
 
 	// User for whom we are querying. This user will be leading some, RSVPing to some.
 	queryUser := User{UUID: "query-user-combined", Name: "Query User Combined"}
 
-	// Hike 1: Led by queryUser, RSVPd by queryUser. (matches rsvp, led_by_user)
-	// MapLink is now arbitrary for this test as location searching is removed.
-	hike1_led_rsvp := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led & RSVP", "https://maps.google.com/?q=22.2222,-158.2222", hikeTime)
-	joinTestHikeWithOptions(t, hike1_led_rsvp, queryUser) // queryUser RSVPs
+	// Hike 1: Led by queryUser, RSVPd by queryUser, and at searchLat, searchLon (matches all 3 criteria for queryUser)
+	hike1_allMatch := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike All Match", searchLat, searchLon, hikeTime)
+	joinTestHikeWithOptions(t, hike1_allMatch, queryUser) // queryUser RSVPs
 
 	// Hike 2: Led by queryUser, but different location. queryUser also RSVPs. (matches user_led, rsvp)
-	hike2_another_led_rsvp := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Another Led & RSVP", "https://maps.google.com/?q=23.3333,-159.3333", hikeTime)
-	joinTestHikeWithOptions(t, hike2_another_led_rsvp, queryUser)
+	hike2_led_rsvp := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led & RSVP", 23.3333, -159.3333, hikeTime)
+	joinTestHikeWithOptions(t, hike2_led_rsvp, queryUser)
 
 	// Hike 3: RSVPd by queryUser, but different leader and location. (matches rsvp)
 	otherLeader := User{UUID: "other-leader-combined", Name: "Other Combined Leader"}
-	hike3_rsvp_only := createTestHikeWithOptionsAndStartTime(t, otherLeader, "Hike RSVP Only", "https://maps.google.com/?q=24.4444,-160.4444", hikeTime)
+	hike3_rsvp_only := createTestHikeWithOptionsAndStartTime(t, otherLeader, "Hike RSVP Only", 24.4444, -160.4444, hikeTime)
 	joinTestHikeWithOptions(t, hike3_rsvp_only, queryUser)
 
-	// Hike 4: Location specific hike, but different leader and queryUser not RSVPd.
-	// This hike will NOT be found by the userUUID query. Location search is removed.
-	// anotherLeader := User{UUID: "another-leader-combined", Name: "Another Combined Leader"}
-	// createTestHikeWithOptionsAndStartTime(t, anotherLeader, "Hike Location Only", "https://maps.google.com/?q=22.2222,-158.2222", hikeTime)
+	// Hike 4: At searchLat, searchLon, but different leader and queryUser not RSVPd. (matches location)
+	anotherLeader := User{UUID: "another-leader-combined", Name: "Another Combined Leader"}
+	hike4_location_only := createTestHikeWithOptionsAndStartTime(t, anotherLeader, "Hike Location Only", searchLat, searchLon, hikeTime)
 
 	// Hike 5: Led by queryUser, but different location and queryUser NOT RSVPd. (matches user_led)
-	hike5_led_only := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led Only", "https://maps.google.com/?q=25.5555,-161.5555", hikeTime)
+	hike5_led_only := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led Only", 25.5555, -161.5555, hikeTime)
 
 	// Unrelated hike
-	_ = createTestHikeWithOptionsAndStartTime(t, User{UUID: "unrelated", Name: "Unrelated"}, "Unrelated Hike", "https://maps.google.com/?q=0,0", hikeTime)
+	_ = createTestHikeWithOptionsAndStartTime(t, User{UUID: "unrelated", Name: "Unrelated"}, "Unrelated Hike", 0, 0, hikeTime)
 
-	// Request only with userUUID, as lat/lon params are removed for this handler's core logic.
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", queryUser.UUID), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s&latitude=%.4f&longitude=%.4f", queryUser.UUID, searchLat, searchLon), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
@@ -713,15 +746,17 @@ func TestGetHikes_Combined(t *testing.T) {
 	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
 	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
 
-	// Expected results based on queryUser:
-	// hike1_led_rsvp (source: rsvp)
-	// hike1_led_rsvp (source: led_by_user)
-	// hike2_another_led_rsvp (source: rsvp)
-	// hike2_another_led_rsvp (source: led_by_user)
+	// Expected results based on queryUser and searchLat/searchLon:
+	// hike1_allMatch (source: location)
+	// hike1_allMatch (source: rsvp)
+	// hike1_allMatch (source: led_by_user)
+	// hike2_led_rsvp (source: rsvp)
+	// hike2_led_rsvp (source: led_by_user)
 	// hike3_rsvp_only (source: rsvp)
+	// hike4_location_only (source: location)
 	// hike5_led_only (source: led_by_user)
-	// Total: 6 entries
-	assert.Len(t, hikes, 6, "Should return 6 entries for combined query without location. Got: %s", rr.Body.String())
+	// Total: 8 entries
+	assert.Len(t, hikes, 8, "Should return 8 entries for combined query. Got: %s", rr.Body.String())
 
 	sourceCounts := make(map[string]int)
 	hikeCounts := make(map[string]map[string]bool) // hikeJoinCode -> sourceType -> present
@@ -737,14 +772,14 @@ func TestGetHikes_Combined(t *testing.T) {
 		// Verify description matches the original created hike's description
 		var originalMarkdownDesc string
 		switch h.JoinCode {
-		case hike1_led_rsvp.JoinCode:
-			originalMarkdownDesc = hike1_led_rsvp.Description
-		case hike2_another_led_rsvp.JoinCode:
-			originalMarkdownDesc = hike2_another_led_rsvp.Description
+		case hike1_allMatch.JoinCode:
+			originalMarkdownDesc = hike1_allMatch.Description
+		case hike2_led_rsvp.JoinCode:
+			originalMarkdownDesc = hike2_led_rsvp.Description
 		case hike3_rsvp_only.JoinCode:
 			originalMarkdownDesc = hike3_rsvp_only.Description
-		// case hike4_location_only.JoinCode: // This hike is no longer expected
-		// 	originalMarkdownDesc = hike4_location_only.Description
+		case hike4_location_only.JoinCode:
+			originalMarkdownDesc = hike4_location_only.Description
 		case hike5_led_only.JoinCode:
 			originalMarkdownDesc = hike5_led_only.Description
 		}
@@ -756,32 +791,34 @@ func TestGetHikes_Combined(t *testing.T) {
 		}
 	}
 
-	// Verify hike1_led_rsvp
-	assert.False(t, hikeCounts[hike1_led_rsvp.JoinCode]["location"], "hike1_led_rsvp should not have location source")
-	assert.True(t, hikeCounts[hike1_led_rsvp.JoinCode]["rsvp"], "hike1_led_rsvp missing rsvp source")
-	assert.True(t, hikeCounts[hike1_led_rsvp.JoinCode]["led_by_user"], "hike1_led_rsvp missing led_by_user source")
+	// Verify hike1_allMatch
+	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["location"], "hike1_allMatch missing location source")
+	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["rsvp"], "hike1_allMatch missing rsvp source")
+	assert.True(t, hikeCounts[hike1_allMatch.JoinCode]["led_by_user"], "hike1_allMatch missing led_by_user source")
 
-	// Verify hike2_another_led_rsvp
-	assert.True(t, hikeCounts[hike2_another_led_rsvp.JoinCode]["rsvp"], "hike2_another_led_rsvp missing rsvp source")
-	assert.True(t, hikeCounts[hike2_another_led_rsvp.JoinCode]["led_by_user"], "hike2_another_led_rsvp missing led_by_user source")
-	assert.False(t, hikeCounts[hike2_another_led_rsvp.JoinCode]["location"], "hike2_another_led_rsvp should not have location source")
+	// Verify hike2_led_rsvp
+	assert.True(t, hikeCounts[hike2_led_rsvp.JoinCode]["rsvp"], "hike2_led_rsvp missing rsvp source")
+	assert.True(t, hikeCounts[hike2_led_rsvp.JoinCode]["led_by_user"], "hike2_led_rsvp missing led_by_user source")
+	assert.False(t, hikeCounts[hike2_led_rsvp.JoinCode]["location"], "hike2_led_rsvp should not have location source")
 
 	// Verify hike3_rsvp_only
 	assert.True(t, hikeCounts[hike3_rsvp_only.JoinCode]["rsvp"], "hike3_rsvp_only missing rsvp source")
 	assert.False(t, hikeCounts[hike3_rsvp_only.JoinCode]["led_by_user"], "hike3_rsvp_only should not have led_by_user source")
 	assert.False(t, hikeCounts[hike3_rsvp_only.JoinCode]["location"], "hike3_rsvp_only should not have location source")
 
-	// Verify hike4_location_only - This hike should not be present
-	// assert.False(t, hikeCounts[hike4_location_only.JoinCode]["location"], "hike4_location_only should not be present")
+	// Verify hike4_location_only
+	assert.True(t, hikeCounts[hike4_location_only.JoinCode]["location"], "hike4_location_only missing location source")
+	assert.False(t, hikeCounts[hike4_location_only.JoinCode]["rsvp"], "hike4_location_only should not have rsvp source")
+	assert.False(t, hikeCounts[hike4_location_only.JoinCode]["led_by_user"], "hike4_location_only should not have led_by_user source")
 
 	// Verify hike5_led_only
 	assert.True(t, hikeCounts[hike5_led_only.JoinCode]["led_by_user"], "hike5_led_only missing led_by_user source")
 	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["rsvp"], "hike5_led_only should not have rsvp source")
 	assert.False(t, hikeCounts[hike5_led_only.JoinCode]["location"], "hike5_led_only should not have location source")
 
-	assert.Equal(t, 0, sourceCounts["location"], "Expected 0 total hikes from location")        // Location search removed
-	assert.Equal(t, 3, sourceCounts["rsvp"], "Expected 3 total hikes from rsvp")                // hike1, hike2, hike3
-	assert.Equal(t, 3, sourceCounts["led_by_user"], "Expected 3 total hikes from led_by_user") // hike1, hike2, hike5
+	assert.Equal(t, 2, sourceCounts["location"], "Expected 2 total hikes from location")       // hike1_allMatch, hike4_location_only
+	assert.Equal(t, 3, sourceCounts["rsvp"], "Expected 3 total hikes from rsvp")               // hike1_allMatch, hike2_led_rsvp, hike3_rsvp_only
+	assert.Equal(t, 3, sourceCounts["led_by_user"], "Expected 3 total hikes from led_by_user") // hike1_allMatch, hike2_led_rsvp, hike5_led_only
 }
 
 func TestGetHikes_NoParams(t *testing.T) {
@@ -853,20 +890,6 @@ func TestTrailheadSuggestions(t *testing.T) {
 	var suggestions []Trailhead
 	json.Unmarshal(rr.Body.Bytes(), &suggestions)
 	assert.GreaterOrEqual(t, len(suggestions), 1)
-	if len(suggestions) > 0 {
-		assert.NotEmpty(t, suggestions[0].Name, "Trailhead name should not be empty")
-		assert.NotEmpty(t, suggestions[0].MapLink, "Trailhead MapLink should not be empty")
-		// Example check for one of the predefined trailheads that should match "Ka"
-		foundKaau := false
-		for _, th := range suggestions {
-			if th.Name == "Ka'au Crater" {
-				assert.Equal(t, "https://www.google.com/maps?q=21.31108,-157.78189", th.MapLink)
-				foundKaau = true
-				break
-			}
-		}
-		assert.True(t, foundKaau, "Expected to find Ka'au Crater in suggestions for 'Ka'")
-	}
 }
 
 func TestGetHikeByCode(t *testing.T) {
@@ -884,7 +907,6 @@ func TestGetHikeByCode(t *testing.T) {
 	assert.Equal(t, hike.Name, response.Name)
 	assert.Equal(t, hike.JoinCode, response.JoinCode)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
-	assert.Equal(t, hike.MapLink, response.MapLink) // Check MapLink
 	// Convert original markdown description to HTML for comparison
 	var expectedHTMLDesc strings.Builder
 	errConv := goldmark.Convert([]byte(hike.Description), &expectedHTMLDesc)
@@ -1147,7 +1169,8 @@ func createTestHike(t *testing.T) Hike {
 			Phone: "1234567890",
 		},
 		TrailheadName: "Test Trailhead",
-		MapLink:       "https://www.google.com/maps?q=40.7128,-74.0060", // Replaced Latitude/Longitude
+		Latitude:      40.7128,
+		Longitude:     -74.0060,
 		StartTime:     time.Now(),
 		PhotoRelease:  false,                           // Default
 		Description:   "Default test hike description", // Added default description
@@ -1169,16 +1192,17 @@ func createTestHike(t *testing.T) Hike {
 
 // createTestHikeWithOptions allows specifying the leader
 func createTestHikeWithOptions(t *testing.T, leader User) Hike {
-	return createTestHikeWithOptionsAndStartTime(t, leader, "Test Hike for "+leader.UUID, "https://www.google.com/maps?q=40.7128,-74.0060", time.Now())
+	return createTestHikeWithOptionsAndStartTime(t, leader, "Test Hike for "+leader.UUID, 40.7128, -74.0060, time.Now())
 }
 
 // createTestHikeWithOptionsAndStartTime allows specifying leader, name, lat, lon, and start time
-func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName string, mapLink string, startTime time.Time) Hike {
+func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName string, lat float64, lon float64, startTime time.Time) Hike {
 	hike := Hike{
 		Name:          hikeName,
 		Leader:        leader,
 		TrailheadName: "Test Trailhead for " + leader.UUID, // Can be generic or passed as param
-		MapLink:       mapLink,
+		Latitude:      lat,
+		Longitude:     lon,
 		StartTime:     startTime,
 		PhotoRelease:  false,                                    // Default, can be overridden by specific test setups if needed by creating hike directly
 		Description:   "Test hike " + hikeName + " description", // Default description based on name
