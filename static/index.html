@@ -1253,6 +1253,7 @@
             // and they remain on the hiking page. If online, status is updated,
             // then they are taken to welcome page. This seems acceptable.
             toggleParticipantStatus(currentHike.participantId, 'finished');
+            window.history.pushState({}, document.title, window.location.pathname); // Clear URL params
             clearCurrentHike();
             showWelcomePage();
         }
@@ -1291,6 +1292,7 @@
         }
 
         function cancelJoinHike() {
+    window.history.pushState({}, document.title, window.location.pathname); // Clear URL params
             clearCurrentHike();
             showWelcomePage();
         }
