@@ -164,7 +164,7 @@ func createTables() {
             organization TEXT,
 			trailhead_name TEXT,
 			leader_uuid TEXT NOT NULL,
-			map_link TEXT, // Replaces latitude and longitude
+			map_link TEXT, -- Replaces latitude and longitude
 			created_at DATETIME NOT NULL,
 			start_time DATETIME NOT NULL,
 			status TEXT DEFAULT 'open',
