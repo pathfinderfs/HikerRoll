@@ -608,11 +608,10 @@
                 name: '',
                 organization: '',
                 trailheadName: '',
+                trailheadMapLink: '',
                 joinCode: '',
                 leader: currentUser,
                 startTime: new Date().toISOString(),
-                latitude: 0,
-                longitude: 0,
                 photoRelease: false,
                 description: '',
             };
@@ -762,7 +761,7 @@
                                 }
 
                                 li.innerHTML = `
-                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</span>
+                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${hike.trailheadMapLink}" target="_blank">${hike.trailheadName}</a>)</span>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
@@ -772,7 +771,7 @@
                             } else if (hike.sourceType === 'led_by_user') {
                                 buttonHtml = `<button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>`;
                                 li.innerHTML = `
-                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${makeTrailheadURL(hike)}" target="_blank">${hike.trailheadName}</a>)</span>
+                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${hike.trailheadMapLink}" target="_blank">${hike.trailheadName}</a>)</span>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${currentUser.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
@@ -907,8 +906,7 @@
             document.getElementById('hike-photo-release').checked = false; // Reset checkbox
             currentHike.name = ''; // Clear hike name in state
             currentHike.trailheadName = ''; // Clear trailhead name in state
-            currentHike.latitude = 0;
-            currentHike.longitude = 0;
+            currentHike.trailheadMapLink = ''; // Clear trailhead map link
             currentHike.photoRelease = false; // Reset in currentHike object
             currentHike.description = ''; // Reset description
             localStorage.setItem('currentHike', JSON.stringify(currentHike)); // Save cleared state
@@ -1005,7 +1003,7 @@
 
             h1TitleSpan.textContent = currentHike.name;
             leaderHikeNameLink.setAttribute('data-description', escapeHTML(currentHike.description || ''));
-            trailheadLinkLeader.href = makeTrailheadURL(currentHike);
+            trailheadLinkLeader.href = currentHike.trailheadMapLink || '#';
             trailheadNameSpan.textContent = currentHike.trailheadName;
             // The H1 structure in HTML will be: <h1><a id="leader-hike-name-link"><span id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
 
@@ -1034,11 +1032,18 @@
         }
 
         function makeTrailheadURL(hike) {
-            if (!hike || typeof hike.latitude === 'undefined' || typeof hike.longitude === 'undefined') {
-                // console.error("Invalid hike object passed to makeTrailheadURL", hike);
-                return "#"; // Return a safe default or handle error appropriately
+            // This function is no longer strictly necessary if map links are always provided directly.
+            // However, it can be kept for fallback or if there are other places it might be used with lat/lon.
+            // For this refactor, direct link usage is prioritized.
+            if (hike && hike.trailheadMapLink) {
+                return hike.trailheadMapLink;
             }
-            // Use hike.trailheadName for the query_place_id if available, otherwise hike.name
+            // Fallback or error if no map link and no lat/lon
+            if (!hike || typeof hike.latitude === 'undefined' || typeof hike.longitude === 'undefined') {
+                 console.warn("makeTrailheadURL called with insufficient data", hike);
+                return "#";
+            }
+            // Fallback to generating from lat/lon if they exist (e.g. older data model parts)
             const placeIdQuery = hike.trailheadName || hike.name || '';
             return `https://www.google.com/maps/search/?api=1&query=${hike.latitude},${hike.longitude}&query_place_id=${encodeURIComponent(placeIdQuery)}`;
         }
@@ -1049,7 +1054,7 @@
             document.getElementById('current-hike-name').textContent = currentHike.name;
             const trailheadLink = document.getElementById('current-trailhead-name');
             trailheadLink.textContent = currentHike.trailheadName;
-            trailheadLink.href = makeTrailheadURL();
+            trailheadLink.href = currentHike.trailheadMapLink || '#'; // Use direct map link
 
             // Line 2: Start Time
             document.getElementById('hike-start-time-display').textContent = formatHikeStartTime(currentHike.startTime);
@@ -1170,20 +1175,8 @@
             currentHike.photoRelease = document.getElementById('hike-photo-release').checked;
             currentHike.description = document.getElementById('hike-description').value;
 
-            // Get current location if not a predefined trail - This specific geolocation call was for setting hike's lat/lon if not a known trailhead.
-            // This is not directly related to "nearby hikes" list, so it can remain if creating hikes at current location is still desired.
-            // However, if the intent is to remove *all* geolocation usage, this would also be removed.
-            // For now, assuming this part of geolocation (for hike creation) is still desired.
-            // If not, the following block would be removed.
-            if (currentHike.latitude === 0 || currentHike.longitude === 0) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    currentHike.latitude = position.coords.latitude;
-                    currentHike.longitude = position.coords.longitude;
-                }, error => {
-                    console.error("Error getting location for hike creation:", error); // Clarified error message
-                    alert("GPS location not found for hike creation. Participants may need to join via link code if this isn't a known trailhead.");
-                });
-            }
+            // Geolocation logic for setting hike's lat/lon is removed as trailheadMapLink is used.
+            // The backend will handle associating the map link based on trailheadName.
             fetch('/api/hike', {
                 method: 'POST',
                 headers: {
@@ -1678,14 +1671,13 @@
                                     b.innerHTML = data[i].name;
                                 }
                                 // Store trailhead info in hidden input attributes
-                                b.innerHTML += '<input type="hidden" value="' + data[i].name + '" data-lat="' + data[i].latitude + '" data-lon="' + data[i].longitude + '">';
+                                b.innerHTML += '<input type="hidden" value="' + data[i].name + '" data-maplink="' + data[i].mapLink + '">';
                                 b.addEventListener("click", function (e) {
                                     const selectedInput = this.getElementsByTagName("input")[0];
                                     inp.value = selectedInput.value; // Set the input field value
                                     // Update currentHike with trailhead info
                                     currentHike.trailheadName = selectedInput.value;
-                                    currentHike.latitude = parseFloat(selectedInput.getAttribute("data-lat"));
-                                    currentHike.longitude = parseFloat(selectedInput.getAttribute("data-lon"));
+                                    currentHike.trailheadMapLink = selectedInput.getAttribute("data-maplink");
                                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
                                     closeAllLists();
                                 });
