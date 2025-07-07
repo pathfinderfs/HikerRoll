@@ -678,32 +678,33 @@ func TestGetHikes_Combined(t *testing.T) {
 	searchLat, searchLon := 22.2222, -158.2222
 
 	// User for whom we are querying. This user will be leading some, RSVPing to some.
-	queryUser := User{UUID: "query-user-combined", Name: "Query User Combined"}
+	queryUser := User{UUID: "query-user-combined", Name: "Query User Combined", Phone: "4564564567"}
 
-	// Hike 1: Led by queryUser, RSVPd by queryUser, and at searchLat, searchLon (matches all 3 criteria for queryUser)
-	hike1_allMatch := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike All Match", searchLat, searchLon, hikeTime)
+	// Hike 1: Led by queryUser, RSVPd by queryUser. Use a specific predefined trailhead.
+	hike1_allMatch := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike All Match", "Aiea Loop (upper)", hikeTime)
 	joinTestHikeWithOptions(t, hike1_allMatch, queryUser) // queryUser RSVPs
 
-	// Hike 2: Led by queryUser, but different location. queryUser also RSVPs. (matches user_led, rsvp)
-	hike2_led_rsvp := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led & RSVP", 23.3333, -159.3333, hikeTime)
+	// Hike 2: Led by queryUser, queryUser also RSVPs. Use another predefined trailhead.
+	hike2_led_rsvp := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led & RSVP", "Diamond Head Crater (Le'ahi)", hikeTime)
 	joinTestHikeWithOptions(t, hike2_led_rsvp, queryUser)
 
-	// Hike 3: RSVPd by queryUser, but different leader and location. (matches rsvp)
-	otherLeader := User{UUID: "other-leader-combined", Name: "Other Combined Leader"}
-	hike3_rsvp_only := createTestHikeWithOptionsAndStartTime(t, otherLeader, "Hike RSVP Only", 24.4444, -160.4444, hikeTime)
+	// Hike 3: RSVPd by queryUser, but different leader. Use another predefined trailhead.
+	otherLeader := User{UUID: "other-leader-combined", Name: "Other Combined Leader", Phone: "5675675678"}
+	hike3_rsvp_only := createTestHikeWithOptionsAndStartTime(t, otherLeader, "Hike RSVP Only", "Koko Crater (Railway)", hikeTime)
 	joinTestHikeWithOptions(t, hike3_rsvp_only, queryUser)
 
-	// Hike 4: At searchLat, searchLon, but different leader and queryUser not RSVPd. (matches location)
-	anotherLeader := User{UUID: "another-leader-combined", Name: "Another Combined Leader"}
-	hike4_location_only := createTestHikeWithOptionsAndStartTime(t, anotherLeader, "Hike Location Only", searchLat, searchLon, hikeTime)
+	// Hike 4: Different leader, not RSVPd by queryUser. (This hike won't be fetched by userUUID query)
+	anotherLeader := User{UUID: "another-leader-combined", Name: "Another Combined Leader", Phone: "6786786789"}
+	hike4_location_only := createTestHikeWithOptionsAndStartTime(t, anotherLeader, "Hike Location Only", "Aiea Loop (upper)", hikeTime) // Re-use a trailhead
 
-	// Hike 5: Led by queryUser, but different location and queryUser NOT RSVPd. (matches user_led)
-	hike5_led_only := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led Only", 25.5555, -161.5555, hikeTime)
+	// Hike 5: Led by queryUser, but queryUser NOT RSVPd. Use another predefined trailhead.
+	hike5_led_only := createTestHikeWithOptionsAndStartTime(t, queryUser, "Hike Led Only", "Friendship Garden", hikeTime)
 
 	// Unrelated hike
-	_ = createTestHikeWithOptionsAndStartTime(t, User{UUID: "unrelated", Name: "Unrelated"}, "Unrelated Hike", 0, 0, hikeTime)
+	_ = createTestHikeWithOptionsAndStartTime(t, User{UUID: "unrelated", Name: "Unrelated", Phone: "7897897890"}, "Unrelated Hike", "Haha'ione", hikeTime)
 
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s&latitude=%.4f&longitude=%.4f", queryUser.UUID, searchLat, searchLon), nil)
+	// Latitude/Longitude parameters are removed from the query.
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", queryUser.UUID), nil)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
