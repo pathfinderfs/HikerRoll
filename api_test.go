@@ -675,7 +675,7 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 
 func TestGetHikes_Combined(t *testing.T) {
 	hikeTime := time.Now().Add(30 * time.Minute)
-	searchLat, searchLon := 22.2222, -158.2222
+	// searchLat, searchLon are removed as they are no longer used.
 
 	// User for whom we are querying. This user will be leading some, RSVPing to some.
 	queryUser := User{UUID: "query-user-combined", Name: "Query User Combined", Phone: "4564564567"}
@@ -724,22 +724,23 @@ func TestGetHikes_Combined(t *testing.T) {
 	// Total: 6 entries (hike4_location_only is no longer fetched by this query)
 
 	// Latitude/Longitude parameters are removed from the query.
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", queryUser.UUID), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", queryUser.UUID), nil)
+	require.NoError(t, err)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
-	var hikes []Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
+	var hikesResponse []Hike // Use a different variable name to avoid redeclaration
+	err = json.Unmarshal(rr.Body.Bytes(), &hikesResponse)
 	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
 
-	assert.Len(t, hikes, 6, "Should return 6 entries for combined query (userUUID only). Got: %s", rr.Body.String())
+	assert.Len(t, hikesResponse, 6, "Should return 6 entries for combined query (userUUID only). Got: %s", rr.Body.String())
 
 	sourceCounts := make(map[string]int)
 	hikeCounts := make(map[string]map[string]bool) // hikeJoinCode -> sourceType -> present
 
-	for _, h := range hikes {
+	for _, h := range hikesResponse { // Iterate over hikesResponse
 		assert.NotEmpty(t, h.Description, "Hike description should not be empty for combined search. Hike: %s, Source: %s", h.Name, h.SourceType)
 		assert.NotEmpty(t, h.TrailheadMapLink, "TrailheadMapLink should not be empty for combined search. Hike: %s, Source: %s", h.Name, h.SourceType)
 		sourceCounts[h.SourceType]++
