@@ -724,14 +724,16 @@ func TestGetHikes_Combined(t *testing.T) {
 	// Total: 6 entries (hike4_location_only is no longer fetched by this query)
 
 	// Latitude/Longitude parameters are removed from the query.
-	req, err := http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", queryUser.UUID), nil)
+	var req *http.Request
+	var err error
+	req, err = http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", queryUser.UUID), nil)
 	require.NoError(t, err)
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
-	var hikesResponse []Hike // Use a different variable name to avoid redeclaration
+	var hikesResponse []Hike
 	err = json.Unmarshal(rr.Body.Bytes(), &hikesResponse)
 	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
 
