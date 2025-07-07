@@ -66,6 +66,8 @@ func TestCreateHike(t *testing.T) {
 // TestCreateHike_AutoPopulateDescription is removed as auto-population is now frontend driven.
 // The basic TestCreateHike already ensures that a provided description is saved correctly.
 
+// TestGetHikes_Location was removed as the functionality to fetch hikes solely by location is no longer supported.
+
 func TestGetLastHikeDescription(t *testing.T) {
 	mux := setupTestMux()
 	// Unique leader UUID for this test to avoid interference
@@ -576,51 +578,7 @@ func TestUpdateParticipantStatus_PreventRSVPChange(t *testing.T) {
 	// For now, this test confirms current behavior. A future task might be to restrict updateParticipantStatusHandler.
 }
 
-func TestGetHikes_Location(t *testing.T) {
-	// Create a hike that should be found by location
-	hikeTime := time.Now().Add(30 * time.Minute) // Ensure it's within the +/- 1 hour window
-	leader := User{UUID: "leader-location-test", Name: "Location Test Leader"}
-	createdHike := createTestHikeWithOptionsAndStartTime(t, leader, "Location Test Hike", 21.3000, -157.8500, hikeTime)
-
-	// Make sure DB has some trailheads populated if your createTestHike doesn't handle it
-	// populateTrailheads() // Usually called by initDB in TestMain
-
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike?latitude=%.4f&longitude=%.4f", 21.3000, -157.8500), nil)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
-	mux.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
-
-	var hikes []Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
-	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
-
-	found := false
-	for _, h := range hikes {
-		if h.JoinCode == createdHike.JoinCode {
-			assert.Equal(t, "location", h.SourceType, "SourceType should be 'location'")
-			assert.Equal(t, createdHike.Name, h.Name)
-			assert.NotEmpty(t, h.Description, "Hike description should not be empty for location search")
-			var expectedHTMLDesc strings.Builder
-			errConv := goldmark.Convert([]byte(createdHike.Description), &expectedHTMLDesc)
-			require.NoError(t, errConv)
-			assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(h.Description), "Hike description should match created hike's description")
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "Created hike was not found in location search results. Response: %s", rr.Body.String())
-	// This assertion might be too strict if other tests create hikes at the same location.
-	// A more robust test would be to ensure *only* the createdHike (or specific set) is returned,
-	// or that the list *contains* the createdHike.
-	// For now, GreaterOrEqual(1) is fine if the DB is clean per test.
-	// assert.GreaterOrEqual(t, len(hikes), 1, "Should find at least one hike")
-	// Since location search is removed, this test is no longer valid as is.
-	// It could be removed or adapted if there's another way to test general hike retrieval without specific criteria.
-	// For now, let's assert that no hikes are returned if only location is provided.
-	assert.Empty(t, hikes, "Should find no hikes when only location is provided, as location search is removed.")
-}
+// TestGetHikes_Location was removed.
 
 func TestGetHikes_UserSpecific(t *testing.T) {
 	testUser := User{UUID: "user-specific-test", Name: "User Specific TestUser"}
