@@ -1008,7 +1008,7 @@
             const trailheadNameSpan = document.getElementById('trailhead-name-display');
 
             h1TitleSpan.textContent = currentHike.name;
-            leaderHikeNameLink.setAttribute('data-description', escapeHTML(currentHike.description || ''));
+            leaderHikeNameLink.setAttribute('data-description', currentHike.description || '');
             trailheadLinkLeader.href = currentHike.trailheadMapLink || '#';
             trailheadNameSpan.textContent = currentHike.trailheadName;
             // The H1 structure in HTML will be: <h1><a id="leader-hike-name-link"><span id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
