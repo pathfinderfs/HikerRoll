@@ -416,22 +416,9 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch trailhead map link
-	var trailheadMapLink sql.NullString
-	err = db.QueryRow("SELECT map_link FROM trailheads WHERE name = ?", hike.TrailheadName).Scan(&trailheadMapLink)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// Trailhead not found, proceed without a map link or return an error
-			log.Printf("Trailhead not found: %s. Hike will be created without a map link.", hike.TrailheadName)
-			// Depending on requirements, you might want to http.Error here
-		} else {
-			http.Error(w, "Error fetching trailhead map link: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-	if trailheadMapLink.Valid {
-		hike.TrailheadMapLink = trailheadMapLink.String
-	}
+	// The hike.TrailheadMapLink is now expected to be provided by the client.
+	// No backend lookup for trailheadMapLink will be performed here.
+	// If the client sends an empty string for TrailheadMapLink, it will be stored as such.
 
 	// TODO: If join or leader code already exist, generate new codes
 

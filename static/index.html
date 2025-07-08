@@ -474,6 +474,7 @@
                 <div class="autocomplete">
                     <input type="text" id="hike-trailheadName" placeholder="Trailhead Name (Type to search)" required>
                 </div>
+                <input type="text" id="hike-trailheadMapLink" placeholder="Trailhead Map Link (Auto-filled or manual entry)" required>
                 <input type="text" id="leader-name" placeholder="Your Name" required>
                 <input type="tel" id="leader-phone" placeholder="Your Phone (10 digits)" required maxlength="10"
                     pattern="\d{3}-\d{3}-\d{4}">
@@ -642,7 +643,12 @@
 
         // Initialize autocomplete and flatpickr on page load
         document.addEventListener("DOMContentLoaded", () => {
-            autocomplete(document.getElementById("hike-trailheadName")); // Use the new ID for trailhead autocomplete
+            const trailheadNameInput = document.getElementById("hike-trailheadName");
+            const trailheadMapLinkInput = document.getElementById("hike-trailheadMapLink");
+
+            autocomplete(trailheadNameInput, trailheadMapLinkInput);
+            addBlurEventListeners(trailheadNameInput, trailheadMapLinkInput);
+
             startTimeFlatpikr = flatpickr("#hike-startTime", {
                 enableTime: true,
                 altInput: true,
@@ -903,6 +909,7 @@
             document.getElementById('hike-name').value = '';
             document.getElementById('hike-organization').value = '';
             document.getElementById('hike-trailheadName').value = '';
+            document.getElementById('hike-trailheadMapLink').value = ''; // Clear map link field
             document.getElementById('hike-photo-release').checked = false; // Reset checkbox
             currentHike.name = ''; // Clear hike name in state
             currentHike.trailheadName = ''; // Clear trailhead name in state
@@ -1174,9 +1181,11 @@
 
             currentHike.photoRelease = document.getElementById('hike-photo-release').checked;
             currentHike.description = document.getElementById('hike-description').value;
+            // Ensure trailheadMapLink from the input field is in currentHike before sending
+            currentHike.trailheadMapLink = document.getElementById('hike-trailheadMapLink').value;
+
 
             // Geolocation logic for setting hike's lat/lon is removed as trailheadMapLink is used.
-            // The backend will handle associating the map link based on trailheadName.
             fetch('/api/hike', {
                 method: 'POST',
                 headers: {
@@ -1644,9 +1653,9 @@
 
 
         // Autocomplete function for trailhead name input
-        function autocomplete(inp) {
+        function autocomplete(trailheadNameInput, trailheadMapLinkInput) {
             var currentFocus;
-            inp.addEventListener("input", function (e) {
+            trailheadNameInput.addEventListener("input", function (e) {
                 var a, b, i, val = this.value;
                 closeAllLists();
                 if (!val) { return false; }
@@ -1670,14 +1679,15 @@
                                 } else {
                                     b.innerHTML = data[i].name;
                                 }
-                                // Store trailhead info in hidden input attributes
                                 b.innerHTML += '<input type="hidden" value="' + data[i].name + '" data-maplink="' + data[i].mapLink + '">';
                                 b.addEventListener("click", function (e) {
                                     const selectedInput = this.getElementsByTagName("input")[0];
-                                    inp.value = selectedInput.value; // Set the input field value
-                                    // Update currentHike with trailhead info
+                                    trailheadNameInput.value = selectedInput.value;
+                                    const mapLink = selectedInput.getAttribute("data-maplink");
+                                    trailheadMapLinkInput.value = mapLink;
+
                                     currentHike.trailheadName = selectedInput.value;
-                                    currentHike.trailheadMapLink = selectedInput.getAttribute("data-maplink");
+                                    currentHike.trailheadMapLink = mapLink;
                                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
                                     closeAllLists();
                                 });
@@ -1686,7 +1696,7 @@
                         }
                     });
             });
-            inp.addEventListener("keydown", function (e) {
+            trailheadNameInput.addEventListener("keydown", function (e) {
                 var x = document.getElementById(this.id + "autocomplete-list");
                 if (x) x = x.getElementsByTagName("div");
                 if (e.keyCode == 40) { // Down
@@ -1717,7 +1727,7 @@
             function closeAllLists(elmnt) {
                 var x = document.getElementsByClassName("autocomplete-items");
                 for (const element of x) {
-                    if (elmnt !== element && elmnt !== inp) {
+                    if (elmnt !== element && elmnt !== trailheadNameInput) {
                         element.parentNode.removeChild(element);
                     }
                 }
@@ -1726,6 +1736,45 @@
                 closeAllLists(e.target);
             });
         }
+
+        function addBlurEventListeners(trailheadNameInput, trailheadMapLinkInput) {
+            async function fetchAndSetMapLink() {
+                const nameVal = trailheadNameInput.value.trim();
+                if (nameVal && trailheadMapLinkInput.value.trim() === '') {
+                    try {
+                        const response = await fetch(`/api/trailhead?q=${encodeURIComponent(nameVal)}`);
+                        if (!response.ok) return;
+                        const suggestions = await response.json();
+                        // Find an exact match or the first suggestion if only one.
+                        let foundSuggestion = null;
+                        if (suggestions && suggestions.length > 0) {
+                            const exactMatch = suggestions.find(s => s.name.toLowerCase() === nameVal.toLowerCase());
+                            if (exactMatch) {
+                                foundSuggestion = exactMatch;
+                            } else if (suggestions.length === 1) { // If only one suggestion, use it
+                                foundSuggestion = suggestions[0];
+                                // Optionally update trailheadNameInput if using a non-exact match
+                                // trailheadNameInput.value = foundSuggestion.name;
+                            }
+                        }
+
+                        if (foundSuggestion && foundSuggestion.mapLink) {
+                            trailheadMapLinkInput.value = foundSuggestion.mapLink;
+                            currentHike.trailheadMapLink = foundSuggestion.mapLink;
+                            if (trailheadNameInput.value !== foundSuggestion.name) { // If we used a non-exact match
+                                currentHike.trailheadName = foundSuggestion.name; // Update currentHike too
+                            }
+                            localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                        }
+                    } catch (error) {
+                        console.error("Error fetching trailhead map link:", error);
+                    }
+                }
+            }
+            trailheadNameInput.addEventListener('blur', fetchAndSetMapLink);
+            trailheadMapLinkInput.addEventListener('blur', fetchAndSetMapLink);
+        }
+
 
         // Online status indicator logic
         const onlineStatusIndicator = document.getElementById('online-status-indicator');

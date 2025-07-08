@@ -32,6 +32,7 @@ func TestCreateHike(t *testing.T) {
 			Phone: "1234567890",
 		},
 		TrailheadName: "Aiea Loop (upper)", // Use an existing trailhead for map_link
+		TrailheadMapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Explicitly provide it
 		StartTime:     time.Now().Add(24 * time.Hour),
 		PhotoRelease:  false, // Default to false for this test
 		Description:   "A beautiful test hike.",
@@ -1148,6 +1149,7 @@ func createTestHike(t *testing.T) Hike {
 			Phone: "1234567890",
 		},
 		TrailheadName: "Aiea Loop (upper)", // Use an existing trailhead
+		TrailheadMapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Provide link
 		StartTime:     time.Now(),
 		PhotoRelease:  false,                           // Default
 		Description:   "Default test hike description", // Added default description
@@ -1175,13 +1177,23 @@ func createTestHikeWithOptions(t *testing.T, leader User) Hike {
 
 // createTestHikeWithOptionsAndStartTime allows specifying leader, name, trailheadName, and start time
 func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName string, trailheadName string, startTime time.Time) Hike {
+	var mapLink string
+	for _, th := range predefinedTrailheads {
+		if th.Name == trailheadName {
+			mapLink = th.MapLink
+			break
+		}
+	}
+	// If trailheadName is not in predefined, mapLink will be empty, which is fine.
+
 	hike := Hike{
-		Name:          hikeName,
-		Leader:        leader,
-		TrailheadName: trailheadName,
-		StartTime:     startTime,
-		PhotoRelease:  false,                                    // Default, can be overridden by specific test setups if needed by creating hike directly
-		Description:   "Test hike " + hikeName + " description", // Default description based on name
+		Name:             hikeName,
+		Leader:           leader,
+		TrailheadName:    trailheadName,
+		TrailheadMapLink: mapLink, // Set the map link for the request
+		StartTime:        startTime,
+		PhotoRelease:     false,                                    // Default, can be overridden by specific test setups if needed by creating hike directly
+		Description:      "Test hike " + hikeName + " description", // Default description based on name
 	}
 	body, err := json.Marshal(hike)
 	require.NoError(t, err)
