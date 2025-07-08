@@ -241,8 +241,8 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
-	mux.HandleFunc("GET /api/hike/lastdescription", getLastHikeDescriptionHandler) // New endpoint
-	mux.HandleFunc("GET /api/hike", getHikesHandler)                               // Renamed from getNearbyHikesHandler
+	mux.HandleFunc("GET /api/hike/last", getLastHikeHandler) // Return the last hike details for a given hikeName and leaderUUID
+	mux.HandleFunc("GET /api/hike", getHikesHandler)
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
 }
@@ -320,7 +320,7 @@ func getHikeWaiverHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, waiverText)
 }
 
-func getLastHikeDescriptionHandler(w http.ResponseWriter, r *http.Request) {
+func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 	hikeName := r.URL.Query().Get("hikeName")
 	leaderUUID := r.URL.Query().Get("leaderUUID")
 
@@ -329,35 +329,21 @@ func getLastHikeDescriptionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var lastDescription sql.NullString
+	var hike Hike
 	err := db.QueryRow(`
-		SELECT description
+	    SELECT name, organization, trailhead_name, trailhead_map_link, description
 		FROM hikes
 		WHERE name = ? AND leader_uuid = ?
 		ORDER BY created_at DESC, rowid DESC
 		LIMIT 1
-	`, hikeName, leaderUUID).Scan(&lastDescription)
+	`, hikeName, leaderUUID).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.TrailheadMapLink, &hike.Description)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
-			// No previous hike found, return empty successfully
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"description": ""})
-			return
-		}
-		http.Error(w, "Error querying for last description: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	response := make(map[string]string)
-	if lastDescription.Valid {
-		response["description"] = lastDescription.String
-	} else {
-		response["description"] = "" // Explicitly return empty string if DB description is NULL
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(hike)
 }
 
 func main() {

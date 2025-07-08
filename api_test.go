@@ -70,7 +70,7 @@ func TestCreateHike(t *testing.T) {
 
 // TestGetHikes_Location was removed as the functionality to fetch hikes solely by location is no longer supported.
 
-func TestGetLastHikeDescription(t *testing.T) {
+func TestGetLastHike(t *testing.T) {
 	mux := setupTestMux()
 	// Unique leader UUID for this test to avoid interference
 	leaderUUID := "leader-last-desc-" + time.Now().Format("20060102150405")
@@ -78,13 +78,13 @@ func TestGetLastHikeDescription(t *testing.T) {
 	hikeName := "Last Description Test Hike"
 
 	// 1. Test case: No previous hike
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var descResp map[string]string
-	json.Unmarshal(rr.Body.Bytes(), &descResp)
-	assert.Equal(t, "", descResp["description"], "Should return empty description when no prior hike exists")
+	var hike Hike
+	json.Unmarshal(rr.Body.Bytes(), &hike)
+	assert.Equal(t, "", hike.Description, "Should return empty description when no prior hike exists")
 
 	// 2. Create a hike with a description
 	desc1 := "This is the first version of the description."
@@ -102,12 +102,12 @@ func TestGetLastHikeDescription(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr1.Code, "Failed to create first hike for last description test")
 
 	// 3. Test case: Fetch the last description (should be desc1)
-	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	json.Unmarshal(rr.Body.Bytes(), &descResp)
-	assert.Equal(t, desc1, descResp["description"], "Should return the description of the first hike")
+	json.Unmarshal(rr.Body.Bytes(), &hike)
+	assert.Equal(t, desc1, hike.Description, "Should return the description of the first hike")
 
 	// 4. Create another hike by the same leader with the same name but a new description (simulating an update later)
 	// To ensure we get the *most recent*, we need to control creation time or rely on implicit rowid ordering if timestamps are identical.
@@ -128,37 +128,36 @@ func TestGetLastHikeDescription(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr2.Code, "Failed to create second hike for last description test")
 
 	// 5. Test case: Fetch the last description again (should be desc2)
-	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	json.Unmarshal(rr.Body.Bytes(), &descResp)
-	assert.Equal(t, desc2, descResp["description"], "Should return the description of the most recent hike (desc2)")
+	json.Unmarshal(rr.Body.Bytes(), &hike)
+	assert.Equal(t, desc2, hike.Description, "Should return the description of the most recent hike (desc2)")
 
 	// 6. Test case: Different hike name, same leader
-	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", "SomeOtherHikeName", leaderUUID), nil)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", "SomeOtherHikeName", leaderUUID), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	json.Unmarshal(rr.Body.Bytes(), &descResp)
-	assert.Equal(t, "", descResp["description"], "Should return empty for a different hike name")
+	// check for content type
+	assert.Equal(t, "", rr.Header().Get("Content-Type"), "Content-Type should be empty when no matching hike found")
 
 	// 7. Test case: Same hike name, different leader
-	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s&leaderUUID=%s", hikeName, "someOtherLeaderUUID"), nil)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", hikeName, "someOtherLeaderUUID"), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	json.Unmarshal(rr.Body.Bytes(), &descResp)
-	assert.Equal(t, "", descResp["description"], "Should return empty for a different leader")
+	assert.Equal(t, "", rr.Header().Get("Content-Type"), "Content-Type should not be empty when no matching hike found")
 
 	// 8. Test case: Missing hikeName query parameter
-	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?leaderUUID=%s", leaderUUID), nil)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?leaderUUID=%s", leaderUUID), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Should return 400 if hikeName is missing")
 
 	// 9. Test case: Missing leaderUUID query parameter
-	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/lastdescription?hikeName=%s", hikeName), nil)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s", hikeName), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Should return 400 if leaderUUID is missing")

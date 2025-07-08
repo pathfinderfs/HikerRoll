@@ -725,7 +725,6 @@
             const leadingList = document.getElementById('leading-hikes-list');
 
             // Ensure lists are cleared before processing new data or error messages
-            // nearbyList.innerHTML = ''; // Removed
             rsvpList.innerHTML = '';
             leadingList.innerHTML = '';
 
@@ -737,7 +736,6 @@
                     return response.json();
                 })
                 .then(hikes => {
-                    // let foundNearby = false; // Removed
                     let foundRsvp = false;
                     let foundLeading = false;
 
@@ -787,9 +785,6 @@
                         });
                     }
 
-                    // if (!foundNearby) { // Removed
-                    // nearbyList.innerHTML = '<li class="hike-item">No nearby hikes (refresh to check again).</li>'; // Removed
-                    // } // Removed
                     if (!foundRsvp) {
                         rsvpList.innerHTML = '<li class="hike-item">You have not RSVPed to any hikes yet.</li>';
                     }
@@ -799,7 +794,6 @@
                 })
                 .catch(error => {
                     console.error('Error fetching user hikes:', error); // Changed error message context
-                    // nearbyList.innerHTML = '<li>Error loading nearby hikes.</li>'; // Removed
                     rsvpList.innerHTML = '<li>Error loading your RSVPed hikes.</li>';
                     leadingList.innerHTML = '<li>Error loading hikes you lead.</li>';
                 });
@@ -843,8 +837,6 @@
             window.location.href = `${window.location.origin}?code=${joinCode}&leaderCode=${leaderCode}`;
         }
 
-        // getRSVPedHikes, and getLeadingHikes are now consolidated into fetchUserHikes
-
         function showJoinHikePage(joinCode) {
             // Load currentUser into the form
             document.getElementById('participant-name').value = currentUser.name;
@@ -857,8 +849,6 @@
                     currentHike = hike;
                     localStorage.setItem('currentHike', JSON.stringify(currentHike));
                     document.getElementById('join-hike-name').textContent = currentHike.name;
-                    // No longer need to separately handle the old 'join-hike-organization' span's visibility here
-                    // as it's replaced by 'join-hike-organization-with-parens'.
                     document.getElementById('join-trailhead-name').textContent = currentHike.trailheadName;
                     document.getElementById('join-hike-start-time').textContent = formatHikeStartTime(currentHike.startTime);
 
@@ -908,17 +898,17 @@
             document.getElementById('hike-name').value = '';
             document.getElementById('hike-organization').value = '';
             document.getElementById('hike-trailheadName').value = '';
-            document.getElementById('hike-trailheadMapLink').value = ''; // Clear map link field
-            document.getElementById('hike-photo-release').checked = false; // Reset checkbox
-            currentHike.name = ''; // Clear hike name in state
-            currentHike.trailheadName = ''; // Clear trailhead name in state
-            currentHike.trailheadMapLink = ''; // Clear trailhead map link
-            currentHike.photoRelease = false; // Reset in currentHike object
-            currentHike.description = ''; // Reset description
+            document.getElementById('hike-trailheadMapLink').value = '';
+            document.getElementById('hike-photo-release').checked = false;
+            currentHike.name = '';
+            currentHike.trailheadName = '';
+            currentHike.trailheadMapLink = '';
+            currentHike.photoRelease = false;
+            currentHike.description = '';
             localStorage.setItem('currentHike', JSON.stringify(currentHike)); // Save cleared state
 
-            document.getElementById('hike-description').value = ''; // Clear textarea
-            document.getElementById('hike-name').focus(); // Focus on the custom hike name field first
+            document.getElementById('hike-description').value = '';
+            document.getElementById('hike-name').focus();
             startTimeFlatpikr.setDate(formatDate(new Date()));
             showPage('create-hike-page');
         }
@@ -957,20 +947,31 @@
             const leaderUUID = currentUser.uuid;
 
             if (hikeName && leaderUUID && descriptionTextarea.value.trim() === '') {
-                fetch(`/api/hike/lastdescription?hikeName=${encodeURIComponent(hikeName)}&leaderUUID=${encodeURIComponent(leaderUUID)}`)
+                fetch(`/api/hike/last?hikeName=${encodeURIComponent(hikeName)}&leaderUUID=${encodeURIComponent(leaderUUID)}`)
                     .then(response => {
                         if (!response.ok) {
-                            // Don't alert errors here, just log, as it's a non-critical enhancement
-                            console.error('Failed to fetch last description, status:', response.status);
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+
+                        const contentType = response.headers.get("content-type");
+                        if (!contentType || !contentType.includes("application/json")) {
+                            // No JSON body (or empty response)
                             return null;
                         }
+
                         return response.json();
                     })
-                    .then(data => {
-                        if (data && data.description) {
-                            descriptionTextarea.value = data.description;
+                    .then(hike => {
+                        if (hike) {
+                            document.getElementById('hike-description').value = hike.description;
+                            document.getElementById('hike-organization').value = hike.organization;
+                            document.getElementById('hike-trailheadName').value = hike.trailheadName;
+                            document.getElementById('hike-trailheadMapLink').value = hike.trailheadMapLink;
                             // Also update currentHike in case the user doesn't change it further
-                            currentHike.description = data.description;
+                            currentHike.description = hike.description;
+                            currentHike.trailheadName = hike.trailheadName;
+                            currentHike.trailheadMapLink = hike.trailheadMapLink;
+                            currentHike.organization = hike.organization;
                             localStorage.setItem('currentHike', JSON.stringify(currentHike));
                         }
                     })
@@ -1167,7 +1168,6 @@
 
         function createHike() {
             if (!navigator.onLine) {
-                // addToRequestQueue('/api/hike', 'POST', JSON.stringify(currentHike)); // Removed
                 Swal.fire({
                     icon: 'error',
                     title: 'Offline',
