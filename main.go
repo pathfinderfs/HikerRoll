@@ -432,6 +432,16 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return Hike to the caller
+	// Convert description from Markdown to HTML before sending back
+	if hike.Description != "" {
+		var buf strings.Builder
+		if err := goldmark.Convert([]byte(hike.Description), &buf); err != nil {
+			// Log error but don't fail the request, send raw markdown instead
+			log.Printf("Error converting description to HTML for new hike %s: %v", hike.JoinCode, err)
+		} else {
+			hike.Description = buf.String()
+		}
+	}
 	json.NewEncoder(w).Encode(hike)
 	logAction(fmt.Sprintf("Hike created: %s by %s, starting at %s", hike.Name, hike.Leader.Name, hike.StartTime.Format(time.RFC3339)))
 }
