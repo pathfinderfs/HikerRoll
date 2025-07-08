@@ -629,22 +629,21 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 
 	for _, h := range hikes {
 		assert.NotEmpty(t, h.Description, "Hike description should not be empty for user specific search. Hike: %s, Source: %s", h.Name, h.SourceType)
-		var expectedHTMLDesc strings.Builder
-		var originalMarkdownDesc string
+		var expectedHTML string
 
 		if h.JoinCode == hikeRsvp.JoinCode {
 			assert.Equal(t, "rsvp", h.SourceType)
-			originalMarkdownDesc = hikeRsvp.Description
+			expectedHTML = hikeRsvp.Description // Already HTML from createTestHikeWithOptionsAndStartTime
 			isHikeRsvpPresentAsRsvp = true
 			foundRsvp++
 		} else if h.JoinCode == hikeLedByUser.JoinCode {
 			assert.Equal(t, "led_by_user", h.SourceType)
 			assert.Equal(t, testUser.UUID, h.Leader.UUID)
-			originalMarkdownDesc = hikeLedByUser.Description
+			expectedHTML = hikeLedByUser.Description // Already HTML
 			isHikeLedByUserPresentAsLed = true
 			foundLedByUser++
 		} else if h.JoinCode == hikeRsvpAndLed.JoinCode {
-			originalMarkdownDesc = hikeRsvpAndLed.Description
+			expectedHTML = hikeRsvpAndLed.Description // Already HTML
 			if h.SourceType == "rsvp" {
 				isHikeRsvpAndLedPresentAsRsvp = true
 				foundRsvp++
@@ -656,10 +655,8 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 				t.Errorf("Unexpected sourceType %s for hikeRsvpAndLed", h.SourceType)
 			}
 		}
-		if originalMarkdownDesc != "" {
-			errConv := goldmark.Convert([]byte(originalMarkdownDesc), &expectedHTMLDesc)
-			require.NoError(t, errConv)
-			assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(h.Description))
+		if expectedHTML != "" {
+			assert.Equal(t, strings.TrimSpace(expectedHTML), strings.TrimSpace(h.Description))
 		}
 	}
 
@@ -751,22 +748,20 @@ func TestGetHikes_Combined(t *testing.T) {
 		hikeCounts[h.JoinCode][h.SourceType] = true
 
 		// Verify description matches the original created hike's description
-		var originalMarkdownDesc string
+		// The .Description fields from hike1_allMatch, etc., are already HTML due to createTestHike helpers.
+		var expectedHTML string
 		switch h.JoinCode {
 		case hike1_allMatch.JoinCode:
-			originalMarkdownDesc = hike1_allMatch.Description
+			expectedHTML = hike1_allMatch.Description
 		case hike2_led_rsvp.JoinCode:
-			originalMarkdownDesc = hike2_led_rsvp.Description
+			expectedHTML = hike2_led_rsvp.Description
 		case hike3_rsvp_only.JoinCode:
-			originalMarkdownDesc = hike3_rsvp_only.Description
+			expectedHTML = hike3_rsvp_only.Description
 		case hike5_led_only.JoinCode:
-			originalMarkdownDesc = hike5_led_only.Description
+			expectedHTML = hike5_led_only.Description
 		}
-		if originalMarkdownDesc != "" {
-			var expectedHTMLDesc strings.Builder
-			errConv := goldmark.Convert([]byte(originalMarkdownDesc), &expectedHTMLDesc)
-			require.NoError(t, errConv)
-			assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(h.Description))
+		if expectedHTML != "" {
+			assert.Equal(t, strings.TrimSpace(expectedHTML), strings.TrimSpace(h.Description))
 		}
 	}
 
@@ -885,11 +880,9 @@ func TestGetHikeByCode(t *testing.T) {
 	assert.Equal(t, hike.JoinCode, response.JoinCode)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
 	assert.NotEmpty(t, response.TrailheadMapLink, "TrailheadMapLink should be populated for GetHikeByCode")
-	// Convert original markdown description to HTML for comparison
-	var expectedHTMLDesc strings.Builder
-	errConv := goldmark.Convert([]byte(hike.Description), &expectedHTMLDesc)
-	require.NoError(t, errConv)
-	assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(response.Description))
+	// hike.Description from createTestHike is already HTML because createTestHike calls the API.
+	// response.Description from getHikeHandler is also HTML.
+	assert.Equal(t, strings.TrimSpace(hike.Description), strings.TrimSpace(response.Description))
 }
 
 func TestTableCreation(t *testing.T) {
