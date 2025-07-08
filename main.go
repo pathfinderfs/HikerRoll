@@ -371,8 +371,6 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: If hike with same trail, leader_name and open status already exists then return error
-
 	// Generate secure code to use for participants to join the hike
 	hike.JoinCode, err = generateSecureLinkCode()
 	if err != nil {
@@ -401,13 +399,7 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The hike.TrailheadMapLink is now expected to be provided by the client.
-	// No backend lookup for trailheadMapLink will be performed here.
-	// If the client sends an empty string for TrailheadMapLink, it will be stored as such.
-
-	// TODO: If join or leader code already exist, generate new codes
-
-	// Add hike to the HIkes table
+	// Add hike to the Hikes table
 	_, err = db.Exec(`
 		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, trailhead_map_link, created_at, start_time, join_code, leader_code, photo_release, description)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
