@@ -13,8 +13,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/yuin/goldmark"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/yuin/goldmark"
 )
 
 // Keep in sync with trailheads table schema
@@ -25,22 +25,21 @@ type Trailhead struct {
 
 // List of predefined trailheads
 var predefinedTrailheads = []Trailhead{
-	{Name: "Aiea Loop (upper)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022"},
-	{Name: "Aihualama (Lyon Arboretum)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.3323,-157.8016"},
+	{Name: "Aiea Loop (upper)", MapLink: "https://maps.app.goo.gl/cAFXUQF6Gbk1Yx9k6"},
 	{Name: "Bowman (Radar Hill)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.34992,-157.87685"},
 	{Name: "Crouching Lion (Manamana)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.55816,-157.86619"},
 	{Name: "Diamond Head Crater (Le'ahi)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.26360,-157.80603"},
 	{Name: "Ehukai Pillbox (Sunset Pillbox)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.66465,-158.04936"},
-	{Name: "Friendship Garden", MapLink: "https://www.google.com/maps/search/?api=1&query=21.40622,-157.77751"},
+	{Name: "Friendship Garden", MapLink: "https://maps.app.goo.gl/wtBZ6b2YyEkVeZpq5"},
 	{Name: "Haha'ione", MapLink: "https://www.google.com/maps/search/?api=1&query=21.310139,-157.712835"},
 	{Name: "Hamana Falls", MapLink: "https://www.google.com/maps/search/?api=1&query=21.45293,-157.85281"},
 	{Name: "Hau'ula Loop", MapLink: "https://www.google.com/maps/search/?api=1&query=21.60980,-157.91544"},
-	{Name: "Hawaii Loa Ridge", MapLink: "https://www.google.com/maps/search/?api=1&query=21.29749,-157.74593"},
-	{Name: "Ho'omaluhia Botanical Garden", MapLink: "https://www.google.com/maps/search/?api=1&query=21.38647,-157.80956"},
-	{Name: "Judd", MapLink: "https://www.google.com/maps/search/?api=1&query=21.34717,-157.82082"},
-	{Name: "Ka'au Crater", MapLink: "https://www.google.com/maps/search/?api=1&query=21.31108,-157.78189"},
-	{Name: "Ka'ena Point (Mokule'ia Side)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.57976,-158.23773"},
-	{Name: "Ka'ena Point (Waianae Side)", MapLink: "https://www.google.com/maps/search/?api=1&query=21.55673,-158.24884"},
+	{Name: "Hawaii Loa Ridge", MapLink: "https://maps.app.goo.gl/xLvemfsw6oVz6La16"},
+	{Name: "Ho'omaluhia Botanical Garden", MapLink: "https://maps.app.goo.gl/ASYuQiyFyJ1NVf5u7"},
+	{Name: "Judd", MapLink: "https://maps.app.goo.gl/BqeFRzzjMC7LdK2v9"},
+	{Name: "Ka'au Crater", MapLink: "https://maps.app.goo.gl/mHuxvn71uiARPmbR8"},
+	{Name: "Ka'ena Point (Mokule'ia Side)", MapLink: "https://maps.app.goo.gl/gCBj3NgnG9yk2teSA"},
+	{Name: "Ka'ena Point (Waianae Side)", MapLink: "https://maps.app.goo.gl/6CPM2UMuPQFxiTa59"},
 	{Name: "Kahana Valley", MapLink: "https://www.google.com/maps/search/?api=1&query=21.55023,-157.88163"},
 	{Name: "Kahekili Ridge", MapLink: "https://www.google.com/maps/search/?api=1&query=21.55410,-157.85579"},
 	{Name: "Kaipapa'u Gulch", MapLink: "https://www.google.com/maps/search/?api=1&query=21.61809,-157.91893"},
@@ -122,11 +121,11 @@ type Hike struct {
 	CreatedAt        time.Time `json:"-"` // don't send this field in JSON response
 	StartTime        time.Time `json:"startTime"`
 	Status           string    `json:"Status"`
-	JoinCode      string    `json:"joinCode"`
-	LeaderCode    string    `json:"leaderCode"`
-	PhotoRelease  bool      `json:"photoRelease"`
-	SourceType    string    `json:"sourceType,omitempty"` // Added for combined hike results
-	Description   string    `json:"description"`
+	JoinCode         string    `json:"joinCode"`
+	LeaderCode       string    `json:"leaderCode"`
+	PhotoRelease     bool      `json:"photoRelease"`
+	SourceType       string    `json:"sourceType,omitempty"` // Added for combined hike results
+	Description      string    `json:"description"`
 }
 
 // Keep in sync with participants table schema

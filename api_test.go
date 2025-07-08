@@ -865,7 +865,7 @@ func TestTrailheadSuggestions(t *testing.T) {
 	for _, s := range suggestions {
 		assert.NotEmpty(t, s.Name, "Suggestion name should not be empty")
 		assert.NotEmpty(t, s.MapLink, "Suggestion MapLink should not be empty")
-		assert.Contains(t, s.MapLink, "https://www.google.com/maps/search/?api=1&query=", "MapLink format is incorrect")
+		assert.Contains(t, s.MapLink, "https://", "MapLink is not a link")
 	}
 }
 
