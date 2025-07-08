@@ -31,11 +31,11 @@ func TestCreateHike(t *testing.T) {
 			Name:  "John Doe",
 			Phone: "1234567890",
 		},
-		TrailheadName: "Aiea Loop (upper)", // Use an existing trailhead for map_link
+		TrailheadName:    "Aiea Loop (upper)",                                                   // Use an existing trailhead for map_link
 		TrailheadMapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Explicitly provide it
-		StartTime:     time.Now().Add(24 * time.Hour),
-		PhotoRelease:  false, // Default to false for this test
-		Description:   "A beautiful test hike.",
+		StartTime:        time.Now().Add(24 * time.Hour),
+		PhotoRelease:     false, // Default to false for this test
+		Description:      "A beautiful test hike.",
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -89,10 +89,10 @@ func TestGetLastHikeDescription(t *testing.T) {
 	// 2. Create a hike with a description
 	desc1 := "This is the first version of the description."
 	hike1 := Hike{
-		Name:        hikeName,
-		Leader:      leader,
-		Description: desc1,
-		StartTime:   time.Now().Add(1 * time.Hour),
+		Name:          hikeName,
+		Leader:        leader,
+		Description:   desc1,
+		StartTime:     time.Now().Add(1 * time.Hour),
 		TrailheadName: "Aiea Loop (upper)", // Use existing trailhead
 	}
 	body1, _ := json.Marshal(hike1)
@@ -725,12 +725,10 @@ func TestGetHikes_Combined(t *testing.T) {
 	// Total: 6 entries (hike4_location_only is no longer fetched by this query)
 
 	// Latitude/Longitude parameters are removed from the query.
-	var req *http.Request
-	var err error
 	req, err = http.NewRequest("GET", fmt.Sprintf("/api/hike?userUUID=%s", queryUser.UUID), nil)
 	require.NoError(t, err)
-	rr := httptest.NewRecorder()
-	mux := setupTestMux()
+	rr = httptest.NewRecorder()
+	mux = setupTestMux()
 	mux.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
@@ -1148,11 +1146,11 @@ func createTestHike(t *testing.T) Hike {
 			Name:  "John Doe",
 			Phone: "1234567890",
 		},
-		TrailheadName: "Aiea Loop (upper)", // Use an existing trailhead
+		TrailheadName:    "Aiea Loop (upper)",                                                   // Use an existing trailhead
 		TrailheadMapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Provide link
-		StartTime:     time.Now(),
-		PhotoRelease:  false,                           // Default
-		Description:   "Default test hike description", // Added default description
+		StartTime:        time.Now(),
+		PhotoRelease:     false,                           // Default
+		Description:      "Default test hike description", // Added default description
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))

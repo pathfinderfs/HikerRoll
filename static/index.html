@@ -462,8 +462,6 @@
             <h2>Leading</h2>
             <ul id="leading-hikes-list" class="hike-list"></ul>
 
-            <h2>Nearby</h2>
-            <ul id="nearby-hikes" class="hike-list"></ul>
         </div>
 
         <div id="create-hike-page" style="display:none;">
@@ -474,7 +472,8 @@
                 <div class="autocomplete">
                     <input type="text" id="hike-trailheadName" placeholder="Trailhead Name (Type to search)" required>
                 </div>
-                <input type="text" id="hike-trailheadMapLink" placeholder="Trailhead Map Link (Auto-filled or manual entry)" required>
+                <input type="text" id="hike-trailheadMapLink"
+                    placeholder="Trailhead Map Link (Auto-filled or manual entry)" required>
                 <input type="text" id="leader-name" placeholder="Your Name" required>
                 <input type="tel" id="leader-phone" placeholder="Your Phone (10 digits)" required maxlength="10"
                     pattern="\d{3}-\d{3}-\d{4}">
@@ -1047,7 +1046,7 @@
             }
             // Fallback or error if no map link and no lat/lon
             if (!hike || typeof hike.latitude === 'undefined' || typeof hike.longitude === 'undefined') {
-                 console.warn("makeTrailheadURL called with insufficient data", hike);
+                console.warn("makeTrailheadURL called with insufficient data", hike);
                 return "#";
             }
             // Fallback to generating from lat/lon if they exist (e.g. older data model parts)
