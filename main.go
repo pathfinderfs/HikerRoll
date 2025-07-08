@@ -15,6 +15,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/yuin/goldmark"
+	"github.com/microcosm-cc/bluemonday"
 )
 
 // Keep in sync with trailheads table schema
@@ -425,7 +426,8 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 			// Log error but don't fail the request, send raw markdown instead
 			log.Printf("Error converting description to HTML for new hike %s: %v", hike.JoinCode, err)
 		} else {
-			hike.Description = buf.String()
+			p := bluemonday.UGCPolicy()
+			hike.Description = p.Sanitize(buf.String())
 		}
 	}
 	json.NewEncoder(w).Encode(hike)
@@ -475,7 +477,8 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 			// Log error but don't fail the request, send raw markdown instead
 			log.Printf("Error converting description to HTML: %v", err)
 		} else {
-			hike.Description = buf.String()
+			p := bluemonday.UGCPolicy()
+			hike.Description = p.Sanitize(buf.String())
 		}
 	}
 
@@ -853,7 +856,8 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			if h.Description != "" {
 				var buf strings.Builder
 				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
-					h.Description = buf.String()
+					p := bluemonday.UGCPolicy()
+					h.Description = p.Sanitize(buf.String())
 				} else {
 					log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
 				}
@@ -906,7 +910,8 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			if h.Description != "" {
 				var buf strings.Builder
 				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
-					h.Description = buf.String()
+					p := bluemonday.UGCPolicy()
+					h.Description = p.Sanitize(buf.String())
 				} else {
 					log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
 				}
