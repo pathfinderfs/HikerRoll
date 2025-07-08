@@ -14,8 +14,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/yuin/goldmark"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/yuin/goldmark"
 )
 
 // Keep in sync with trailheads table schema
@@ -248,6 +248,19 @@ func addRoutes(mux *http.ServeMux) {
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
 }
 
+func main() {
+	initDB("./hiketracker.db")
+
+	addRoutes(http.DefaultServeMux)
+
+	// Serve static files
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
+
+	log.Println("Server starting on :8196")
+	log.Fatal(http.ListenAndServe(":8196", nil))
+}
+
 // WaiverData is used to populate the waiver template
 type WaiverData struct {
 	LeaderName   string
@@ -275,7 +288,7 @@ func generateWaiverText(joinCode string) (string, error) {
 	}
 
 	data := WaiverData{
-		LeaderName:   leaderName.String, // .String handles NULL by returning empty string
+		LeaderName:   leaderName.String,
 		Organization: organization.String,
 		PhotoRelease: photoRelease,
 	}
@@ -345,19 +358,6 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(hike)
-}
-
-func main() {
-	initDB("./hiketracker.db")
-
-	addRoutes(http.DefaultServeMux)
-
-	// Serve static files
-	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/", fs)
-
-	log.Println("Server starting on :8196")
-	log.Fatal(http.ListenAndServe(":8196", nil))
 }
 
 // Create a new hike and return codes for leader and participants to access the hike
