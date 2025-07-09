@@ -1002,48 +1002,14 @@
             licensePlate: value => value.toUpperCase(),
             emergencyContact: value => value.replace(/\D/g, ''),
             startTime: value => new Date(value).toISOString(), // This is what SQLite expects
-            // 'description' is the id of the textarea, map it to 'descriptionMarkdown' in currentHike
-            description: value => value
+            // Since the textarea ID is 'hike-descriptionMarkdown',
+            // 'prop' in saveFieldChange will be 'descriptionMarkdown'.
+            // So, this key should be 'descriptionMarkdown'.
+            descriptionMarkdown: value => value
         };
 
-        // In saveFieldChange, if fieldID is 'hike-description', prop will be 'description'.
-        // We need to ensure this updates currentHike.descriptionMarkdown
-        // The fieldProcessors map uses 'description' as a key.
-        // The saveFieldChange function needs to be aware to map 'description' (from element id) to 'descriptionMarkdown' (in object)
-        // Or, more simply, rename the textarea id to 'hike-descriptionMarkdown' and update currentHike.descriptionMarkdown directly.
-        // Let's adjust saveFieldChange or the property name it looks for.
-
-        // Modify saveFieldChange to correctly map 'hike-description' to 'descriptionMarkdown'
-        // No, simpler: fieldProcessors key should match the 'prop' after prefix removal.
-        // So, if id is 'hike-description', prop is 'description'.
-        // We need currentHike.descriptionMarkdown to be set.
-        // The easiest is to change the `id` of the textarea to `hike-descriptionMarkdown`
-        // And ensure `currentHike.descriptionMarkdown` is a property. It is.
-        // Then `saveFieldChange` will work as is, setting `currentHike.descriptionMarkdown`.
-
-        // The current fieldProcessors has 'description' key.
-        // If id="hike-description", then prop="description". It will try to set store['description'].
-        // We need it to set store['descriptionMarkdown'].
-        // Let's adjust the saveFieldChange to handle this specific case or make fieldProcessors more flexible.
-        // For now, let's adjust the 'description' key in fieldProcessors to be 'descriptionMarkdown'
-        // and ensure the element id 'hike-description' correctly maps to 'descriptionMarkdown' property in currentHike.
-        // This is already handled by the logic: `const prop = fieldID.replace(idPrefix, '');`
-        // if id is `hike-description`, prop is `description`.
-        // We need to ensure `currentHike.description` is treated as `currentHike.descriptionMarkdown`.
-        // The simplest is to update `currentHike.description = value` inside `saveFieldChange` to be `currentHike.descriptionMarkdown = value`
-        // if `prop === 'description'`.
-        // OR change the ID of the textarea from `hike-description` to `hike-descriptionMarkdown`. This is cleaner.
-        // Let's do that. (This will be a separate change in the HTML structure part for the textarea id).
-        // For now, assuming id is `hike-descriptionMarkdown`, then fieldProcessors should have `descriptionMarkdown` key.
-
-        const fieldProcessors = {
-            phone: value => value.replace(/\D/g, ''), // Store only digits
-            licensePlate: value => value.toUpperCase(),
-            emergencyContact: value => value.replace(/\D/g, ''),
-            startTime: value => new Date(value).toISOString(),
-            descriptionMarkdown: value => value // This will be used if textarea id is 'hike-descriptionMarkdown'
-        };
-
+        // The duplicate declaration of fieldProcessors that was here (around original lines 1035-1045)
+        // has been removed by a previous edit. This is now the sole definition.
 
         function showHikeLeaderPage() {
             // Line 1: Hike Name (TH: linked trailheadname)
