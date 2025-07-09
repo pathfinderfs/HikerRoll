@@ -1231,6 +1231,10 @@ func TestUpdateHikeDetails(t *testing.T) {
 	assert.Equal(t, newLeaderUser.Name, newLeaderNameDB)
 	assert.Equal(t, newLeaderUser.Phone, newLeaderPhoneDB)
 	assert.Contains(t, updatedHike2.WaiverText, newLeaderUser.Name, "Waiver text should be updated with new leader's name")
+	// Assert that other fields were preserved during leader-only change
+	assert.Equal(t, updatedName, updatedHike2.Name, "Name should be preserved when only leader changes")
+	assert.Equal(t, updatedDescription, updatedHike2.DescriptionMarkdown, "Description should be preserved when only leader changes")
+	assert.True(t, updatedHike2.PhotoRelease, "PhotoRelease should be preserved")
 
 
 	// 4. Test Case: Attempt update with an invalid leaderCode

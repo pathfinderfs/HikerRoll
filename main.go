@@ -315,57 +315,52 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 	var args []interface{}
 	anyFieldUpdated := false // Track if any updatable field (other than leader) was actually provided
 
-	// Check if fields are provided and add them to the update query
-	// For robustness, ideally the 'updates' struct would use pointers for optional fields
-	// to distinguish between a field not provided and a field provided with its zero value.
-	// Given the current struct, we assume non-empty/non-zero means an update is intended.
+	// To properly handle partial updates, first read the body into a map
+	// to check for key presence, then unmarshal into the struct for typed values.
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Restore body for Decode
 
-	if updates.Name != "" { // Simpler check: if name is non-empty, update it.
+	var tempMap map[string]json.RawMessage
+	if err := json.Unmarshal(bodyBytes, &tempMap); err != nil {
+		http.Error(w, "Failed to parse request body for field checking: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Now decode into the struct
+	if err := json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&updates); err != nil {
+		http.Error(w, "Invalid request body structure: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+
+	if _, ok := tempMap["name"]; ok {
 		setClauses = append(setClauses, "name = ?")
 		args = append(args, updates.Name)
 		anyFieldUpdated = true
 	}
-
-	// To properly handle partial updates where a field might be intentionally set to an empty string
-	// or a boolean to false, we need to know if the field was present in the request.
-	// A common way is to unmarshal into a map[string]json.RawMessage to check key presence.
-	requestBodyBytes, err := json.Marshal(updates) // This is inefficient, ideally read r.Body once
-	if err != nil {
-		http.Error(w, "Could not re-marshal request body for field checking", http.StatusInternalServerError)
-		return
-	}
-	var tempMap map[string]json.RawMessage
-	err = json.Unmarshal(requestBodyBytes, &tempMap)
-	if err != nil {
-		http.Error(w, "Could not unmarshal to temp map for field checking", http.StatusInternalServerError)
-		return
-	}
-
 	if _, ok := tempMap["organization"]; ok {
 		setClauses = append(setClauses, "organization = ?")
-		args = append(args, updates.Organization) // updates.Organization will be "" if key present but value empty
+		args = append(args, updates.Organization)
 		anyFieldUpdated = true
 	}
 	if _, ok := tempMap["trailheadName"]; ok {
-		// Only update if non-empty, assuming empty means "no change" for this specific field if key is present.
-		// This is a business logic choice. If empty string is a valid clear, then just `updates.TrailheadName != ""` is not needed.
-		if updates.TrailheadName != "" {
-			setClauses = append(setClauses, "trailhead_name = ?")
-			args = append(args, updates.TrailheadName)
-			anyFieldUpdated = true
-		} else if updates.TrailheadName == "" && string(tempMap["trailheadName"]) == `""` { // Explicitly set to empty string
-            setClauses = append(setClauses, "trailhead_name = ?")
-            args = append(args, "")
-            anyFieldUpdated = true
-        }
+		setClauses = append(setClauses, "trailhead_name = ?")
+		args = append(args, updates.TrailheadName)
+		anyFieldUpdated = true
 	}
 	if _, ok := tempMap["trailheadMapLink"]; ok {
 		setClauses = append(setClauses, "trailhead_map_link = ?")
-		args = append(args, updates.TrailheadMapLink) // Allow empty string to clear
+		args = append(args, updates.TrailheadMapLink)
 		anyFieldUpdated = true
 	}
-	if _, ok := tempMap["startTime"]; ok && !updates.StartTime.IsZero() {
+	if _, ok := tempMap["startTime"]; ok { // Assumes client sends valid time or it's caught by IsZero elsewhere
 		setClauses = append(setClauses, "start_time = ?")
+		// The StartTime field in 'updates' struct will be zero if not provided or invalid,
+		// so this update relies on client sending a valid time string that gets parsed.
 		args = append(args, updates.StartTime.Format("2006-01-02T15:04:05-07:00"))
 		anyFieldUpdated = true
 	}
@@ -376,7 +371,7 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := tempMap["descriptionMarkdown"]; ok {
 		setClauses = append(setClauses, "description = ?")
-		args = append(args, updates.DescriptionMarkdown) // Allow empty string to clear
+		args = append(args, updates.DescriptionMarkdown)
 		anyFieldUpdated = true
 	}
 
