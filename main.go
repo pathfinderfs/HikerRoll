@@ -792,7 +792,7 @@ func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Hike not found or not open", http.StatusBadRequest)
 	}
 
-	w.WriteHeader(http.StatusOK)
+	//w.WriteHeader(http.StatusOK)
 	logAction(fmt.Sprintf("Participant status updated: Id: %s, Leader Code: %s, New Status: %s", participantId, joinCode, request.Status))
 }
 

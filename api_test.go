@@ -925,7 +925,7 @@ func TestGetHikeByCode(t *testing.T) {
 
 	reqPhoto, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s", hikePhoto.JoinCode), nil)
 	rrPhoto := httptest.NewRecorder()
-	mux := setupTestMux()
+	mux = setupTestMux()
 	mux.ServeHTTP(rrPhoto, reqPhoto)
 	assert.Equal(t, http.StatusOK, rrPhoto.Code)
 	var responsePhoto Hike
