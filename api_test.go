@@ -1156,6 +1156,131 @@ func TestUpdateParticipantStatus(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
+func TestUpdateHikeDetails(t *testing.T) {
+	mux := setupTestMux()
+
+	// 1. Create an initial hike
+	initialLeader := User{UUID: "initial-leader-uuid", Name: "Initial Leader", Phone: "111000111"}
+	hikeToUpdate := createTestHikeWithOptionsAndStartTime(t, initialLeader, "Hike To Be Updated", "Aiea Loop (upper)", time.Now().Add(24*time.Hour))
+	require.NotEmpty(t, hikeToUpdate.LeaderCode, "LeaderCode should be present for the hike to be updated")
+
+	// 2. Test Case: Update basic hike details (name, description, startTime)
+	updatedName := "Updated Hike Name"
+	updatedDescription := "This is the updated description."
+	updatedStartTime := time.Now().Add(48 * time.Hour)
+	updatePayload1 := map[string]interface{}{
+		"name":                updatedName,
+		"descriptionMarkdown": updatedDescription,
+		"startTime":           updatedStartTime.Format(time.RFC3339), // Ensure correct time format
+		"photoRelease":        true,
+	}
+	body1, _ := json.Marshal(updatePayload1)
+	req1, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/update/%s", hikeToUpdate.LeaderCode), bytes.NewBuffer(body1))
+	req1.Header.Set("Content-Type", "application/json")
+
+	rr1 := httptest.NewRecorder()
+	mux.ServeHTTP(rr1, req1)
+	assert.Equal(t, http.StatusOK, rr1.Code, "Failed to update hike details: %s", rr1.Body.String())
+
+	var updatedHike1 Hike
+	err := json.Unmarshal(rr1.Body.Bytes(), &updatedHike1)
+	require.NoError(t, err)
+	assert.Equal(t, updatedName, updatedHike1.Name)
+	assert.Equal(t, updatedDescription, updatedHike1.DescriptionMarkdown)
+	assert.True(t, updatedHike1.PhotoRelease)
+	assert.WithinDuration(t, updatedStartTime, updatedHike1.StartTime, time.Second, "Start time not updated correctly")
+
+	// Verify in DB directly
+	var dbName, dbDesc string
+	var dbStartTime time.Time
+	var dbPhotoRelease bool
+	err = db.QueryRow("SELECT name, description, start_time, photo_release FROM hikes WHERE leader_code = ?", hikeToUpdate.LeaderCode).Scan(&dbName, &dbDesc, &dbStartTime, &dbPhotoRelease)
+	require.NoError(t, err)
+	assert.Equal(t, updatedName, dbName)
+	assert.Equal(t, updatedDescription, dbDesc)
+	assert.True(t, dbPhotoRelease)
+	assert.WithinDuration(t, updatedStartTime, dbStartTime, time.Second)
+
+	// 3. Test Case: Change the hike leader
+	newLeaderUser := User{UUID: "new-leader-uuid", Name: "New Leader Name", Phone: "222000222"}
+	updatePayload2 := map[string]interface{}{
+		"leader": newLeaderUser, // Send the whole new leader object
+	}
+	body2, _ := json.Marshal(updatePayload2)
+	req2, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/update/%s", hikeToUpdate.LeaderCode), bytes.NewBuffer(body2))
+	req2.Header.Set("Content-Type", "application/json")
+
+	rr2 := httptest.NewRecorder()
+	mux.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusOK, rr2.Code, "Failed to change hike leader: %s", rr2.Body.String())
+
+	var updatedHike2 Hike
+	json.Unmarshal(rr2.Body.Bytes(), &updatedHike2)
+	assert.Equal(t, newLeaderUser.UUID, updatedHike2.Leader.UUID)
+	assert.Equal(t, newLeaderUser.Name, updatedHike2.Leader.Name)
+
+	// Verify leader_uuid in hikes table and user in users table
+	var dbLeaderUUID string
+	err = db.QueryRow("SELECT leader_uuid FROM hikes WHERE leader_code = ?", hikeToUpdate.LeaderCode).Scan(&dbLeaderUUID)
+	require.NoError(t, err)
+	assert.Equal(t, newLeaderUser.UUID, dbLeaderUUID)
+
+	var newLeaderNameDB, newLeaderPhoneDB string
+	err = db.QueryRow("SELECT name, phone FROM users WHERE uuid = ?", newLeaderUser.UUID).Scan(&newLeaderNameDB, &newLeaderPhoneDB)
+	require.NoError(t, err, "New leader should exist in users table")
+	assert.Equal(t, newLeaderUser.Name, newLeaderNameDB)
+	assert.Equal(t, newLeaderUser.Phone, newLeaderPhoneDB)
+	assert.Contains(t, updatedHike2.WaiverText, newLeaderUser.Name, "Waiver text should be updated with new leader's name")
+
+
+	// 4. Test Case: Attempt update with an invalid leaderCode
+	updatePayload3 := map[string]interface{}{"name": "Another Update Attempt"}
+	body3, _ := json.Marshal(updatePayload3)
+	req3, _ := http.NewRequest("PUT", "/api/hike/update/invalid-leader-code", bytes.NewBuffer(body3))
+	req3.Header.Set("Content-Type", "application/json")
+
+	rr3 := httptest.NewRecorder()
+	mux.ServeHTTP(rr3, req3)
+	assert.Equal(t, http.StatusNotFound, rr3.Code)
+
+	// 5. Test Case: Attempt update with malformed JSON
+	req4, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/update/%s", hikeToUpdate.LeaderCode), bytes.NewBufferString("{malformed_json:\"test\""))
+	req4.Header.Set("Content-Type", "application/json")
+
+	rr4 := httptest.NewRecorder()
+	mux.ServeHTTP(rr4, req4)
+	assert.Equal(t, http.StatusBadRequest, rr4.Code)
+
+	// 6. Test Case: Update only organization (ensure other fields are not reset)
+	updatedOrganization := "New Updated Organization"
+	updatePayloadOrg := map[string]interface{}{
+		"organization": updatedOrganization,
+	}
+	bodyOrg, _ := json.Marshal(updatePayloadOrg)
+	reqOrg, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/update/%s", hikeToUpdate.LeaderCode), bytes.NewBuffer(bodyOrg))
+	reqOrg.Header.Set("Content-Type", "application/json")
+
+	rrOrg := httptest.NewRecorder()
+	mux.ServeHTTP(rrOrg, reqOrg)
+	assert.Equal(t, http.StatusOK, rrOrg.Code, "Failed to update organization: %s", rrOrg.Body.String())
+
+	var updatedHikeOrg Hike
+	json.Unmarshal(rrOrg.Body.Bytes(), &updatedHikeOrg)
+	assert.Equal(t, updatedOrganization, updatedHikeOrg.Organization)
+	assert.Equal(t, updatedName, updatedHikeOrg.Name, "Name should not have changed when only updating organization") // Check against previous name
+	assert.Equal(t, newLeaderUser.UUID, updatedHikeOrg.Leader.UUID, "Leader should not have changed when only updating organization")
+
+	// Verify in DB
+	var dbOrg, dbNameAfterOrgUpdate string
+	err = db.QueryRow("SELECT organization, name FROM hikes WHERE leader_code = ?", hikeToUpdate.LeaderCode).Scan(&dbOrg, &dbNameAfterOrgUpdate)
+	require.NoError(t, err)
+	assert.Equal(t, updatedOrganization, dbOrg)
+	assert.Equal(t, updatedName, dbNameAfterOrgUpdate, "Name in DB should remain unchanged")
+	assert.Contains(t, updatedHikeOrg.WaiverText, updatedOrganization, "Waiver text should be updated with new organization")
+
+}
+
+
 func createTestHike(t *testing.T) Hike {
 	hike := Hike{
 		Name:         "Test Hike",

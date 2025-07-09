@@ -668,14 +668,53 @@
             if (leaderCode) {
                 // Verify the hike is open and exists
                 // TODO: should we allow updating of leader info?
-                fetch(`/api/hike/${joinCode}?leaderCode=${leaderCode}`)
-                    .then(response => response.json())
-                    .then(hike => {
-                        currentHike = hike;
-                        currentHike.leaderCode = leaderCode;
-                        hike.leader = currentUser;
-                        localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                        showHikeLeaderPage();
+                fetch(`/api/hike/${joinCode}?leaderCode=${leaderCode}`) // Initial fetch to get hike details
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch hike details with leader code.');
+                        }
+                        return response.json();
+                    })
+                    .then(hikeFromServer => {
+                        // Check if the current user is different from the fetched hike's leader
+                        if (hikeFromServer.leader.uuid !== currentUser.uuid) {
+                            // New leader is taking over. Update the backend.
+                            const updatePayload = {
+                                leader: { // Only send leader info for this specific scenario
+                                    uuid: currentUser.uuid,
+                                    name: currentUser.name, // Ensure currentUser details are up-to-date
+                                    phone: currentUser.phone
+                                }
+                                // Add other fields here if a general edit page calls this logic path
+                            };
+                            return fetch(`/api/hike/update/${leaderCode}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(updatePayload)
+                            })
+                            .then(updateResponse => {
+                                if (!updateResponse.ok) {
+                                    return updateResponse.text().then(text => {
+                                        throw new Error(`Failed to update hike leader: ${text}`);
+                                    });
+                                }
+                                return updateResponse.json(); // This will be the updated hike object
+                            })
+                            .then(updatedHike => {
+                                currentHike = updatedHike; // Use the fully updated hike from PUT response
+                                currentHike.leaderCode = leaderCode; // Ensure leaderCode is preserved if not in PUT response
+                                localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                                showHikeLeaderPage();
+                            });
+                        } else {
+                            // Current user is already the leader, or no change needed
+                            currentHike = hikeFromServer;
+                            currentHike.leaderCode = leaderCode; // Ensure leaderCode is part of currentHike
+                            // The hike.leader from server is already currentUser, but explicit assignment is fine.
+                            currentHike.leader = currentUser;
+                            localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                            showHikeLeaderPage();
+                        }
                     })
                     .catch(error => {
                         console.error('Error:', error);
