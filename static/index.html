@@ -1100,20 +1100,17 @@
                 return;
             }
 
-            fetch(`/api/hike/${currentHike.joinCode}/waiver`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch waiver: ${response.status} ${response.statusText}`);
-                    }
-                    return response.text();
-                })
-                .then(text => {
-                    document.getElementById('waiver-content').innerText = text;
-                })
-                .catch(error => {
-                    console.error('Error fetching waiver:', error);
-                    document.getElementById('waiver-content').innerText = `Error loading waiver: ${error.message}. Please try again.`;
-                });
+            // Waiver text is now expected to be part of the currentHike object
+            if (currentHike.WaiverText) {
+                document.getElementById('waiver-content').innerText = currentHike.WaiverText;
+            } else {
+                // Fallback or error handling if WaiverText is not available
+                // This might happen if the hike object wasn't populated correctly or if backend failed to provide it
+                console.error('WaiverText not found in currentHike object.');
+                document.getElementById('waiver-content').innerText = 'Error: Waiver text could not be loaded. Please try again or contact support.';
+                // Optionally, try to fetch it if really needed, but the design is to have it already.
+                // For now, we rely on it being present.
+            }
             showPage('waiver-page');
         }
 

@@ -127,6 +127,7 @@ type Hike struct {
 	PhotoRelease     bool      `json:"photoRelease"`
 	SourceType       string    `json:"sourceType,omitempty"` // Added for combined hike results
 	Description      string    `json:"description"`
+	WaiverText       string    `json:"waiverText,omitempty"`
 }
 
 // Keep in sync with participants table schema
@@ -238,7 +239,7 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/hike/{hikeId}/participant", rsvpToHikeHandler) // pass in User
 	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{participantId}", unRSVPHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
-	mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler)
+	// mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler) // Removed
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
 	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
@@ -314,25 +315,7 @@ func generateWaiverText(joinCode string) (string, error) {
 	return renderedWaiver.String(), nil
 }
 
-// getHikeWaiverHandler serves the dynamically generated waiver for a hike.
-func getHikeWaiverHandler(w http.ResponseWriter, r *http.Request) {
-	joinCode := r.PathValue("hikeId")
-
-	waiverText, err := generateWaiverText(joinCode)
-	if err != nil {
-		// Log the error and return an appropriate HTTP error code
-		log.Printf("Error generating waiver for joinCode %s: %v", joinCode, err)
-		if strings.Contains(err.Error(), "hike not found") {
-			http.Error(w, "Hike not found.", http.StatusNotFound)
-		} else {
-			http.Error(w, "Error generating waiver.", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprint(w, waiverText)
-}
+// getHikeWaiverHandler is removed. Waiver text is now part of Hike object.
 
 func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 	hikeName := r.URL.Query().Get("hikeName")
@@ -422,6 +405,17 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 			hike.Description = p.Sanitize(buf.String())
 		}
 	}
+
+	// Generate and add waiver text
+	waiverText, err := generateWaiverText(hike.JoinCode)
+	if err != nil {
+		// Log the error, but don't fail the request. The client can choose how to handle missing waiver text.
+		log.Printf("Error generating waiver text for new hike %s: %v", hike.JoinCode, err)
+		hike.WaiverText = "" // Set to empty or some error message if preferred
+	} else {
+		hike.WaiverText = waiverText
+	}
+
 	json.NewEncoder(w).Encode(hike)
 	logAction(fmt.Sprintf("Hike created: %s by %s, starting at %s", hike.Name, hike.Leader.Name, hike.StartTime.Format(time.RFC3339)))
 }
@@ -472,6 +466,15 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 			p := bluemonday.UGCPolicy()
 			hike.Description = p.Sanitize(buf.String())
 		}
+	}
+
+	// Generate and add waiver text
+	waiverText, err := generateWaiverText(hike.JoinCode)
+	if err != nil {
+		log.Printf("Error generating waiver text for get hike %s: %v", hike.JoinCode, err)
+		hike.WaiverText = ""
+	} else {
+		hike.WaiverText = waiverText
 	}
 
 	// Return retrieved Hike

@@ -63,6 +63,35 @@ func TestCreateHike(t *testing.T) {
 	errConv := goldmark.Convert([]byte(hike.Description), &expectedHTMLDesc)
 	require.NoError(t, errConv)
 	assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(response.Description))
+	assert.NotEmpty(t, response.WaiverText, "WaiverText should be populated in create hike response")
+	assert.Contains(t, response.WaiverText, hike.Leader.Name, "WaiverText should contain leader's name")
+	assert.NotContains(t, response.WaiverText, "Photographic Release", "WaiverText should not contain photo release for default PhotoRelease=false")
+
+	// Test with PhotoRelease = true
+	hikePhotoRelease := Hike{
+		Name:         "Test Hike Photo Release",
+		Organization: "Test Organization Photo",
+		Leader: User{
+			UUID:  "leader-create-hike-photo-test",
+			Name:  "Photo Test Leader",
+			Phone: "1234567890",
+		},
+		TrailheadName: "Aiea Loop (upper)",
+		StartTime:     time.Now().Add(48 * time.Hour),
+		PhotoRelease:  true, // Explicitly true
+		Description:   "A test hike with photo release.",
+	}
+	bodyPhoto, _ := json.Marshal(hikePhotoRelease)
+	reqPhoto, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(bodyPhoto))
+	reqPhoto.Header.Set("Content-Type", "application/json")
+	rrPhoto := httptest.NewRecorder()
+	mux.ServeHTTP(rrPhoto, reqPhoto)
+	assert.Equal(t, http.StatusOK, rrPhoto.Code)
+	var responsePhoto Hike
+	json.Unmarshal(rrPhoto.Body.Bytes(), &responsePhoto)
+	assert.NotEmpty(t, responsePhoto.WaiverText, "WaiverText should be populated for photo release hike")
+	assert.Contains(t, responsePhoto.WaiverText, hikePhotoRelease.Leader.Name, "WaiverText for photo release should contain leader's name")
+	assert.Contains(t, responsePhoto.WaiverText, "Photographic Release", "WaiverText should contain photo release section for PhotoRelease=true")
 }
 
 // TestCreateHike_AutoPopulateDescription is removed as auto-population is now frontend driven.
@@ -882,6 +911,28 @@ func TestGetHikeByCode(t *testing.T) {
 	// hike.Description from createTestHike is already HTML because createTestHike calls the API.
 	// response.Description from getHikeHandler is also HTML.
 	assert.Equal(t, strings.TrimSpace(hike.Description), strings.TrimSpace(response.Description))
+	assert.NotEmpty(t, response.WaiverText, "WaiverText should be populated in get hike response")
+	assert.Contains(t, response.WaiverText, hike.Leader.Name, "WaiverText should contain leader's name")
+	// Assuming default created hike has PhotoRelease = false
+	assert.NotContains(t, response.WaiverText, "Photographic Release", "WaiverText should not contain photo release section for default hike")
+
+	// Test with PhotoRelease = true
+	leaderPhoto := User{UUID: "leader-gethike-photo", Name: "GetHike Photo Leader", Phone: "7778889999"}
+	hikePhoto := createTestHikeWithOptionsAndStartTime(t, leaderPhoto, "GetHike Photo Test", "Koko Crater (Railway)", time.Now().Add(72*time.Hour))
+	// Manually set PhotoRelease to true for this specific hike in the DB for the test
+	_, err := db.Exec("UPDATE hikes SET photo_release = TRUE WHERE join_code = ?", hikePhoto.JoinCode)
+	require.NoError(t, err)
+
+	reqPhoto, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s", hikePhoto.JoinCode), nil)
+	rrPhoto := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(rrPhoto, reqPhoto)
+	assert.Equal(t, http.StatusOK, rrPhoto.Code)
+	var responsePhoto Hike
+	json.Unmarshal(rrPhoto.Body.Bytes(), &responsePhoto)
+	assert.NotEmpty(t, responsePhoto.WaiverText, "WaiverText should be populated for get hike with photo release")
+	assert.Contains(t, responsePhoto.WaiverText, leaderPhoto.Name, "WaiverText for get hike with photo release should contain leader's name")
+	assert.Contains(t, responsePhoto.WaiverText, "Photographic Release", "WaiverText should contain photo release section when PhotoRelease is true in DB")
 }
 
 func TestTableCreation(t *testing.T) {
@@ -1013,71 +1064,8 @@ func TestJoinHikeRecordsWaiver(t *testing.T) {
 	assert.NotContains(t, dbWaiverText, "Photographic Release", "Waiver text should not contain photo release section by default")
 }
 
-func TestGetHikeWaiverHandler(t *testing.T) {
-	mux := setupTestMux()
-
-	// Scenario 1: Hike with PhotoRelease = true
-	leaderWithPhoto := User{UUID: "leader-waiver-photo", Name: "Photo Leader", Phone: "1111111111"}
-	hikeWithPhoto := Hike{
-		Name:          "Photo Hike",
-		Organization:  "Photo Org",
-		Leader:        leaderWithPhoto,
-		TrailheadName: "Photo Trail",
-		StartTime:     time.Now().Add(1 * time.Hour),
-		PhotoRelease:  true,
-	}
-	bodyWithPhoto, _ := json.Marshal(hikeWithPhoto)
-	reqCreateWithPhoto, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(bodyWithPhoto))
-	rrCreateWithPhoto := httptest.NewRecorder()
-	mux.ServeHTTP(rrCreateWithPhoto, reqCreateWithPhoto)
-	require.Equal(t, http.StatusOK, rrCreateWithPhoto.Code, "Failed to create hike with photo release")
-	var createdHikeWithPhoto Hike
-	json.Unmarshal(rrCreateWithPhoto.Body.Bytes(), &createdHikeWithPhoto)
-
-	reqWaiverWithPhoto, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s/waiver", createdHikeWithPhoto.JoinCode), nil)
-	rrWaiverWithPhoto := httptest.NewRecorder()
-	mux.ServeHTTP(rrWaiverWithPhoto, reqWaiverWithPhoto)
-
-	assert.Equal(t, http.StatusOK, rrWaiverWithPhoto.Code)
-	waiverTextWithPhoto := rrWaiverWithPhoto.Body.String()
-	assert.Contains(t, waiverTextWithPhoto, "Photo Leader", "Waiver should contain leader's name")
-	assert.Contains(t, waiverTextWithPhoto, "Photo Org", "Waiver should contain organization")
-	assert.Contains(t, waiverTextWithPhoto, "Photographic Release", "Waiver should contain photo release section")
-
-	// Scenario 2: Hike with PhotoRelease = false
-	leaderNoPhoto := User{UUID: "leader-waiver-nophoto", Name: "NoPhoto Leader", Phone: "2222222222"}
-	hikeNoPhoto := Hike{
-		Name:          "NoPhoto Hike",
-		Organization:  "NoPhoto Org",
-		Leader:        leaderNoPhoto,
-		TrailheadName: "NoPhoto Trail",
-		StartTime:     time.Now().Add(1 * time.Hour),
-		PhotoRelease:  false,
-	}
-	bodyNoPhoto, _ := json.Marshal(hikeNoPhoto)
-	reqCreateNoPhoto, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(bodyNoPhoto))
-	rrCreateNoPhoto := httptest.NewRecorder()
-	mux.ServeHTTP(rrCreateNoPhoto, reqCreateNoPhoto)
-	require.Equal(t, http.StatusOK, rrCreateNoPhoto.Code, "Failed to create hike without photo release")
-	var createdHikeNoPhoto Hike
-	json.Unmarshal(rrCreateNoPhoto.Body.Bytes(), &createdHikeNoPhoto)
-
-	reqWaiverNoPhoto, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s/waiver", createdHikeNoPhoto.JoinCode), nil)
-	rrWaiverNoPhoto := httptest.NewRecorder()
-	mux.ServeHTTP(rrWaiverNoPhoto, reqWaiverNoPhoto)
-
-	assert.Equal(t, http.StatusOK, rrWaiverNoPhoto.Code)
-	waiverTextNoPhoto := rrWaiverNoPhoto.Body.String()
-	assert.Contains(t, waiverTextNoPhoto, "NoPhoto Leader", "Waiver should contain leader's name")
-	assert.Contains(t, waiverTextNoPhoto, "NoPhoto Org", "Waiver should contain organization")
-	assert.NotContains(t, waiverTextNoPhoto, "Photographic Release", "Waiver should NOT contain photo release section")
-
-	// Scenario 3: Hike not found
-	reqWaiverNotFound, _ := http.NewRequest("GET", "/api/hike/nonexistentjoincode/waiver", nil)
-	rrWaiverNotFound := httptest.NewRecorder()
-	mux.ServeHTTP(rrWaiverNotFound, reqWaiverNotFound)
-	assert.Equal(t, http.StatusNotFound, rrWaiverNotFound.Code)
-}
+// TestGetHikeWaiverHandler is removed as the endpoint /api/hike/{hikeId}/waiver has been removed.
+// Waiver text is now tested as part of TestCreateHike and TestGetHikeByCode.
 
 // Helper function to dump table content for debugging
 func dumpTable(t *testing.T, tableName string) string {
