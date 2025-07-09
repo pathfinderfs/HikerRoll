@@ -1443,28 +1443,75 @@
         }
 
         function endHike() {
-            const endHikeUrl = `/api/hike/${currentHike.joinCode}?leaderCode=${currentHike.leaderCode}`;
+            if (!currentHike || !currentHike.leaderCode) {
+                alert("Cannot end hike: Current hike data is missing or incomplete.");
+                return;
+            }
+
             if (!navigator.onLine) {
-                // addToRequestQueue(endHikeUrl, 'PUT'); // Removed
                 Swal.fire({
                     icon: 'error',
                     title: 'Offline',
                     text: "You are offline. Please try again when you have an internet connection.",
                 });
-                // Consider UI feedback here as well
                 return;
             }
-            fetch(endHikeUrl, { method: 'PUT' }) // Added { method: 'PUT' }
-                .then(response => {
-                    if (response.ok) {
-                        clearCurrentHike();
-                        showWelcomePage();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert("An error occurred while trying to end the hike. Please try again.");
-                });
+
+            // Prepare the payload. It must be a complete Hike object,
+            // with Status set to "closed".
+            const hikePayloadToEnd = { ...currentHike }; // Create a shallow copy
+            hikePayloadToEnd.Status = "closed";
+
+            // Ensure the leader object is structured as expected by the backend if it's nested
+            // currentHike.leader should already be correctly structured.
+            // If backend expects leader.uuid, leader.name, leader.phone directly in payload.leader
+            if (!hikePayloadToEnd.Leader || !hikePayloadToEnd.Leader.uuid) {
+                 // Fallback or ensure currentUser is used if currentHike.Leader is not populated properly
+                hikePayloadToEnd.Leader = {
+                    uuid: currentUser.uuid,
+                    name: currentUser.name,
+                    phone: currentUser.phone
+                };
+                // This assumes the person ending the hike is the current user and should be the leader.
+                // This might need adjustment if currentHike.Leader is the definitive source.
+                // Given currentHike is populated from server, currentHike.Leader should be correct.
+            }
+
+
+            fetch(`/api/hike/${currentHike.leaderCode}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(hikePayloadToEnd),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Try to parse error message from response body
+                    return response.text().then(text => {
+                        let errorMsg = "Failed to end hike.";
+                        try {
+                            const errData = JSON.parse(text);
+                            if (errData && (errData.error || errData.message)) {
+                                errorMsg = errData.error || errData.message;
+                            } else if (text) {
+                                errorMsg = text;
+                            }
+                        } catch (e) { /* Ignore parsing error, use text or default */ }
+                        throw new Error(errorMsg);
+                    });
+                }
+                return response.json(); // Expecting updated hike details back
+            })
+            .then(closedHikeDetails => {
+                // Hike successfully closed
+                clearCurrentHike();
+                showWelcomePage();
+            })
+            .catch(error => {
+                console.error('Error ending hike:', error);
+                alert(`An error occurred while trying to end the hike: ${error.message}`);
+            });
         }
 
         function leaveHike() {
