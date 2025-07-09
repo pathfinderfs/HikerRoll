@@ -919,18 +919,47 @@
 
 
         function goToLeaderConsole(joinCode, leaderCode) {
-            // This function remains largely the same but we ensure leaderCode is passed if available.
-            // The edit button will have its own navigation logic.
-            if (leaderCode) {
-                 window.location.href = `${window.location.origin}?code=${joinCode}&leaderCode=${leaderCode}`;
-            } else {
-                // Fallback or error if leaderCode is missing for a hike they are supposed to lead.
-                // This part of the logic might need review based on how leaderCode is always obtained.
-                // For now, if leaderCode is missing, it implies an issue or participant view.
-                console.warn("goToLeaderConsole called without leaderCode for joinCode:", joinCode);
-                alert("Coordinator console access requires a leader code. Attempting to open participant view.");
-                window.location.href = `${window.location.origin}?code=${joinCode}`;
+            if (!joinCode || !leaderCode) {
+                alert("Cannot open leader console: Missing hike information.");
+                return;
             }
+            fetch(`/api/hike/${joinCode}?leaderCode=${leaderCode}`)
+                .then(response => {
+                    if (!response.ok) {
+                        // Try to get error message from body
+                        return response.text().then(text => {
+                            let errorMsg = 'Failed to fetch hike details for leader console.';
+                            try {
+                                const errData = JSON.parse(text);
+                                if (errData && errData.error) errorMsg = errData.error;
+                                else if (text) errorMsg = text;
+                            } catch (e) { /* Ignore parsing error, use default or text */ }
+                            throw new Error(errorMsg);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(hikeDetails => {
+                    currentHike = hikeDetails;
+                    currentHike.leaderCode = leaderCode; // Ensure this is set from the valid leaderCode used
+                    // The leader object within hikeDetails is from the backend, which is the source of truth.
+                    // currentUser is the person using the browser. If currentUser.uuid === hikeDetails.leader.uuid, they are the leader.
+                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                    showHikeLeaderPage(); // Directly show the leader page
+
+                    // Clear URL params manually as we are not doing a full page nav via href changing search params
+                    if (window.history.pushState) {
+                        const newURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                        window.history.pushState({path:newURL}, '', newURL);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error in goToLeaderConsole:', error);
+                    alert('Could not open leader console: ' + error.message);
+                    // Optionally, redirect to welcome page or clear state
+                    // clearCurrentHike();
+                    // showWelcomePage();
+                });
         }
 
         function showJoinHikePage(joinCode) {
