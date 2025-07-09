@@ -662,103 +662,88 @@
 
         function checkUserStatus() {
             const urlParams = new URLSearchParams(window.location.search);
-            const joinCode = urlParams.get('code');
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinCodeFromURL = urlParams.get('code');
             const leaderCodeFromURL = urlParams.get('leaderCode');
 
-            if (leaderCodeFromURL) {
-                // Scenario: User accessed a leaderCode URL.
-                // This could be an existing leader returning, or a new leader taking over.
-                // We will show them the edit page.
-                // fetch(`/api/hike/${joinCode}?leaderCode=${leaderCodeFromURL}`) // Fetch by joinCode first to ensure hike exists and get its details
-                //     .then(response => {
-                //         if (!response.ok) throw new Error('Hike not found or access denied with this leader code.');
-                //         return response.json();
-                //     })
-                //     .then(hikeDetails => {
-                //         // currentHike = hikeDetails;
-                //         // currentHike.leaderCode = leaderCodeFromURL; // Ensure this leaderCode is stored
-                //         // localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                //         // Now, show the edit page, which will be pre-filled.
-                //         // The leader in the form will be currentUser. If they save, they become the leader.
-                //         showEditHikePage(joinCode, leaderCodeFromURL);
-                //     })
-                //     .catch(error => {
-                //         console.error('Error accessing hike with leader code:', error);
-                //         alert(`Error: ${error.message}. You may not have permission or the hike is invalid.`);
-                //         clearCurrentHike();
-                //         window.history.pushState({}, document.title, window.location.pathname); // Clear URL params
-                //         showWelcomePage();
-                //     });
-                // For a leaderCode URL, always direct to the edit page.
-                // The edit page will fetch details. If the user updates, they become the leader.
-                // It's important that showEditHikePage can handle being the entry point.
-                if (joinCode && leaderCodeFromURL) {
-                    showEditHikePage(joinCode, leaderCodeFromURL);
-                } else {
-                     // This case implies a leaderCode was provided but no joinCode, which is unusual
-                     // or if currentHike.leaderCode was already set (e.g. existing leader refreshing)
-                     // If only leaderCode is in URL, and no joinCode, it's ambiguous.
-                     // For now, let's assume if leaderCode is in URL, joinCode must also be there for this flow.
-                     // If currentHike.leaderCode is already set (from localStorage), it means they were already leading.
-                     const effectiveLeaderCode = leaderCodeFromURL || currentHike.leaderCode;
-                     const effectiveJoinCode = joinCode || currentHike.joinCode;
-
-                     if (effectiveJoinCode && effectiveLeaderCode) {
-                        // This covers existing leader refreshing or navigating back.
-                        // Let's take them to leader console directly.
-                        // If it's a new leader with only leaderCode in URL (no joinCode), this won't work well.
-                        // The primary new leader takeover path requires both joinCode and leaderCode in URL.
-                         fetch(`/api/hike/${effectiveJoinCode}?leaderCode=${effectiveLeaderCode}`)
-                            .then(response => response.json())
-                            .then(hike => {
-                                currentHike = hike;
-                                currentHike.leaderCode = effectiveLeaderCode;
-                                // The leader of currentHike will be fetched from DB.
-                                // If the current user IS the leader from DB, fine.
-                                // If current user is DIFFERENT, and they are on leader console,
-                                // this might be okay if they are just viewing.
-                                // But typically, leader console implies they ARE the leader.
-                                // The update mechanism handles leader change.
-                                localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                                showHikeLeaderPage();
-                            })
-                            .catch(error => {
-                                console.error('Error verifying leader status:', error);
-                                alert('The hike may not exist or has already ended.');
-                                clearCurrentHike();
-                                window.history.pushState({}, document.title, window.location.pathname);
-                                showWelcomePage();
+            if (joinCodeFromURL && leaderCodeFromURL) {
+                // Scenario: Edit link or new coordinator link (now with both codes)
+                showEditHikePage(joinCodeFromURL, leaderCodeFromURL);
+                return;
+            } else if (leaderCodeFromURL && !joinCodeFromURL) {
+                // Scenario: Old coordinator link with only leaderCode, or incomplete new one.
+                alert("Incomplete hike information in URL. The coordinator link should include both a join code and a leader code. Please ask for a new link.");
+                clearCurrentHike();
+                window.history.pushState({}, document.title, window.location.pathname);
+                showWelcomePage();
+                return;
+            } else if (joinCodeFromURL && !leaderCodeFromURL) {
+                // Scenario: Participant joining with a join code link
+                showJoinHikePage(joinCodeFromURL);
+                return;
+            } else if (currentHike.leaderCode && currentHike.joinCode && !joinCodeFromURL && !leaderCodeFromURL) {
+                // Scenario: Existing leader session from localStorage, no new URL parameters
+                // This case is primarily hit on page refresh when user was on leader console.
+                // goToLeaderConsole now handles direct navigation to console without URL change.
+                fetch(`/api/hike/${currentHike.joinCode}?leaderCode=${currentHike.leaderCode}`)
+                    .then(response => {
+                        if (!response.ok) {
+                             return response.text().then(text => {
+                                let errorMsg = 'Failed to reload leader session.';
+                                try { const errData = JSON.parse(text); if (errData && (errData.error || errData.message)) errorMsg = errData.error || errData.message; else if (text) errorMsg = text; } catch (e) {}
+                                throw new Error(errorMsg);
                             });
-                     } else {
-                        alert("Incomplete information to access hike leadership page.");
-                        clearCurrentHike();
-                        window.history.pushState({}, document.title, window.location.pathname);
-                        showWelcomePage();
-                     }
-                }
-
-            } else if (currentHike.joinCode && currentHike.leaderCode && !joinCode && !leaderCodeFromURL) {
-                // User was previously a leader (leaderCode in localStorage's currentHike), no new codes in URL
-                // Take them to leader console
-                 fetch(`/api/hike/${currentHike.joinCode}?leaderCode=${currentHike.leaderCode}`)
-                    .then(response => response.json())
+                        }
+                        return response.json();
+                    })
                     .then(hike => {
-                        currentHike = hike;
-                        // currentHike.leaderCode is already set from localStorage
+                        currentHike = hike; // Update with latest details
+                        currentHike.leaderCode = currentHike.leaderCode || leaderCodeFromURL || currentHike.leaderCode; // Ensure leaderCode is persisted
                         localStorage.setItem('currentHike', JSON.stringify(currentHike));
                         showHikeLeaderPage();
                     }).catch(err => {
-                        console.error("Error re-opening leader console", err);
-                        clearCurrentHike(); showWelcomePage();
+                        console.error("Error re-opening leader console from stored state:", err);
+                        alert("Could not reload your session: " + err.message + " Please try opening the hike again from the welcome page if listed, or use the coordinator link.");
+                        clearCurrentHike();
+                        window.history.pushState({}, document.title, window.location.pathname);
+                        showWelcomePage();
                     });
-            } else if (currentHike.joinCode && !currentHike.leaderCode && !joinCode && !leaderCodeFromURL) {
-                 // User was previously a participant (joinCode in localStorage, but no leaderCode), no new codes in URL
-                showHikingPage();
-            } else if (joinCode) {
-                showJoinHikePage(joinCode);
+                return;
+            } else if (currentHike.joinCode && !currentHike.leaderCode && !joinCodeFromURL && !leaderCodeFromURL) {
+                // Scenario: Existing participant session from localStorage, no new URL parameters
+                // This case is primarily hit on page refresh when user was on hiking page.
+                 fetch(`/api/hike/${currentHike.joinCode}`) // Verify hike still exists and is open
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => {
+                                let errorMsg = 'Failed to reload hiking session. The hike may have ended.';
+                                try { const errData = JSON.parse(text); if (errData && (errData.error || errData.message)) errorMsg = errData.error || errData.message; else if (text) errorMsg = text; } catch (e) {}
+                                throw new Error(errorMsg);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(hikeDetails => {
+                        currentHike = hikeDetails; // Update with latest details
+                        // currentHike.participantId should be preserved from localStorage if it was set
+                        const storedParticipantId = (JSON.parse(localStorage.getItem('currentHike')) || {}).participantId;
+                        if(storedParticipantId) currentHike.participantId = storedParticipantId;
+
+                        localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                        showHikingPage();
+                    })
+                    .catch(error => {
+                        console.error('Error reloading participant session:', error);
+                        alert("Could not reload your hiking session: " + error.message);
+                        clearCurrentHike();
+                        window.history.pushState({}, document.title, window.location.pathname);
+                        showWelcomePage();
+                    });
+                return;
             } else {
-                // User is not leading or participating in a hike so show the welcome page
+                // Default: No specific parameters or stored state
                 showWelcomePage();
+                return;
             }
         }
 
@@ -1166,8 +1151,8 @@
 
 
             document.getElementById('participant-toggle').checked = showAllParticipants;
-            document.getElementById('join-url').href = generateLink('code', currentHike.joinCode);
-            document.getElementById('hike-leader-link').href = generateLink('leaderCode', currentHike.leaderCode);
+            document.getElementById('join-url').href = `${window.location.origin}?code=${currentHike.joinCode}`; // Uses currentHike.joinCode
+            document.getElementById('hike-leader-link').href = `${window.location.origin}?code=${currentHike.joinCode}&leaderCode=${currentHike.leaderCode}`; // Now includes both joinCode and leaderCode
             showPage('hike-leader-page');
             refreshParticipants();
         }
