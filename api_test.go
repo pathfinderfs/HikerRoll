@@ -877,17 +877,111 @@ func TestHikeParticipants(t *testing.T) {
 	assert.Equal(t, 1, len(participants))
 }
 
-func TestEndHike(t *testing.T) {
-	hike := createTestHike(t)
+func TestUpdateHike(t *testing.T) {
+	// 1. Create an initial hike
+	initialLeader := User{UUID: "leader-update-initial", Name: "Initial Leader", Phone: "1112223333"}
+	initialHike := createTestHikeWithOptionsAndStartTime(t, initialLeader, "Initial Hike Name", "Aiea Loop (upper)", time.Now().Add(24*time.Hour))
+	initialHike.Organization = "Initial Org"
+	initialHike.PhotoRelease = false
+	initialHike.DescriptionMarkdown = "Initial Description"
+	// Re-create with all fields set for clarity in what's being updated from
+	var createdHike Hike
+	hikeBodyBytes, _ := json.Marshal(initialHike)
+	createReq, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(hikeBodyBytes))
+	createRR := httptest.NewRecorder()
+	mux := setupTestMux()
+	mux.ServeHTTP(createRR, createReq)
+	require.Equal(t, http.StatusOK, createRR.Code)
+	json.Unmarshal(createRR.Body.Bytes(), &createdHike)
+	require.NotEmpty(t, createdHike.LeaderCode, "Leader code should be present after creation")
 
-	body, _ := json.Marshal(hike)
-	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", hike.LeaderCode), bytes.NewBuffer(body))
+	// 2. Prepare updated hike data
+	updatedHikeData := Hike{
+		Name:                "Updated Hike Name",
+		Organization:        "Updated Org",
+		TrailheadName:       "Diamond Head Crater (Le'ahi)", // Change trailhead
+		TrailheadMapLink:    "https://new.map.link",          // Custom map link
+		StartTime:           time.Now().Add(48 * time.Hour), // Change start time
+		PhotoRelease:        true,                           // Change photo release
+		DescriptionMarkdown: "Updated Description",
+		Leader:              initialLeader, // Same leader for now
+		// JoinCode and LeaderCode are not part of the update payload body in this design, leaderCode is in URL
+	}
+
+	updateBody, _ := json.Marshal(updatedHikeData)
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", createdHike.LeaderCode), bytes.NewBuffer(updateBody))
+	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
-	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code, "Failed to update hike. Body: %s", rr.Body.String())
+
+	var responseHike Hike
+	err := json.Unmarshal(rr.Body.Bytes(), &responseHike)
+	require.NoError(t, err)
+
+	// Verify all fields in the response
+	assert.Equal(t, updatedHikeData.Name, responseHike.Name)
+	assert.Equal(t, updatedHikeData.Organization, responseHike.Organization)
+	assert.Equal(t, updatedHikeData.TrailheadName, responseHike.TrailheadName)
+	assert.Equal(t, updatedHikeData.TrailheadMapLink, responseHike.TrailheadMapLink)
+	assert.WithinDuration(t, updatedHikeData.StartTime, responseHike.StartTime, time.Second)
+	assert.Equal(t, updatedHikeData.PhotoRelease, responseHike.PhotoRelease)
+	assert.Equal(t, updatedHikeData.DescriptionMarkdown, responseHike.DescriptionMarkdown)
+	assert.NotEmpty(t, responseHike.DescriptionHTML)
+	assert.Equal(t, initialLeader.UUID, responseHike.Leader.UUID) // Leader should be the same
+	assert.Equal(t, createdHike.JoinCode, responseHike.JoinCode)   // JoinCode should not change
+	assert.Equal(t, createdHike.LeaderCode, responseHike.LeaderCode) // LeaderCode should not change
+	assert.Equal(t, "open", responseHike.Status, "Hike status should remain open after update") // Status should not change
+
+	// 3. Test changing the leader
+	newLeader := User{UUID: "leader-update-new", Name: "New Leader", Phone: "4445556666"}
+	hikeDataWithNewLeader := updatedHikeData // Start with previously updated data
+	hikeDataWithNewLeader.Leader = newLeader  // Change the leader
+
+	updateWithNewLeaderBody, _ := json.Marshal(hikeDataWithNewLeader)
+	reqNewLeader, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", createdHike.LeaderCode), bytes.NewBuffer(updateWithNewLeaderBody))
+	reqNewLeader.Header.Set("Content-Type", "application/json")
+
+	rrNewLeader := httptest.NewRecorder()
+	mux.ServeHTTP(rrNewLeader, reqNewLeader)
+
+	assert.Equal(t, http.StatusOK, rrNewLeader.Code, "Failed to update hike with new leader. Body: %s", rrNewLeader.Body.String())
+
+	var responseHikeNewLeader Hike
+	err = json.Unmarshal(rrNewLeader.Body.Bytes(), &responseHikeNewLeader)
+	require.NoError(t, err)
+
+	assert.Equal(t, newLeader.UUID, responseHikeNewLeader.Leader.UUID)
+	assert.Equal(t, newLeader.Name, responseHikeNewLeader.Leader.Name)
+	assert.Equal(t, newLeader.Phone, responseHikeNewLeader.Leader.Phone)
+	assert.Equal(t, "Updated Hike Name", responseHikeNewLeader.Name) // Other fields should retain their updated values
+	assert.Equal(t, "open", responseHikeNewLeader.Status, "Hike status should remain open after leader change")
+
+	// Verify in DB directly that leader_uuid changed
+	var dbLeaderUUID string
+	err = db.QueryRow("SELECT leader_uuid FROM hikes WHERE leader_code = ?", createdHike.LeaderCode).Scan(&dbLeaderUUID)
+	require.NoError(t, err)
+	assert.Equal(t, newLeader.UUID, dbLeaderUUID)
+
+	// 4. Test update with non-existent leaderCode
+	nonExistentLeaderCode := "nonexistentleadercode123"
+	updateReqNonExistent, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", nonExistentLeaderCode), bytes.NewBuffer(updateBody))
+	updateReqNonExistent.Header.Set("Content-Type", "application/json")
+	rrNonExistent := httptest.NewRecorder()
+	mux.ServeHTTP(rrNonExistent, updateReqNonExistent)
+	assert.Equal(t, http.StatusNotFound, rrNonExistent.Code)
+
+	// 5. Test update with invalid body (e.g., missing leader UUID)
+	invalidHikeData := updatedHikeData
+	invalidHikeData.Leader.UUID = "" // Invalid: leader UUID is required
+	invalidBodyBytes, _ := json.Marshal(invalidHikeData)
+	updateReqInvalidBody, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", createdHike.LeaderCode), bytes.NewBuffer(invalidBodyBytes))
+	updateReqInvalidBody.Header.Set("Content-Type", "application/json")
+	rrInvalidBody := httptest.NewRecorder()
+	mux.ServeHTTP(rrInvalidBody, updateReqInvalidBody)
+	assert.Equal(t, http.StatusBadRequest, rrInvalidBody.Code)
 }
 
 func TestLeaveHike(t *testing.T) {

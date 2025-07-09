@@ -242,7 +242,7 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
 	// mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler) // Removed
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
-	mux.HandleFunc("PUT /api/hike/{hikeId}", endHikeHandler) // require leader code
+	mux.HandleFunc("PUT /api/hike/{leaderCode}", updateHikeHandler) // Changed from endHikeHandler and {hikeId}
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike/last", getLastHikeHandler) // Return the last hike details for a given hikeName and leaderUUID
 	mux.HandleFunc("GET /api/hike", getHikesHandler)
@@ -510,9 +510,157 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(hike)
 }
 
-// End a hike and mark all participants as finished
+// updateHikeHandler updates hike details based on leaderCode.
+// It can update hike information and change the leader.
+func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
+	leaderCodeFromPath := r.PathValue("leaderCode")
+
+	var updatedHike Hike
+	err := json.NewDecoder(r.Body).Decode(&updatedHike)
+	if err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate essential fields from request if necessary, e.g., updatedHike.Leader.UUID for new leader
+	if updatedHike.Leader.UUID == "" {
+		http.Error(w, "Leader UUID is required in the request body", http.StatusBadRequest)
+		return
+	}
+
+	// Begin transaction
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "Failed to start transaction: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback() // Rollback if not committed
+
+	// Fetch current leader_uuid to check if it's a leader change
+	var currentDBLeaderUUID string
+	var currentJoinCode string
+	err = tx.QueryRow("SELECT leader_uuid, join_code FROM hikes WHERE leader_code = ?", leaderCodeFromPath).Scan(&currentDBLeaderUUID, &currentJoinCode)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Hike not found for the given leader code", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error fetching current hike details: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Update user (potential new Leader) in the users table
+	// This ensures the new leader exists if they are different from the current one.
+	// If it's the same leader, their details (name, phone) might be updated.
+	_, err = tx.Exec(`
+		INSERT INTO users (uuid, name, phone)
+		VALUES (?, ?, ?)
+		ON CONFLICT(uuid) DO UPDATE SET name = excluded.name, phone = excluded.phone
+	`, updatedHike.Leader.UUID, updatedHike.Leader.Name, updatedHike.Leader.Phone)
+	if err != nil {
+		http.Error(w, "Error updating leader details in users table: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Update the hike details in the hikes table
+	// Note: Status is NOT updated here. JoinCode and LeaderCode (path param) are not changed.
+	// Only the leader_uuid might change if updatedHike.Leader.UUID is different.
+	_, err = tx.Exec(`
+		UPDATE hikes
+		SET name = ?,
+		    organization = ?,
+		    trailhead_name = ?,
+		    trailhead_map_link = ?,
+		    start_time = ?,
+		    photo_release = ?,
+		    description = ?,
+		    leader_uuid = ?
+		WHERE leader_code = ?
+	`, updatedHike.Name, updatedHike.Organization, updatedHike.TrailheadName, updatedHike.TrailheadMapLink,
+		updatedHike.StartTime, updatedHike.PhotoRelease, updatedHike.DescriptionMarkdown,
+		updatedHike.Leader.UUID, leaderCodeFromPath)
+
+	if err != nil {
+		http.Error(w, "Error updating hike details: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// If leader changed, we might need to update waiver text if it's regenerated based on leader name.
+	// For simplicity, this example assumes waiver text regeneration might happen on next fetch or is handled client-side.
+	// Or, regenerate it here if critical.
+	// For now, we'll assume the existing waiver text is sufficient or will be updated by a separate process/view.
+
+	err = tx.Commit()
+	if err != nil {
+		http.Error(w, "Failed to commit transaction: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// After successful update, fetch the updated hike details to return
+	var finalHike Hike
+	var descriptionMarkdown sql.NullString
+	var trailheadMapLink sql.NullString
+	// Fetch using the original leaderCodeFromPath, as that's the identifier used for update
+	// The leader_uuid in the table might have changed, so fetch based on leader_code.
+	err = db.QueryRow(`
+		SELECT h.name, h.organization, h.trailhead_name, u.uuid, u.name, u.phone,
+		       h.trailhead_map_link, h.start_time, h.join_code, h.leader_code, h.photo_release, h.description, h.status
+		FROM hikes h
+		JOIN users u ON h.leader_uuid = u.uuid
+		WHERE h.leader_code = ?
+	`, leaderCodeFromPath).Scan(
+		&finalHike.Name, &finalHike.Organization, &finalHike.TrailheadName,
+		&finalHike.Leader.UUID, &finalHike.Leader.Name, &finalHike.Leader.Phone,
+		&trailheadMapLink, &finalHike.StartTime, &finalHike.JoinCode, &finalHike.LeaderCode,
+		&finalHike.PhotoRelease, &descriptionMarkdown, &finalHike.Status,
+	)
+
+	if err != nil {
+		// This would be unusual if the update succeeded, but handle it.
+		http.Error(w, "Error fetching updated hike details: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if descriptionMarkdown.Valid {
+		finalHike.DescriptionMarkdown = descriptionMarkdown.String
+		var buf strings.Builder
+		if goldmarkErr := goldmark.Convert([]byte(finalHike.DescriptionMarkdown), &buf); goldmarkErr != nil {
+			log.Printf("Error converting description to HTML for updated hike %s: %v", finalHike.JoinCode, goldmarkErr)
+			finalHike.DescriptionHTML = finalHike.DescriptionMarkdown // Fallback
+		} else {
+			p := bluemonday.UGCPolicy()
+			finalHike.DescriptionHTML = p.Sanitize(buf.String())
+		}
+	} else {
+		finalHike.DescriptionMarkdown = ""
+		finalHike.DescriptionHTML = ""
+	}
+	if trailheadMapLink.Valid {
+		finalHike.TrailheadMapLink = trailheadMapLink.String
+	}
+
+	// Regenerate waiver text as leader or organization might have changed
+	waiverText, waiverErr := generateWaiverText(finalHike.JoinCode)
+	if waiverErr != nil {
+		log.Printf("Error generating waiver text for updated hike %s: %v", finalHike.JoinCode, waiverErr)
+		finalHike.WaiverText = "" // Or some default/error message
+	} else {
+		finalHike.WaiverText = waiverText
+	}
+
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(finalHike)
+	logAction(fmt.Sprintf("Hike updated: %s (LeaderCode: %s)", finalHike.Name, leaderCodeFromPath))
+}
+
+// This is the old endHikeHandler, which is now effectively part of a different workflow
+// or needs to be a separate endpoint if "closing" a hike is distinct from "updating" it.
+// For now, it's commented out. If "ending/closing" a hike is still needed as a distinct PUT operation,
+// it would need its own route and handler.
+/*
 func endHikeHandler(w http.ResponseWriter, r *http.Request) {
-	joinCode := r.PathValue("hikeId")
+	joinCode := r.PathValue("hikeId") // This was based on joinCode in path
 	leaderCode := r.URL.Query().Get("leaderCode")
 
 	_, err := db.Exec("UPDATE hikes SET status = 'closed' WHERE leader_code = ?", leaderCode)
@@ -533,6 +681,7 @@ func endHikeHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	logAction(fmt.Sprintf("Hike closed"))
 }
+*/
 
 func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed function
 	joinCode := r.PathValue("hikeId")
