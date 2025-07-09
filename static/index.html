@@ -1418,6 +1418,12 @@
                 createButton.textContent = 'Create Hike';
                 createButton.onclick = createHike;
 
+                // Clear URL parameters before showing leader page
+                if (window.history.pushState) {
+                    const newURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                    window.history.pushState({path:newURL}, '', newURL);
+                }
+
                 showHikeLeaderPage(); // Show leader console for the (potentially new) leader
             })
             .catch(error => {
