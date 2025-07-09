@@ -248,7 +248,247 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/hike", getHikesHandler)
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
+	mux.HandleFunc("PUT /api/hike/update/{leaderCode}", updateHikeHandler) // Path for updating hike details
 }
+
+// updateHikeHandler processes requests to update hike details.
+// It uses the leaderCode from the path for authorization and identification.
+func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
+	leaderCode := r.PathValue("leaderCode")
+	if leaderCode == "" {
+		http.Error(w, "Leader code is required", http.StatusBadRequest)
+		return
+	}
+
+	var updates Hike // Using the existing Hike struct for simplicity, assuming partial updates
+	err := json.NewDecoder(r.Body).Decode(&updates)
+	if err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Begin transaction
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "Failed to start transaction: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback() // Rollback if not committed
+
+	// Fetch current leader_uuid to see if it's changing
+	var currentLeaderUUID string
+	var currentJoinCode string // Need join_code to regenerate waiver if leader/org changes
+	err = tx.QueryRow("SELECT leader_uuid, join_code FROM hikes WHERE leader_code = ?", leaderCode).Scan(&currentLeaderUUID, &currentJoinCode)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Hike not found for the given leader code", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error fetching current hike details: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// If a new leader UUID is provided and it's different from the current one
+	newLeaderProvided := updates.Leader.UUID != "" && updates.Leader.UUID != currentLeaderUUID
+	if newLeaderProvided {
+		// Ensure the new leader exists in the users table, or insert/update them
+		if updates.Leader.Name != "" || updates.Leader.Phone != "" {
+			_, err = tx.Exec(`
+				INSERT INTO users (uuid, name, phone) VALUES (?, ?, ?)
+				ON CONFLICT(uuid) DO UPDATE SET
+					name = COALESCE(excluded.name, users.name),
+					phone = COALESCE(excluded.phone, users.phone)
+			`, updates.Leader.UUID, updates.Leader.Name, updates.Leader.Phone)
+		} else {
+			// If only UUID is provided, ensure the user exists, insert if not (with blank name/phone).
+			_, err = tx.Exec(`INSERT OR IGNORE INTO users (uuid, name, phone) VALUES (?, '', '')`, updates.Leader.UUID)
+		}
+		if err != nil {
+			http.Error(w, "Failed to update leader information in users table: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		currentLeaderUUID = updates.Leader.UUID // Update currentLeaderUUID for the SET clause below
+	}
+
+
+	var setClauses []string
+	var args []interface{}
+	anyFieldUpdated := false // Track if any updatable field (other than leader) was actually provided
+
+	// Check if fields are provided and add them to the update query
+	// For robustness, ideally the 'updates' struct would use pointers for optional fields
+	// to distinguish between a field not provided and a field provided with its zero value.
+	// Given the current struct, we assume non-empty/non-zero means an update is intended.
+
+	if updates.Name != "" { // Simpler check: if name is non-empty, update it.
+		setClauses = append(setClauses, "name = ?")
+		args = append(args, updates.Name)
+		anyFieldUpdated = true
+	}
+
+	// To properly handle partial updates where a field might be intentionally set to an empty string
+	// or a boolean to false, we need to know if the field was present in the request.
+	// A common way is to unmarshal into a map[string]json.RawMessage to check key presence.
+	requestBodyBytes, err := json.Marshal(updates) // This is inefficient, ideally read r.Body once
+	if err != nil {
+		http.Error(w, "Could not re-marshal request body for field checking", http.StatusInternalServerError)
+		return
+	}
+	var tempMap map[string]json.RawMessage
+	err = json.Unmarshal(requestBodyBytes, &tempMap)
+	if err != nil {
+		http.Error(w, "Could not unmarshal to temp map for field checking", http.StatusInternalServerError)
+		return
+	}
+
+	if _, ok := tempMap["organization"]; ok {
+		setClauses = append(setClauses, "organization = ?")
+		args = append(args, updates.Organization) // updates.Organization will be "" if key present but value empty
+		anyFieldUpdated = true
+	}
+	if _, ok := tempMap["trailheadName"]; ok {
+		// Only update if non-empty, assuming empty means "no change" for this specific field if key is present.
+		// This is a business logic choice. If empty string is a valid clear, then just `updates.TrailheadName != ""` is not needed.
+		if updates.TrailheadName != "" {
+			setClauses = append(setClauses, "trailhead_name = ?")
+			args = append(args, updates.TrailheadName)
+			anyFieldUpdated = true
+		} else if updates.TrailheadName == "" && string(tempMap["trailheadName"]) == `""` { // Explicitly set to empty string
+            setClauses = append(setClauses, "trailhead_name = ?")
+            args = append(args, "")
+            anyFieldUpdated = true
+        }
+	}
+	if _, ok := tempMap["trailheadMapLink"]; ok {
+		setClauses = append(setClauses, "trailhead_map_link = ?")
+		args = append(args, updates.TrailheadMapLink) // Allow empty string to clear
+		anyFieldUpdated = true
+	}
+	if _, ok := tempMap["startTime"]; ok && !updates.StartTime.IsZero() {
+		setClauses = append(setClauses, "start_time = ?")
+		args = append(args, updates.StartTime.Format("2006-01-02T15:04:05-07:00"))
+		anyFieldUpdated = true
+	}
+	if _, ok := tempMap["photoRelease"]; ok {
+		setClauses = append(setClauses, "photo_release = ?")
+		args = append(args, updates.PhotoRelease)
+		anyFieldUpdated = true
+	}
+	if _, ok := tempMap["descriptionMarkdown"]; ok {
+		setClauses = append(setClauses, "description = ?")
+		args = append(args, updates.DescriptionMarkdown) // Allow empty string to clear
+		anyFieldUpdated = true
+	}
+
+	// If new leader was provided, leader_uuid must be updated.
+	if newLeaderProvided {
+		// Avoid adding duplicate "leader_uuid = ?" if it's already part of a more complex update logic
+		alreadyUpdatingLeader := false
+		for _, clause := range setClauses {
+			if strings.HasPrefix(clause, "leader_uuid =") {
+				alreadyUpdatingLeader = true
+				break
+			}
+		}
+		if !alreadyUpdatingLeader {
+			setClauses = append(setClauses, "leader_uuid = ?")
+			args = append(args, currentLeaderUUID) // This is now the new leader's UUID
+		}
+	}
+
+
+	if !anyFieldUpdated && !newLeaderProvided {
+		// No fields to update were provided. Fetch and return current state.
+	} else if len(setClauses) > 0 { // Only run DB update if there's something to update
+		query := fmt.Sprintf("UPDATE hikes SET %s WHERE leader_code = ?", strings.Join(setClauses, ", "))
+		args = append(args, leaderCode)
+
+		result, err := tx.Exec(query, args...)
+		if err != nil {
+			http.Error(w, "Failed to update hike: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			http.Error(w, "Error checking affected rows: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if rowsAffected == 0 {
+			// log.Printf("Update for leader_code %s affected 0 rows.", leaderCode)
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		http.Error(w, "Failed to commit transaction: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch the possibly updated hike to return it
+	var updatedHike Hike
+	var descriptionMarkdown sql.NullString
+	var trailheadMapLink sql.NullString
+	var org sql.NullString
+
+	err = db.QueryRow(`
+		SELECT h.name, h.organization, h.trailhead_name, u.uuid, u.name, u.phone,
+		       h.trailhead_map_link, h.start_time, h.status, h.join_code, h.leader_code,
+		       h.photo_release, h.description
+		FROM hikes h
+		JOIN users u ON h.leader_uuid = u.uuid
+		WHERE h.leader_code = ?
+	`, leaderCode).Scan(
+		&updatedHike.Name, &org, &updatedHike.TrailheadName,
+		&updatedHike.Leader.UUID, &updatedHike.Leader.Name, &updatedHike.Leader.Phone,
+		&trailheadMapLink, &updatedHike.StartTime, &updatedHike.Status,
+		&updatedHike.JoinCode, &updatedHike.LeaderCode, &updatedHike.PhotoRelease, &descriptionMarkdown,
+	)
+
+	if err != nil {
+		http.Error(w, "Failed to retrieve full updated hike details: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if org.Valid {
+		updatedHike.Organization = org.String
+	} else {
+		updatedHike.Organization = "" // Ensure it's empty string if DB NULL
+	}
+
+	if descriptionMarkdown.Valid {
+		updatedHike.DescriptionMarkdown = descriptionMarkdown.String
+		var buf strings.Builder
+		if errMd := goldmark.Convert([]byte(updatedHike.DescriptionMarkdown), &buf); errMd != nil {
+			log.Printf("Error converting description to HTML for updated hike %s: %v", updatedHike.JoinCode, errMd)
+			updatedHike.DescriptionHTML = updatedHike.DescriptionMarkdown // Fallback
+		} else {
+			p := bluemonday.UGCPolicy()
+			updatedHike.DescriptionHTML = p.Sanitize(buf.String())
+		}
+	} else {
+		updatedHike.DescriptionMarkdown = ""
+		updatedHike.DescriptionHTML = ""
+	}
+
+	if trailheadMapLink.Valid {
+		updatedHike.TrailheadMapLink = trailheadMapLink.String
+	} else {
+		updatedHike.TrailheadMapLink = "" // Ensure it's empty string if DB NULL
+	}
+
+	waiverText, errWaiver := generateWaiverText(currentJoinCode)
+	if errWaiver != nil {
+		log.Printf("Error generating waiver text for updated hike %s (join_code %s): %v", updatedHike.LeaderCode, currentJoinCode, errWaiver)
+		updatedHike.WaiverText = ""
+	} else {
+		updatedHike.WaiverText = waiverText
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedHike)
+	logAction(fmt.Sprintf("Hike updated via leader code: %s", leaderCode))
+}
+
 
 func main() {
 	initDB("./hiketracker.db")
