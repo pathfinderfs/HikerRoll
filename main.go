@@ -563,9 +563,7 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the hike details in the hikes table
-	// Note: Status is NOT updated here. JoinCode and LeaderCode (path param) are not changed.
-	// Only the leader_uuid might change if updatedHike.Leader.UUID is different.
-	_, err = tx.Exec(`
+	updateQuery := `
 		UPDATE hikes
 		SET name = ?,
 		    organization = ?,
@@ -574,21 +572,50 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 		    start_time = ?,
 		    photo_release = ?,
 		    description = ?,
-		    leader_uuid = ?
-		WHERE leader_code = ?
-	`, updatedHike.Name, updatedHike.Organization, updatedHike.TrailheadName, updatedHike.TrailheadMapLink,
-		updatedHike.StartTime, updatedHike.PhotoRelease, updatedHike.DescriptionMarkdown,
-		updatedHike.Leader.UUID, leaderCodeFromPath)
+		    leader_uuid = ?`
+	args := []interface{}{
+		updatedHike.Name, updatedHike.Organization, updatedHike.TrailheadName, updatedHike.TrailheadMapLink,
+		updatedHike.StartTime, updatedHike.PhotoRelease, updatedHike.DescriptionMarkdown, updatedHike.Leader.UUID,
+	}
 
+	// Handle status update
+	if updatedHike.Status == "closed" {
+		// Fetch current status to ensure we are not trying to close an already closed hike unnecessarily,
+		// or to apply "closing" logic only if it's currently open.
+		var currentDBStatus string
+		err = tx.QueryRow("SELECT status FROM hikes WHERE leader_code = ?", leaderCodeFromPath).Scan(&currentDBStatus)
+		if err != nil {
+			// This error should ideally not happen if the previous check for hike existence passed
+			http.Error(w, "Error fetching current hike status: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if currentDBStatus == "open" {
+			updateQuery += ", status = ?"
+			args = append(args, "closed")
+
+			// Also update participants' status to 'finished'
+			_, err = tx.Exec(`
+				UPDATE hike_users
+				SET status = 'finished'
+				WHERE hike_join_code = ? AND (status = 'active' OR status = 'rsvp')
+			`, currentJoinCode) // currentJoinCode fetched earlier
+			if err != nil {
+				http.Error(w, "Error updating participants to finished: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			logAction(fmt.Sprintf("Hike %s participants set to finished.", currentJoinCode))
+		}
+	} // Add more status handling here if needed, e.g., reopening a hike
+
+	updateQuery += " WHERE leader_code = ?"
+	args = append(args, leaderCodeFromPath)
+
+	_, err = tx.Exec(updateQuery, args...)
 	if err != nil {
 		http.Error(w, "Error updating hike details: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	// If leader changed, we might need to update waiver text if it's regenerated based on leader name.
-	// For simplicity, this example assumes waiver text regeneration might happen on next fetch or is handled client-side.
-	// Or, regenerate it here if critical.
-	// For now, we'll assume the existing waiver text is sufficient or will be updated by a separate process/view.
 
 	err = tx.Commit()
 	if err != nil {

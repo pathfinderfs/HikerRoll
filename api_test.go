@@ -531,53 +531,74 @@ func TestUnRSVP_HikeClosed(t *testing.T) {
 
 // Tests for /api/hike (formerly getUserHikesByStatusHandler functionality is merged here)
 
-func TestEndHike_WithRSVPParticipants(t *testing.T) {
-	leader := User{UUID: "leader-end-rsvp", Name: "End RSVP Leader"}
-	hike := createTestHikeWithOptions(t, leader)
+func TestUpdateHike_ToEndHikeAndFinalizeParticipants(t *testing.T) {
+	leader := User{UUID: "leader-end-rsvp-via-update", Name: "End RSVP Via Update Leader", Phone: "7897897890"}
+	hikeToClose := createTestHikeWithOptions(t, leader) // This creates an 'open' hike
 
 	// Participant 1: RSVP
-	userRSVP := User{UUID: "user-rsvp-for-end", Name: "RSVP User"}
-	joinTestHikeWithOptions(t, hike, userRSVP) // RSVPs
+	userRSVP := User{UUID: "user-rsvp-for-end-update", Name: "RSVP User for Update"}
+	joinTestHikeWithOptions(t, hikeToClose, userRSVP) // RSVPs
 
 	// Participant 2: Active
-	userActive := User{UUID: "user-active-for-end", Name: "Active User"}
-	joinTestHikeWithOptions(t, hike, userActive) // RSVPs
-	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, userActive.UUID)
+	userActive := User{UUID: "user-active-for-end-update", Name: "Active User for Update"}
+	joinTestHikeWithOptions(t, hikeToClose, userActive) // RSVPs
+	_, err := db.Exec("UPDATE hike_users SET status = 'active' WHERE hike_join_code = ? AND user_uuid = ?", hikeToClose.JoinCode, userActive.UUID)
 	require.NoError(t, err) // Manually set to active
 
-	// Participant 3: Finished (should not be affected further by EndHike)
-	userFinished := User{UUID: "user-finished-for-end", Name: "Finished User"}
-	joinTestHikeWithOptions(t, hike, userFinished) // RSVPs
-	_, err = db.Exec("UPDATE hike_users SET status = 'finished' WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, userFinished.UUID)
+	// Participant 3: Finished (should not be affected further by closing the hike via update)
+	userFinished := User{UUID: "user-finished-for-end-update", Name: "Finished User for Update"}
+	joinTestHikeWithOptions(t, hikeToClose, userFinished) // RSVPs
+	_, err = db.Exec("UPDATE hike_users SET status = 'finished' WHERE hike_join_code = ? AND user_uuid = ?", hikeToClose.JoinCode, userFinished.UUID)
 	require.NoError(t, err) // Manually set to finished
 
-	// End the hike
-	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s?leaderCode=%s", hike.JoinCode, hike.LeaderCode), nil) // Endpoint uses joinCode in path for PUT /api/hike/{hikeId}
+	// Prepare the update payload to close the hike
+	updatePayload := Hike{
+		// We need to provide all fields expected by the update handler, even if not changing them,
+		// or ensure the handler can gracefully handle partial updates (which it should).
+		// For this test, let's assume we are only changing the status.
+		// The backend's updateHikeHandler will use these values.
+		// It's important that the Leader in the payload is the current leader if not changing it.
+		Name:                hikeToClose.Name,
+		Organization:        hikeToClose.Organization,
+		TrailheadName:       hikeToClose.TrailheadName,
+		TrailheadMapLink:    hikeToClose.TrailheadMapLink,
+		StartTime:           hikeToClose.StartTime,
+		PhotoRelease:        hikeToClose.PhotoRelease,
+		DescriptionMarkdown: hikeToClose.DescriptionMarkdown,
+		Leader:              leader, // Current leader
+		Status:              "closed", // Explicitly closing the hike
+		JoinCode:            hikeToClose.JoinCode,   // Not strictly needed in payload for PUT, but good for struct completeness
+		LeaderCode:          hikeToClose.LeaderCode, // Not strictly needed in payload for PUT
+	}
+	body, _ := json.Marshal(updatePayload)
+
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", hikeToClose.LeaderCode), bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code, "Failed to end hike: %s", rr.Body.String())
+	assert.Equal(t, http.StatusOK, rr.Code, "Failed to update hike to closed status. Body: %s", rr.Body.String())
 
-	// Verify hike status is 'closed'
+	// Verify hike status is 'closed' in DB
 	var hikeStatus string
-	err = db.QueryRow("SELECT status FROM hikes WHERE join_code = ?", hike.JoinCode).Scan(&hikeStatus)
+	err = db.QueryRow("SELECT status FROM hikes WHERE leader_code = ?", hikeToClose.LeaderCode).Scan(&hikeStatus)
 	require.NoError(t, err)
 	assert.Equal(t, "closed", hikeStatus)
 
-	// Verify statuses of participants
-	var statusRSVP, statusActive, statusFinished string
-	err = db.QueryRow("SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, userRSVP.UUID).Scan(&statusRSVP)
+	// Verify statuses of participants in DB
+	var statusRSVP, statusActive, statusAlreadyFinished string
+	err = db.QueryRow("SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hikeToClose.JoinCode, userRSVP.UUID).Scan(&statusRSVP)
 	require.NoError(t, err)
 	assert.Equal(t, "finished", statusRSVP, "RSVPd participant should be 'finished'")
 
-	err = db.QueryRow("SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, userActive.UUID).Scan(&statusActive)
+	err = db.QueryRow("SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hikeToClose.JoinCode, userActive.UUID).Scan(&statusActive)
 	require.NoError(t, err)
 	assert.Equal(t, "finished", statusActive, "Active participant should be 'finished'")
 
-	err = db.QueryRow("SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hike.JoinCode, userFinished.UUID).Scan(&statusFinished)
+	err = db.QueryRow("SELECT status FROM hike_users WHERE hike_join_code = ? AND user_uuid = ?", hikeToClose.JoinCode, userFinished.UUID).Scan(&statusAlreadyFinished)
 	require.NoError(t, err)
-	assert.Equal(t, "finished", statusFinished, "Finished participant should remain 'finished'")
+	assert.Equal(t, "finished", statusAlreadyFinished, "Finished participant should remain 'finished'")
 }
 
 func TestUpdateParticipantStatus_PreventRSVPChange(t *testing.T) {
