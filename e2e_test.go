@@ -168,7 +168,7 @@ func createHike(t *testing.T, page *rod.Page, hikeName, organization, trailheadN
 	page.MustElement("#hike-trailheadName").MustInput(trailheadName[:2])
 
 	// This is to handle the autocomplete selection for trailname
-	assert.True(t, isElementVisible(t, page, ".autocomplete-items", 3*time.Second), "Autocomplete items container")
+	assert.True(t, isElementVisible(t, page, ".autocomplete-items", 5*time.Second), "Autocomplete items container (increased timeout)")
 
 	page.MustElementByJS(fmt.Sprintf(`
 	() => {

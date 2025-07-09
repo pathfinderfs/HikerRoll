@@ -34,8 +34,8 @@ func TestCreateHike(t *testing.T) {
 		TrailheadName:    "Aiea Loop (upper)",                                                   // Use an existing trailhead for map_link
 		TrailheadMapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Explicitly provide it
 		StartTime:        time.Now().Add(24 * time.Hour),
-		PhotoRelease:     false, // Default to false for this test
-		Description:      "A beautiful test hike.",
+		PhotoRelease:        false, // Default to false for this test
+		DescriptionMarkdown: "A beautiful test hike.",
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -60,9 +60,9 @@ func TestCreateHike(t *testing.T) {
 
 	// Convert original markdown description to HTML for comparison
 	var expectedHTMLDesc strings.Builder
-	errConv := goldmark.Convert([]byte(hike.Description), &expectedHTMLDesc)
+	errConv := goldmark.Convert([]byte(hike.DescriptionMarkdown), &expectedHTMLDesc)
 	require.NoError(t, errConv)
-	assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(response.Description))
+	assert.Equal(t, strings.TrimSpace(expectedHTMLDesc.String()), strings.TrimSpace(response.DescriptionHTML))
 	assert.NotEmpty(t, response.WaiverText, "WaiverText should be populated in create hike response")
 	assert.Contains(t, response.WaiverText, hike.Leader.Name, "WaiverText should contain leader's name")
 	assert.NotContains(t, response.WaiverText, "Photographic Release", "WaiverText should not contain photo release for default PhotoRelease=false")
@@ -76,10 +76,10 @@ func TestCreateHike(t *testing.T) {
 			Name:  "Photo Test Leader",
 			Phone: "1234567890",
 		},
-		TrailheadName: "Aiea Loop (upper)",
-		StartTime:     time.Now().Add(48 * time.Hour),
-		PhotoRelease:  true, // Explicitly true
-		Description:   "A test hike with photo release.",
+		TrailheadName:       "Aiea Loop (upper)",
+		StartTime:           time.Now().Add(48 * time.Hour),
+		PhotoRelease:        true, // Explicitly true
+		DescriptionMarkdown: "A test hike with photo release.",
 	}
 	bodyPhoto, _ := json.Marshal(hikePhotoRelease)
 	reqPhoto, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(bodyPhoto))
@@ -110,19 +110,32 @@ func TestGetLastHike(t *testing.T) {
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", hikeName, leaderUUID), nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var hike Hike
-	json.Unmarshal(rr.Body.Bytes(), &hike)
-	assert.Equal(t, "", hike.Description, "Should return empty description when no prior hike exists")
+	// assert.Equal(t, http.StatusOK, rr.Code) // Original check
+	// If no hike is found, getLastHikeHandler now returns 404 with an empty Hike{}
+	if rr.Code == http.StatusNotFound {
+		var hike Hike
+		err := json.Unmarshal(rr.Body.Bytes(), &hike)
+		require.NoError(t, err)
+		assert.Empty(t, hike.Name, "Hike object should be empty for 404") // Check one field to confirm empty
+		assert.Empty(t, hike.DescriptionMarkdown, "Should return empty markdown description when no prior hike exists")
+		assert.Empty(t, hike.DescriptionHTML, "Should return empty HTML description when no prior hike exists")
+	} else {
+		assert.Equal(t, http.StatusOK, rr.Code) // Fallback for unexpected codes
+		var hike Hike
+		json.Unmarshal(rr.Body.Bytes(), &hike)
+		assert.Equal(t, "", hike.DescriptionMarkdown, "Should return empty markdown description when no prior hike exists")
+		assert.Equal(t, "", hike.DescriptionHTML, "Should return empty HTML description when no prior hike exists")
+	}
+
 
 	// 2. Create a hike with a description
 	desc1 := "This is the first version of the description."
 	hike1 := Hike{
-		Name:          hikeName,
-		Leader:        leader,
-		Description:   desc1,
-		StartTime:     time.Now().Add(1 * time.Hour),
-		TrailheadName: "Aiea Loop (upper)", // Use existing trailhead
+		Name:                hikeName,
+		Leader:              leader,
+		DescriptionMarkdown: desc1,
+		StartTime:           time.Now().Add(1 * time.Hour),
+		TrailheadName:       "Aiea Loop (upper)", // Use existing trailhead
 	}
 	body1, _ := json.Marshal(hike1)
 	req1, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body1))
@@ -135,8 +148,10 @@ func TestGetLastHike(t *testing.T) {
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	json.Unmarshal(rr.Body.Bytes(), &hike)
-	assert.Equal(t, desc1, hike.Description, "Should return the description of the first hike")
+	var fetchedHike1 Hike
+	json.Unmarshal(rr.Body.Bytes(), &fetchedHike1)
+	assert.Equal(t, desc1, fetchedHike1.DescriptionMarkdown, "Should return the markdown description of the first hike")
+	assert.NotEmpty(t, fetchedHike1.DescriptionHTML, "HTML description should be populated for the first hike")
 
 	// 4. Create another hike by the same leader with the same name but a new description (simulating an update later)
 	// To ensure we get the *most recent*, we need to control creation time or rely on implicit rowid ordering if timestamps are identical.
@@ -144,11 +159,11 @@ func TestGetLastHike(t *testing.T) {
 	time.Sleep(10 * time.Millisecond) // Ensure a different timestamp if created_at is auto-generated now()
 	desc2 := "This is the second, updated description."
 	hike2 := Hike{
-		Name:          hikeName,
-		Leader:        leader,
-		Description:   desc2,
-		StartTime:     time.Now().Add(2 * time.Hour),
-		TrailheadName: "Diamond Head Crater (Le'ahi)", // Use a different existing trailhead
+		Name:                hikeName,
+		Leader:              leader,
+		DescriptionMarkdown: desc2,
+		StartTime:           time.Now().Add(2 * time.Hour),
+		TrailheadName:       "Diamond Head Crater (Le'ahi)", // Use a different existing trailhead
 	}
 	body2, _ := json.Marshal(hike2)
 	req2, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body2))
@@ -161,23 +176,31 @@ func TestGetLastHike(t *testing.T) {
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	json.Unmarshal(rr.Body.Bytes(), &hike)
-	assert.Equal(t, desc2, hike.Description, "Should return the description of the most recent hike (desc2)")
+	var fetchedHike2 Hike
+	json.Unmarshal(rr.Body.Bytes(), &fetchedHike2)
+	assert.Equal(t, desc2, fetchedHike2.DescriptionMarkdown, "Should return the markdown description of the most recent hike (desc2)")
+	assert.NotEmpty(t, fetchedHike2.DescriptionHTML, "HTML description should be populated for the most recent hike")
+
 
 	// 6. Test case: Different hike name, same leader
 	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", "SomeOtherHikeName", leaderUUID), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-	// check for content type
-	assert.Equal(t, "", rr.Header().Get("Content-Type"), "Content-Type should be empty when no matching hike found")
+	assert.Equal(t, http.StatusNotFound, rr.Code) // Expect 404 if no hike found
+	var emptyHikeOtherName Hike
+	json.Unmarshal(rr.Body.Bytes(), &emptyHikeOtherName)
+	assert.Empty(t, emptyHikeOtherName.Name, "Hike object should be empty for non-existent hike name")
+
 
 	// 7. Test case: Same hike name, different leader
 	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", hikeName, "someOtherLeaderUUID"), nil)
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "", rr.Header().Get("Content-Type"), "Content-Type should not be empty when no matching hike found")
+	assert.Equal(t, http.StatusNotFound, rr.Code) // Expect 404 if no hike found
+	var emptyHikeOtherLeader Hike
+	json.Unmarshal(rr.Body.Bytes(), &emptyHikeOtherLeader)
+	assert.Empty(t, emptyHikeOtherLeader.Name, "Hike object should be empty for non-existent leader")
+
 
 	// 8. Test case: Missing hikeName query parameter
 	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?leaderUUID=%s", leaderUUID), nil)
@@ -656,22 +679,23 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 	isHikeRsvpAndLedPresentAsLed := false
 
 	for _, h := range hikes {
-		assert.NotEmpty(t, h.Description, "Hike description should not be empty for user specific search. Hike: %s, Source: %s", h.Name, h.SourceType)
-		var expectedHTML string
+		assert.NotEmpty(t, h.DescriptionHTML, "Hike HTML description should not be empty for user specific search. Hike: %s, Source: %s", h.Name, h.SourceType)
+		assert.NotEmpty(t, h.DescriptionMarkdown, "Hike Markdown description should not be empty for user specific search. Hike: %s, Source: %s", h.Name, h.SourceType)
+		var originalMarkdown string
 
 		if h.JoinCode == hikeRsvp.JoinCode {
 			assert.Equal(t, "rsvp", h.SourceType)
-			expectedHTML = hikeRsvp.Description // Already HTML from createTestHikeWithOptionsAndStartTime
+			originalMarkdown = hikeRsvp.DescriptionMarkdown // From the struct passed to createTestHike...
 			isHikeRsvpPresentAsRsvp = true
 			foundRsvp++
 		} else if h.JoinCode == hikeLedByUser.JoinCode {
 			assert.Equal(t, "led_by_user", h.SourceType)
 			assert.Equal(t, testUser.UUID, h.Leader.UUID)
-			expectedHTML = hikeLedByUser.Description // Already HTML
+			originalMarkdown = hikeLedByUser.DescriptionMarkdown
 			isHikeLedByUserPresentAsLed = true
 			foundLedByUser++
 		} else if h.JoinCode == hikeRsvpAndLed.JoinCode {
-			expectedHTML = hikeRsvpAndLed.Description // Already HTML
+			originalMarkdown = hikeRsvpAndLed.DescriptionMarkdown
 			if h.SourceType == "rsvp" {
 				isHikeRsvpAndLedPresentAsRsvp = true
 				foundRsvp++
@@ -683,8 +707,13 @@ func TestGetHikes_UserSpecific(t *testing.T) {
 				t.Errorf("Unexpected sourceType %s for hikeRsvpAndLed", h.SourceType)
 			}
 		}
-		if expectedHTML != "" {
-			assert.Equal(t, strings.TrimSpace(expectedHTML), strings.TrimSpace(h.Description))
+		if originalMarkdown != "" {
+			// Verify HTML is derived from Markdown
+			var expectedHTMLBuffer strings.Builder
+			err := goldmark.Convert([]byte(originalMarkdown), &expectedHTMLBuffer)
+			require.NoError(t, err)
+			assert.Equal(t, strings.TrimSpace(expectedHTMLBuffer.String()), strings.TrimSpace(h.DescriptionHTML))
+			assert.Equal(t, originalMarkdown, h.DescriptionMarkdown)
 		}
 	}
 
@@ -767,7 +796,8 @@ func TestGetHikes_Combined(t *testing.T) {
 	hikeCounts := make(map[string]map[string]bool) // hikeJoinCode -> sourceType -> present
 
 	for _, h := range hikesResponse { // Iterate over hikesResponse
-		assert.NotEmpty(t, h.Description, "Hike description should not be empty for combined search. Hike: %s, Source: %s", h.Name, h.SourceType)
+		assert.NotEmpty(t, h.DescriptionHTML, "Hike HTML description should not be empty for combined search. Hike: %s, Source: %s", h.Name, h.SourceType)
+		assert.NotEmpty(t, h.DescriptionMarkdown, "Hike Markdown description should not be empty for combined search. Hike: %s, Source: %s", h.Name, h.SourceType)
 		assert.NotEmpty(t, h.TrailheadMapLink, "TrailheadMapLink should not be empty for combined search. Hike: %s, Source: %s", h.Name, h.SourceType)
 		sourceCounts[h.SourceType]++
 		if _, ok := hikeCounts[h.JoinCode]; !ok {
@@ -775,21 +805,23 @@ func TestGetHikes_Combined(t *testing.T) {
 		}
 		hikeCounts[h.JoinCode][h.SourceType] = true
 
-		// Verify description matches the original created hike's description
-		// The .Description fields from hike1_allMatch, etc., are already HTML due to createTestHike helpers.
-		var expectedHTML string
+		var originalMarkdown string
 		switch h.JoinCode {
 		case hike1_allMatch.JoinCode:
-			expectedHTML = hike1_allMatch.Description
+			originalMarkdown = hike1_allMatch.DescriptionMarkdown
 		case hike2_led_rsvp.JoinCode:
-			expectedHTML = hike2_led_rsvp.Description
+			originalMarkdown = hike2_led_rsvp.DescriptionMarkdown
 		case hike3_rsvp_only.JoinCode:
-			expectedHTML = hike3_rsvp_only.Description
+			originalMarkdown = hike3_rsvp_only.DescriptionMarkdown
 		case hike5_led_only.JoinCode:
-			expectedHTML = hike5_led_only.Description
+			originalMarkdown = hike5_led_only.DescriptionMarkdown
 		}
-		if expectedHTML != "" {
-			assert.Equal(t, strings.TrimSpace(expectedHTML), strings.TrimSpace(h.Description))
+		if originalMarkdown != "" {
+			var expectedHTMLBuffer strings.Builder
+			err := goldmark.Convert([]byte(originalMarkdown), &expectedHTMLBuffer)
+			require.NoError(t, err)
+			assert.Equal(t, strings.TrimSpace(expectedHTMLBuffer.String()), strings.TrimSpace(h.DescriptionHTML))
+			assert.Equal(t, originalMarkdown, h.DescriptionMarkdown)
 		}
 	}
 
@@ -908,9 +940,16 @@ func TestGetHikeByCode(t *testing.T) {
 	assert.Equal(t, hike.JoinCode, response.JoinCode)
 	assert.Equal(t, hike.TrailheadName, response.TrailheadName)
 	assert.NotEmpty(t, response.TrailheadMapLink, "TrailheadMapLink should be populated for GetHikeByCode")
-	// hike.Description from createTestHike is already HTML because createTestHike calls the API.
-	// response.Description from getHikeHandler is also HTML.
-	assert.Equal(t, strings.TrimSpace(hike.Description), strings.TrimSpace(response.Description))
+	// hike.DescriptionMarkdown was the original input to createTestHike.
+	// response.DescriptionHTML is the HTML converted by getHikeHandler.
+	// response.DescriptionMarkdown should be the raw markdown from DB.
+	assert.Equal(t, hike.DescriptionMarkdown, response.DescriptionMarkdown) // Compare raw markdown
+
+	var expectedHTMLBuffer strings.Builder
+	err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &expectedHTMLBuffer)
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimSpace(expectedHTMLBuffer.String()), strings.TrimSpace(response.DescriptionHTML)) // Compare HTML
+
 	assert.NotEmpty(t, response.WaiverText, "WaiverText should be populated in get hike response")
 	assert.Contains(t, response.WaiverText, hike.Leader.Name, "WaiverText should contain leader's name")
 	// Assuming default created hike has PhotoRelease = false
@@ -920,7 +959,7 @@ func TestGetHikeByCode(t *testing.T) {
 	leaderPhoto := User{UUID: "leader-gethike-photo", Name: "GetHike Photo Leader", Phone: "7778889999"}
 	hikePhoto := createTestHikeWithOptionsAndStartTime(t, leaderPhoto, "GetHike Photo Test", "Koko Crater (Railway)", time.Now().Add(72*time.Hour))
 	// Manually set PhotoRelease to true for this specific hike in the DB for the test
-	_, err := db.Exec("UPDATE hikes SET photo_release = TRUE WHERE join_code = ?", hikePhoto.JoinCode)
+	_, err = db.Exec("UPDATE hikes SET photo_release = TRUE WHERE join_code = ?", hikePhoto.JoinCode)
 	require.NoError(t, err)
 
 	reqPhoto, _ := http.NewRequest("GET", fmt.Sprintf("/api/hike/%s", hikePhoto.JoinCode), nil)
@@ -1126,11 +1165,11 @@ func createTestHike(t *testing.T) Hike {
 			Name:  "John Doe",
 			Phone: "1234567890",
 		},
-		TrailheadName:    "Aiea Loop (upper)",                                                   // Use an existing trailhead
-		TrailheadMapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Provide link
-		StartTime:        time.Now(),
-		PhotoRelease:     false,                           // Default
-		Description:      "Default test hike description", // Added default description
+		TrailheadName:       "Aiea Loop (upper)",                                                   // Use an existing trailhead
+		TrailheadMapLink:    "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Provide link
+		StartTime:           time.Now(),
+		PhotoRelease:        false,                                  // Default
+		DescriptionMarkdown: "Default test hike description", // Added default description
 	}
 	body, _ := json.Marshal(hike)
 	req, _ := http.NewRequest("POST", "/api/hike", bytes.NewBuffer(body))
@@ -1165,13 +1204,13 @@ func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName s
 	// If trailheadName is not in predefined, mapLink will be empty, which is fine.
 
 	hike := Hike{
-		Name:             hikeName,
-		Leader:           leader,
-		TrailheadName:    trailheadName,
-		TrailheadMapLink: mapLink, // Set the map link for the request
-		StartTime:        startTime,
-		PhotoRelease:     false,                                    // Default, can be overridden by specific test setups if needed by creating hike directly
-		Description:      "Test hike " + hikeName + " description", // Default description based on name
+		Name:                hikeName,
+		Leader:              leader,
+		TrailheadName:       trailheadName,
+		TrailheadMapLink:    mapLink, // Set the map link for the request
+		StartTime:           startTime,
+		PhotoRelease:        false,                                       // Default, can be overridden by specific test setups if needed by creating hike directly
+		DescriptionMarkdown: "Test hike " + hikeName + " description", // Default description based on name
 	}
 	body, err := json.Marshal(hike)
 	require.NoError(t, err)

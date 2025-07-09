@@ -113,21 +113,22 @@ type User struct {
 
 // Keep in sync with hikes table schema
 type Hike struct {
-	ParticipantId    int64     `json:"participantId"` // Used when returning hike to User not in table
-	Name             string    `json:"name"`          // Custom name for the hike event
-	Organization     string    `json:"organization"`
-	TrailheadName    string    `json:"trailheadName"`
-	Leader           User      `json:"leader"`
-	TrailheadMapLink string    `json:"trailheadMapLink,omitempty"`
-	CreatedAt        time.Time `json:"-"` // don't send this field in JSON response
-	StartTime        time.Time `json:"startTime"`
-	Status           string    `json:"Status"`
-	JoinCode         string    `json:"joinCode"`
-	LeaderCode       string    `json:"leaderCode"`
-	PhotoRelease     bool      `json:"photoRelease"`
-	SourceType       string    `json:"sourceType,omitempty"` // Added for combined hike results
-	Description      string    `json:"description"`
-	WaiverText       string    `json:"waiverText,omitempty"`
+	ParticipantId       int64     `json:"participantId"` // Used when returning hike to User not in table
+	Name                string    `json:"name"`          // Custom name for the hike event
+	Organization        string    `json:"organization"`
+	TrailheadName       string    `json:"trailheadName"`
+	Leader              User      `json:"leader"`
+	TrailheadMapLink    string    `json:"trailheadMapLink,omitempty"`
+	CreatedAt           time.Time `json:"-"` // don't send this field in JSON response
+	StartTime           time.Time `json:"startTime"`
+	Status              string    `json:"Status"`
+	JoinCode            string    `json:"joinCode"`
+	LeaderCode          string    `json:"leaderCode"`
+	PhotoRelease        bool      `json:"photoRelease"`
+	SourceType          string    `json:"sourceType,omitempty"` // Added for combined hike results
+	DescriptionMarkdown string    `json:"descriptionMarkdown"`
+	DescriptionHTML     string    `json:"descriptionHTML"`
+	WaiverText          string    `json:"waiverText,omitempty"`
 }
 
 // Keep in sync with participants table schema
@@ -327,16 +328,39 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var hike Hike
+	var descriptionMarkdown sql.NullString
 	err := db.QueryRow(`
 	    SELECT name, organization, trailhead_name, trailhead_map_link, description
 		FROM hikes
 		WHERE name = ? AND leader_uuid = ?
 		ORDER BY created_at DESC, rowid DESC
 		LIMIT 1
-	`, hikeName, leaderUUID).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.TrailheadMapLink, &hike.Description)
+	`, hikeName, leaderUUID).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.TrailheadMapLink, &descriptionMarkdown)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			// No hike found, return empty JSON or appropriate error
+			w.WriteHeader(http.StatusNotFound) // Or return an empty Hike object
+			json.NewEncoder(w).Encode(Hike{})   // Return empty hike
+			return
+		}
+		// For other errors, return internal server error
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if descriptionMarkdown.Valid {
+		hike.DescriptionMarkdown = descriptionMarkdown.String
+		// Convert markdown to HTML
+		var buf strings.Builder
+		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
+			log.Printf("Error converting description to HTML for last hike %s: %v", hike.Name, err)
+			// Send raw markdown in HTML field if conversion fails, or leave HTML field empty
+			hike.DescriptionHTML = hike.DescriptionMarkdown // Or consider leaving empty: hike.DescriptionHTML = ""
+		} else {
+			p := bluemonday.UGCPolicy()
+			hike.DescriptionHTML = p.Sanitize(buf.String())
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -384,26 +408,29 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add hike to the Hikes table
+	// Note: hike.DescriptionMarkdown contains the raw markdown from the request
 	_, err = db.Exec(`
 		INSERT INTO hikes (name, organization, trailhead_name, leader_uuid, trailhead_map_link, created_at, start_time, join_code, leader_code, photo_release, description)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.TrailheadMapLink, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.PhotoRelease, hike.Description)
+	`, hike.Name, hike.Organization, hike.TrailheadName, hike.Leader.UUID, hike.TrailheadMapLink, hike.CreatedAt.Format("2006-01-02T15:04:05-07:00"), hike.StartTime, hike.JoinCode, hike.LeaderCode, hike.PhotoRelease, hike.DescriptionMarkdown)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Return Hike to the caller
-	// Convert description from Markdown to HTML before sending back
-	if hike.Description != "" {
+	// Populate DescriptionHTML for the response
+	if hike.DescriptionMarkdown != "" {
 		var buf strings.Builder
-		if err := goldmark.Convert([]byte(hike.Description), &buf); err != nil {
-			// Log error but don't fail the request, send raw markdown instead
+		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
 			log.Printf("Error converting description to HTML for new hike %s: %v", hike.JoinCode, err)
+			// In case of error, DescriptionHTML might be empty or fallback to markdown
+			hike.DescriptionHTML = hike.DescriptionMarkdown
 		} else {
 			p := bluemonday.UGCPolicy()
-			hike.Description = p.Sanitize(buf.String())
+			hike.DescriptionHTML = p.Sanitize(buf.String())
 		}
+	} else {
+		hike.DescriptionHTML = ""
 	}
 
 	// Generate and add waiver text
@@ -427,19 +454,19 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Retrieve Hike record based on leaderCode if provided otherwise by joinCode
 	var hike Hike
-	var description sql.NullString // Use sql.NullString for description as it can be NULL
+	var descriptionMarkdown sql.NullString // Use sql.NullString for description as it can be NULL
 	var trailheadMapLink sql.NullString
 	var err error
 	if leaderCode != "" {
 		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code, h.description
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &trailheadMapLink, &hike.StartTime, &hike.JoinCode, &description)
+		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &trailheadMapLink, &hike.StartTime, &hike.JoinCode, &descriptionMarkdown)
 	} else {
 		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code, h.description
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 						   WHERE h.join_code = ? AND h.status = "open"
-		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &trailheadMapLink, &hike.StartTime, &hike.JoinCode, &description)
+		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &trailheadMapLink, &hike.StartTime, &hike.JoinCode, &descriptionMarkdown)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -449,23 +476,25 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if description.Valid {
-		hike.Description = description.String
-	}
-	if trailheadMapLink.Valid {
-		hike.TrailheadMapLink = trailheadMapLink.String
-	}
 
-	// Convert description from Markdown to HTML
-	if hike.Description != "" {
+	if descriptionMarkdown.Valid {
+		hike.DescriptionMarkdown = descriptionMarkdown.String
+		// Convert markdown to HTML
 		var buf strings.Builder
-		if err := goldmark.Convert([]byte(hike.Description), &buf); err != nil {
-			// Log error but don't fail the request, send raw markdown instead
-			log.Printf("Error converting description to HTML: %v", err)
+		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
+			log.Printf("Error converting description to HTML for hike %s: %v", hike.JoinCode, err)
+			hike.DescriptionHTML = hike.DescriptionMarkdown // Fallback or leave empty
 		} else {
 			p := bluemonday.UGCPolicy()
-			hike.Description = p.Sanitize(buf.String())
+			hike.DescriptionHTML = p.Sanitize(buf.String())
 		}
+	} else {
+		hike.DescriptionMarkdown = ""
+		hike.DescriptionHTML = ""
+	}
+
+	if trailheadMapLink.Valid {
+		hike.TrailheadMapLink = trailheadMapLink.String
 	}
 
 	// Generate and add waiver text
@@ -831,31 +860,32 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var h Hike
-			var description sql.NullString
+			var descriptionMarkdown sql.NullString
 			var trailheadMapLink sql.NullString
 			err := rows.Scan(
-				&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.JoinCode, &h.Status, &description,
+				&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.JoinCode, &h.Status, &descriptionMarkdown,
 				&h.ParticipantId, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
 			)
 			if err != nil {
 				http.Error(w, "Error scanning RSVP hike: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
-			if description.Valid {
-				h.Description = description.String
+			if descriptionMarkdown.Valid {
+				h.DescriptionMarkdown = descriptionMarkdown.String
+				var buf strings.Builder
+				if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
+					p := bluemonday.UGCPolicy()
+					h.DescriptionHTML = p.Sanitize(buf.String())
+				} else {
+					log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
+					h.DescriptionHTML = h.DescriptionMarkdown // Fallback
+				}
+			} else {
+				h.DescriptionMarkdown = ""
+				h.DescriptionHTML = ""
 			}
 			if trailheadMapLink.Valid {
 				h.TrailheadMapLink = trailheadMapLink.String
-			}
-			// Convert description from Markdown to HTML for RSVP hikes
-			if h.Description != "" {
-				var buf strings.Builder
-				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
-					p := bluemonday.UGCPolicy()
-					h.Description = p.Sanitize(buf.String())
-				} else {
-					log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
-				}
 			}
 			h.SourceType = "rsvp"
 			allHikes = append(allHikes, h)
@@ -885,31 +915,32 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var h Hike
-			var description sql.NullString
+			var descriptionMarkdown sql.NullString
 			var trailheadMapLink sql.NullString
 			err := rows.Scan(
 				&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&trailheadMapLink, &h.StartTime, &h.Status, &h.LeaderCode, &description, // Added h.LeaderCode
+				&trailheadMapLink, &h.StartTime, &h.Status, &h.LeaderCode, &descriptionMarkdown, // Added h.LeaderCode
 			)
 			if err != nil {
 				http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
-			if description.Valid {
-				h.Description = description.String
+			if descriptionMarkdown.Valid {
+				h.DescriptionMarkdown = descriptionMarkdown.String
+				var buf strings.Builder
+				if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
+					p := bluemonday.UGCPolicy()
+					h.DescriptionHTML = p.Sanitize(buf.String())
+				} else {
+					log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
+					h.DescriptionHTML = h.DescriptionMarkdown // Fallback
+				}
+			} else {
+				h.DescriptionMarkdown = ""
+				h.DescriptionHTML = ""
 			}
 			if trailheadMapLink.Valid {
 				h.TrailheadMapLink = trailheadMapLink.String
-			}
-			// Convert description from Markdown to HTML for led_by_user hikes
-			if h.Description != "" {
-				var buf strings.Builder
-				if err := goldmark.Convert([]byte(h.Description), &buf); err == nil {
-					p := bluemonday.UGCPolicy()
-					h.Description = p.Sanitize(buf.String())
-				} else {
-					log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
-				}
 			}
 			h.SourceType = "led_by_user" // New SourceType
 			allHikes = append(allHikes, h)

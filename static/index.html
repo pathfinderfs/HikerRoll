@@ -488,7 +488,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
-                <textarea id="hike-description" placeholder="Hike Description (can use markdown)"
+                <textarea id="hike-descriptionMarkdown" placeholder="Hike Description (can use markdown)"
                     style="width: 100%; min-height: 80px; margin-top: 8px; padding: 10px; border: 1px solid #ccc; border-radius: 10px; box-sizing: border-box; font-size: 16px;"></textarea>
                 <button type="button" onclick="createHike()">Create Hike</button>
                 <button type="button" class="button-secondary" onclick="cancelCreateHike()">Cancel</button>
@@ -613,7 +613,8 @@
                 leader: currentUser,
                 startTime: new Date().toISOString(),
                 photoRelease: false,
-                description: '',
+                descriptionMarkdown: '',
+                descriptionHTML: '',
             };
         }
 
@@ -764,7 +765,7 @@
                                 }
 
                                 li.innerHTML = `
-                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${hike.trailheadMapLink}" target="_blank">${hike.trailheadName}</a>)</span>
+                                    <h3><a href="#" class="hike-name-link" onclick="showDescriptionPopup(null, \`${hike.descriptionHTML}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${hike.trailheadMapLink}" target="_blank">${hike.trailheadName}</a>)</span>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     ${leaderLineRsvp}
                                     ${buttonHtml}
@@ -774,7 +775,7 @@
                             } else if (hike.sourceType === 'led_by_user') {
                                 buttonHtml = `<button onclick="goToLeaderConsole('${hike.joinCode}', '${hike.leaderCode}')">Open Coordinator Console</button>`;
                                 li.innerHTML = `
-                                    <h3><a href="#" class="hike-name-link" data-description="${escapeHTML(hike.description || '')}" onclick="showDescriptionPopup(\`${hike.description}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${hike.trailheadMapLink}" target="_blank">${hike.trailheadName}</a>)</span>
+                                    <h3><a href="#" class="hike-name-link" onclick="showDescriptionPopup(null, \`${hike.descriptionHTML}\`)">${hike.name}</a></h3> <span class="trailhead-info">(TH: <a href="${hike.trailheadMapLink}" target="_blank">${hike.trailheadName}</a>)</span>
                                     <p>${formatHikeStartTime(hike.startTime)}</p>
                                     <p>${currentUser.name} ${hike.organization ? '(' + hike.organization + ')' : ''}</p>
                                     ${buttonHtml}
@@ -872,8 +873,8 @@
 
                     const descriptionSpan = document.getElementById('join-hike-description');
                     const descriptionContainer = document.getElementById('join-hike-description-container');
-                    if (currentHike.description) {
-                        descriptionSpan.innerHTML = currentHike.description;
+                    if (currentHike.descriptionHTML) {
+                        descriptionSpan.innerHTML = currentHike.descriptionHTML;
                         descriptionContainer.style.display = ''; // Show container if description exists
                     } else {
                         descriptionSpan.innerHTML = ''; // Clear previous description
@@ -904,10 +905,11 @@
             currentHike.trailheadName = '';
             currentHike.trailheadMapLink = '';
             currentHike.photoRelease = false;
-            currentHike.description = '';
+            currentHike.descriptionMarkdown = '';
+            currentHike.descriptionHTML = '';
             localStorage.setItem('currentHike', JSON.stringify(currentHike)); // Save cleared state
 
-            document.getElementById('hike-description').value = '';
+            document.getElementById('hike-descriptionMarkdown').value = '';
             document.getElementById('hike-name').focus();
             startTimeFlatpikr.setDate(formatDate(new Date()));
             showPage('create-hike-page');
@@ -942,7 +944,7 @@
         // Add blur event listener to hike-name for fetching last description
         document.getElementById('hike-name').addEventListener('blur', () => {
             const hikeName = document.getElementById('hike-name').value;
-            const descriptionTextarea = document.getElementById('hike-description');
+            const descriptionTextarea = document.getElementById('hike-descriptionMarkdown');
             // currentUser.uuid should be populated from localStorage or generated on load
             const leaderUUID = currentUser.uuid;
 
@@ -950,6 +952,7 @@
                 fetch(`/api/hike/last?hikeName=${encodeURIComponent(hikeName)}&leaderUUID=${encodeURIComponent(leaderUUID)}`)
                     .then(response => {
                         if (!response.ok) {
+                            if (response.status === 404) return null; // Handle not found gracefully
                             throw new Error(`HTTP error! Status: ${response.status}`);
                         }
 
@@ -962,13 +965,14 @@
                         return response.json();
                     })
                     .then(hike => {
-                        if (hike) {
-                            document.getElementById('hike-description').value = hike.description;
+                        if (hike && hike.descriptionMarkdown !== undefined) {
+                            descriptionTextarea.value = hike.descriptionMarkdown; // Use the variable
                             document.getElementById('hike-organization').value = hike.organization;
                             document.getElementById('hike-trailheadName').value = hike.trailheadName;
                             document.getElementById('hike-trailheadMapLink').value = hike.trailheadMapLink;
                             // Also update currentHike in case the user doesn't change it further
-                            currentHike.description = hike.description;
+                            currentHike.descriptionMarkdown = hike.descriptionMarkdown;
+                            currentHike.descriptionHTML = hike.descriptionHTML || '';
                             currentHike.trailheadName = hike.trailheadName;
                             currentHike.trailheadMapLink = hike.trailheadMapLink;
                             currentHike.organization = hike.organization;
@@ -998,8 +1002,48 @@
             licensePlate: value => value.toUpperCase(),
             emergencyContact: value => value.replace(/\D/g, ''),
             startTime: value => new Date(value).toISOString(), // This is what SQLite expects
-            description: value => value // No specific processing for description, just assign
+            // 'description' is the id of the textarea, map it to 'descriptionMarkdown' in currentHike
+            description: value => value
         };
+
+        // In saveFieldChange, if fieldID is 'hike-description', prop will be 'description'.
+        // We need to ensure this updates currentHike.descriptionMarkdown
+        // The fieldProcessors map uses 'description' as a key.
+        // The saveFieldChange function needs to be aware to map 'description' (from element id) to 'descriptionMarkdown' (in object)
+        // Or, more simply, rename the textarea id to 'hike-descriptionMarkdown' and update currentHike.descriptionMarkdown directly.
+        // Let's adjust saveFieldChange or the property name it looks for.
+
+        // Modify saveFieldChange to correctly map 'hike-description' to 'descriptionMarkdown'
+        // No, simpler: fieldProcessors key should match the 'prop' after prefix removal.
+        // So, if id is 'hike-description', prop is 'description'.
+        // We need currentHike.descriptionMarkdown to be set.
+        // The easiest is to change the `id` of the textarea to `hike-descriptionMarkdown`
+        // And ensure `currentHike.descriptionMarkdown` is a property. It is.
+        // Then `saveFieldChange` will work as is, setting `currentHike.descriptionMarkdown`.
+
+        // The current fieldProcessors has 'description' key.
+        // If id="hike-description", then prop="description". It will try to set store['description'].
+        // We need it to set store['descriptionMarkdown'].
+        // Let's adjust the saveFieldChange to handle this specific case or make fieldProcessors more flexible.
+        // For now, let's adjust the 'description' key in fieldProcessors to be 'descriptionMarkdown'
+        // and ensure the element id 'hike-description' correctly maps to 'descriptionMarkdown' property in currentHike.
+        // This is already handled by the logic: `const prop = fieldID.replace(idPrefix, '');`
+        // if id is `hike-description`, prop is `description`.
+        // We need to ensure `currentHike.description` is treated as `currentHike.descriptionMarkdown`.
+        // The simplest is to update `currentHike.description = value` inside `saveFieldChange` to be `currentHike.descriptionMarkdown = value`
+        // if `prop === 'description'`.
+        // OR change the ID of the textarea from `hike-description` to `hike-descriptionMarkdown`. This is cleaner.
+        // Let's do that. (This will be a separate change in the HTML structure part for the textarea id).
+        // For now, assuming id is `hike-descriptionMarkdown`, then fieldProcessors should have `descriptionMarkdown` key.
+
+        const fieldProcessors = {
+            phone: value => value.replace(/\D/g, ''), // Store only digits
+            licensePlate: value => value.toUpperCase(),
+            emergencyContact: value => value.replace(/\D/g, ''),
+            startTime: value => new Date(value).toISOString(),
+            descriptionMarkdown: value => value // This will be used if textarea id is 'hike-descriptionMarkdown'
+        };
+
 
         function showHikeLeaderPage() {
             // Line 1: Hike Name (TH: linked trailheadname)
@@ -1009,7 +1053,11 @@
             const trailheadNameSpan = document.getElementById('trailhead-name-display');
 
             h1TitleSpan.textContent = currentHike.name;
-            leaderHikeNameLink.setAttribute('data-description', escapeHTML(currentHike.description || ''));
+            // Update to use descriptionHTML for the popup
+            leaderHikeNameLink.onclick = () => showDescriptionPopup(null, currentHike.descriptionHTML);
+            // data-description attribute is no longer primary, but can be kept for other uses or removed.
+            // For now, let's ensure it also gets HTML if it were to be used as a fallback, though direct passing is better.
+            leaderHikeNameLink.setAttribute('data-description', escapeHTML(currentHike.descriptionHTML || ''));
             trailheadLinkLeader.href = currentHike.trailheadMapLink || '#';
             trailheadNameSpan.textContent = currentHike.trailheadName;
             // The H1 structure in HTML will be: <h1><a id="leader-hike-name-link"><span id="hike-name-title-display"></span></a> (TH: <a id="trailhead-link-leader"><span id="trailhead-name-display"></span></a>)</h1>
@@ -1077,7 +1125,7 @@
             leaderPhoneLink.textContent = formatPhoneNumber(currentHike.leader.phone);
 
             // Line 4: Description
-            document.getElementById('hiking-page-description').innerHTML = currentHike.description || 'No description available.'; // Use innerHTML
+            document.getElementById('hiking-page-description').innerHTML = currentHike.descriptionHTML || 'No description available.';
 
             // Hide old individual displays if they are separate and no longer needed
             const orgDisplay = document.getElementById('current-hike-organization');
@@ -1176,18 +1224,31 @@
             }
 
             currentHike.photoRelease = document.getElementById('hike-photo-release').checked;
-            currentHike.description = document.getElementById('hike-description').value;
-            // Ensure trailheadMapLink from the input field is in currentHike before sending
+            // Ensure descriptionMarkdown is taken from the textarea
+            currentHike.descriptionMarkdown = document.getElementById('hike-descriptionMarkdown').value;
+            // Clear descriptionHTML as it's generated by backend. Or ensure it's not sent.
+            // For simplicity, we can construct a payload with only needed fields or rely on backend ignoring descriptionHTML.
+            // Let's build a specific payload to send.
             currentHike.trailheadMapLink = document.getElementById('hike-trailheadMapLink').value;
 
+            const hikePayload = {
+                name: currentHike.name,
+                organization: currentHike.organization,
+                trailheadName: currentHike.trailheadName,
+                trailheadMapLink: currentHike.trailheadMapLink,
+                leader: currentHike.leader, // currentUser is already assigned to currentHike.leader
+                startTime: currentHike.startTime,
+                photoRelease: currentHike.photoRelease,
+                descriptionMarkdown: currentHike.descriptionMarkdown
+                // descriptionHTML is omitted, backend will generate it
+            };
 
-            // Geolocation logic for setting hike's lat/lon is removed as trailheadMapLink is used.
             fetch('/api/hike', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(currentHike),
+                body: JSON.stringify(hikePayload), // Send the curated payload
             })
                 .then(response => response.json())
                 .then(hike => {
@@ -1238,13 +1299,30 @@
             showWelcomePage();
         }
 
-        function showDescriptionPopup(description) {
-            if (!description || description.trim() === '') {
-                description = currentHike.description // This will be HTML from the backend
+        function showDescriptionPopup(markdown, html) {
+            let contentToShow = '';
+            if (html) { // Prioritize HTML if provided
+                contentToShow = html;
+            } else if (markdown) { // Fallback to markdown if HTML is not (e.g. future direct calls)
+                // This case should ideally not happen if backend always provides HTML.
+                // For safety, we could convert markdown to HTML here if needed,
+                // but that would require a client-side markdown library.
+                // For now, assume `html` argument will be populated from `hike.descriptionHTML`.
+                // If only markdown is available, show it as preformatted text or alert user.
+                // However, the calls are being updated to pass hike.descriptionHTML to the html param.
+                console.warn("showDescriptionPopup called with markdown but no HTML. Displaying raw markdown or fallback.");
+                contentToShow = `<pre>${escapeHTML(markdown)}</pre>`; // Basic display for raw markdown
+            } else if (currentHike && currentHike.descriptionHTML) { // Fallback to currentHike
+                contentToShow = currentHike.descriptionHTML;
+            } else if (currentHike && currentHike.descriptionMarkdown) { // Fallback to currentHike's markdown
+                contentToShow = `<pre>${escapeHTML(currentHike.descriptionMarkdown)}</pre>`;
+            } else {
+                contentToShow = 'No description available.';
             }
+
             Swal.fire({
                 title: 'Hike Description',
-                html: description || 'No description available.',
+                html: contentToShow,
                 confirmButtonText: 'Close'
             });
         }
@@ -1253,7 +1331,8 @@
             if (unsafeStr === null || unsafeStr === undefined) {
                 return '';
             }
-            return unsafeStr
+            // Ensure unsafeStr is a string before calling replace
+            return String(unsafeStr)
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
