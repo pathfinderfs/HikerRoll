@@ -532,7 +532,7 @@
             <p style="display:none;">Organization: <span id="hike-organization-display"></span></p>
             <!-- Kept for JS to hide, or remove if JS adapted -->
             <p>Join Hike Link: <a id="join-url" onclick="copyToClipboard(event)">Press to copy</a></p>
-            <p>Hike Coordinator Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
+            <p>Change Leader Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
             </p>
             <h3>Participant List</h3>
             <p id="last-refresh"></p>
@@ -687,9 +687,9 @@
                 fetch(`/api/hike/${currentHike.joinCode}?leaderCode=${currentHike.leaderCode}`)
                     .then(response => {
                         if (!response.ok) {
-                             return response.text().then(text => {
+                            return response.text().then(text => {
                                 let errorMsg = 'Failed to reload leader session.';
-                                try { const errData = JSON.parse(text); if (errData && (errData.error || errData.message)) errorMsg = errData.error || errData.message; else if (text) errorMsg = text; } catch (e) {}
+                                try { const errData = JSON.parse(text); if (errData && (errData.error || errData.message)) errorMsg = errData.error || errData.message; else if (text) errorMsg = text; } catch (e) { }
                                 throw new Error(errorMsg);
                             });
                         }
@@ -711,12 +711,12 @@
             } else if (currentHike.joinCode && !currentHike.leaderCode && !joinCodeFromURL && !leaderCodeFromURL) {
                 // Scenario: Existing participant session from localStorage, no new URL parameters
                 // This case is primarily hit on page refresh when user was on hiking page.
-                 fetch(`/api/hike/${currentHike.joinCode}`) // Verify hike still exists and is open
+                fetch(`/api/hike/${currentHike.joinCode}`) // Verify hike still exists and is open
                     .then(response => {
                         if (!response.ok) {
                             return response.text().then(text => {
                                 let errorMsg = 'Failed to reload hiking session. The hike may have ended.';
-                                try { const errData = JSON.parse(text); if (errData && (errData.error || errData.message)) errorMsg = errData.error || errData.message; else if (text) errorMsg = text; } catch (e) {}
+                                try { const errData = JSON.parse(text); if (errData && (errData.error || errData.message)) errorMsg = errData.error || errData.message; else if (text) errorMsg = text; } catch (e) { }
                                 throw new Error(errorMsg);
                             });
                         }
@@ -726,7 +726,7 @@
                         currentHike = hikeDetails; // Update with latest details
                         // currentHike.participantId should be preserved from localStorage if it was set
                         const storedParticipantId = (JSON.parse(localStorage.getItem('currentHike')) || {}).participantId;
-                        if(storedParticipantId) currentHike.participantId = storedParticipantId;
+                        if (storedParticipantId) currentHike.participantId = storedParticipantId;
 
                         localStorage.setItem('currentHike', JSON.stringify(currentHike));
                         showHikingPage();
@@ -934,7 +934,7 @@
                     // Clear URL params manually as we are not doing a full page nav via href changing search params
                     if (window.history.pushState) {
                         const newURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
-                        window.history.pushState({path:newURL}, '', newURL);
+                        window.history.pushState({ path: newURL }, '', newURL);
                     }
                 })
                 .catch(error => {
@@ -1396,40 +1396,40 @@
                 },
                 body: JSON.stringify(hikePayload),
             })
-            .then(response => {
-                if (!response.ok) {
-                    return response.text().then(text => { throw new Error(text || 'Update failed') });
-                }
-                return response.json();
-            })
-            .then(updatedHikeFromServer => {
-                currentHike = updatedHikeFromServer; // Update currentHike with the response from server
-                // Ensure the leader object in currentHike is updated to reflect currentUser if they just took leadership
-                currentHike.leader = {
-                    uuid: currentUser.uuid,
-                    name: currentUser.name, // assuming currentUser.name is up-to-date
-                    phone: currentUser.phone // assuming currentUser.phone is up-to-date
-                };
-                currentHike.leaderCode = leaderCodeToUpdate; // Persist the leaderCode used for the update
-                localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => { throw new Error(text || 'Update failed') });
+                    }
+                    return response.json();
+                })
+                .then(updatedHikeFromServer => {
+                    currentHike = updatedHikeFromServer; // Update currentHike with the response from server
+                    // Ensure the leader object in currentHike is updated to reflect currentUser if they just took leadership
+                    currentHike.leader = {
+                        uuid: currentUser.uuid,
+                        name: currentUser.name, // assuming currentUser.name is up-to-date
+                        phone: currentUser.phone // assuming currentUser.phone is up-to-date
+                    };
+                    currentHike.leaderCode = leaderCodeToUpdate; // Persist the leaderCode used for the update
+                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
 
-                // Reset the create button to "Create Hike" for next time
-                const createButton = document.querySelector('#create-hike-form button[type="button"]');
-                createButton.textContent = 'Create Hike';
-                createButton.onclick = createHike;
+                    // Reset the create button to "Create Hike" for next time
+                    const createButton = document.querySelector('#create-hike-form button[type="button"]');
+                    createButton.textContent = 'Create Hike';
+                    createButton.onclick = createHike;
 
-                // Clear URL parameters before showing leader page
-                if (window.history.pushState) {
-                    const newURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
-                    window.history.pushState({path:newURL}, '', newURL);
-                }
+                    // Clear URL parameters before showing leader page
+                    if (window.history.pushState) {
+                        const newURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                        window.history.pushState({ path: newURL }, '', newURL);
+                    }
 
-                showHikeLeaderPage(); // Show leader console for the (potentially new) leader
-            })
-            .catch(error => {
-                console.error('Error updating hike:', error);
-                alert(`Failed to update hike: ${error.message}`);
-            });
+                    showHikeLeaderPage(); // Show leader console for the (potentially new) leader
+                })
+                .catch(error => {
+                    console.error('Error updating hike:', error);
+                    alert(`Failed to update hike: ${error.message}`);
+                });
         }
 
         function endHike() {
@@ -1456,7 +1456,7 @@
             // currentHike.leader should already be correctly structured.
             // If backend expects leader.uuid, leader.name, leader.phone directly in payload.leader
             if (!hikePayloadToEnd.Leader || !hikePayloadToEnd.Leader.uuid) {
-                 // Fallback or ensure currentUser is used if currentHike.Leader is not populated properly
+                // Fallback or ensure currentUser is used if currentHike.Leader is not populated properly
                 hikePayloadToEnd.Leader = {
                     uuid: currentUser.uuid,
                     name: currentUser.name,
@@ -1475,33 +1475,33 @@
                 },
                 body: JSON.stringify(hikePayloadToEnd),
             })
-            .then(response => {
-                if (!response.ok) {
-                    // Try to parse error message from response body
-                    return response.text().then(text => {
-                        let errorMsg = "Failed to end hike.";
-                        try {
-                            const errData = JSON.parse(text);
-                            if (errData && (errData.error || errData.message)) {
-                                errorMsg = errData.error || errData.message;
-                            } else if (text) {
-                                errorMsg = text;
-                            }
-                        } catch (e) { /* Ignore parsing error, use text or default */ }
-                        throw new Error(errorMsg);
-                    });
-                }
-                return response.json(); // Expecting updated hike details back
-            })
-            .then(closedHikeDetails => {
-                // Hike successfully closed
-                clearCurrentHike();
-                showWelcomePage();
-            })
-            .catch(error => {
-                console.error('Error ending hike:', error);
-                alert(`An error occurred while trying to end the hike: ${error.message}`);
-            });
+                .then(response => {
+                    if (!response.ok) {
+                        // Try to parse error message from response body
+                        return response.text().then(text => {
+                            let errorMsg = "Failed to end hike.";
+                            try {
+                                const errData = JSON.parse(text);
+                                if (errData && (errData.error || errData.message)) {
+                                    errorMsg = errData.error || errData.message;
+                                } else if (text) {
+                                    errorMsg = text;
+                                }
+                            } catch (e) { /* Ignore parsing error, use text or default */ }
+                            throw new Error(errorMsg);
+                        });
+                    }
+                    return response.json(); // Expecting updated hike details back
+                })
+                .then(closedHikeDetails => {
+                    // Hike successfully closed
+                    clearCurrentHike();
+                    showWelcomePage();
+                })
+                .catch(error => {
+                    console.error('Error ending hike:', error);
+                    alert(`An error occurred while trying to end the hike: ${error.message}`);
+                });
         }
 
         function leaveHike() {
