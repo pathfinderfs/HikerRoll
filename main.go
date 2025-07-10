@@ -240,14 +240,12 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/hike/{hikeId}/participant", rsvpToHikeHandler) // pass in User
 	mux.HandleFunc("DELETE /api/hike/{hikeId}/participant/{participantId}", unRSVPHandler)
 	mux.HandleFunc("GET /api/hike/{hikeId}/participant", getHikeParticipantsHandler)
-	// mux.HandleFunc("GET /api/hike/{hikeId}/waiver", getHikeWaiverHandler) // Removed
 	mux.HandleFunc("GET /api/hike/{hikeId}", getHikeHandler)
-	mux.HandleFunc("PUT /api/hike/{leaderCode}", updateHikeHandler) // Changed from endHikeHandler and {hikeId}
+	mux.HandleFunc("PUT /api/hike/{leaderCode}", updateHikeHandler)
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike/last", getLastHikeHandler) // Return the last hike details for a given hikeName and leaderUUID
 	mux.HandleFunc("GET /api/hike", getHikesHandler)
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
-	// GET /api/userhikes/{userUUID} is now handled by GET /api/hike?userUUID=...
 }
 
 func main() {
@@ -341,7 +339,7 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 		if err == sql.ErrNoRows {
 			// No hike found, return empty JSON or appropriate error
 			w.WriteHeader(http.StatusNotFound) // Or return an empty Hike object
-			json.NewEncoder(w).Encode(Hike{})   // Return empty hike
+			json.NewEncoder(w).Encode(Hike{})  // Return empty hike
 			return
 		}
 		// For other errors, return internal server error
@@ -674,7 +672,6 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		finalHike.WaiverText = waiverText
 	}
-
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(finalHike)
