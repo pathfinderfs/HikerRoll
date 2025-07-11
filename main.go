@@ -244,7 +244,6 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/hike/{leaderCode}", updateHikeHandler)
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike/last", getLastHikeHandler) // Return the last hike details for a given hikeName and leaderUUID
-	mux.HandleFunc("GET /api/hikes/ended", getEndedHikesByLeaderHandler) // New endpoint for ended hikes by leader
 	mux.HandleFunc("GET /api/hike", getHikesHandler)
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 }
@@ -318,44 +317,86 @@ func generateWaiverText(joinCode string) (string, error) {
 // getHikeWaiverHandler is removed. Waiver text is now part of Hike object.
 
 func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
-	hikeName := r.URL.Query().Get("hikeName")
+	hikeNameQuery := r.URL.Query().Get("hikeName")
 	leaderUUID := r.URL.Query().Get("leaderUUID")
+	suggestParam := r.URL.Query().Get("suggest")
 
-	if hikeName == "" || leaderUUID == "" {
-		http.Error(w, "hikeName and leaderUUID query parameters are required", http.StatusBadRequest)
+	if leaderUUID == "" {
+		http.Error(w, "leaderUUID query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	if suggestParam == "true" {
+		if hikeNameQuery == "" {
+			// Return empty list if suggest is true but no hikeName query
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]string{})
+			return
+		}
+		// Logic for suggestions
+		rows, err := db.Query(`
+			SELECT DISTINCT name
+			FROM hikes
+			WHERE leader_uuid = ? AND name LIKE ?
+			ORDER BY name
+			LIMIT 10
+		`, leaderUUID, "%"+hikeNameQuery+"%")
+		if err != nil {
+			http.Error(w, "Error querying hike suggestions: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var suggestions []string
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				http.Error(w, "Error scanning hike suggestion: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			suggestions = append(suggestions, name)
+		}
+		if err = rows.Err(); err != nil {
+			http.Error(w, "Error iterating hike suggestions: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(suggestions)
+		return
+	}
+
+	// Original logic for fetching last hike details (exact match)
+	if hikeNameQuery == "" {
+		http.Error(w, "hikeName query parameter is required when not requesting suggestions", http.StatusBadRequest)
 		return
 	}
 
 	var hike Hike
 	var descriptionMarkdown sql.NullString
 	err := db.QueryRow(`
-	    SELECT name, organization, trailhead_name, trailhead_map_link, description
+		SELECT name, organization, trailhead_name, trailhead_map_link, description
 		FROM hikes
 		WHERE name = ? AND leader_uuid = ?
 		ORDER BY created_at DESC, rowid DESC
 		LIMIT 1
-	`, hikeName, leaderUUID).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.TrailheadMapLink, &descriptionMarkdown)
+	`, hikeNameQuery, leaderUUID).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.TrailheadMapLink, &descriptionMarkdown)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// No hike found, return empty JSON or appropriate error
-			w.WriteHeader(http.StatusNotFound) // Or return an empty Hike object
-			json.NewEncoder(w).Encode(Hike{})  // Return empty hike
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(Hike{}) // Return empty hike
 			return
 		}
-		// For other errors, return internal server error
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error fetching last hike details: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if descriptionMarkdown.Valid {
 		hike.DescriptionMarkdown = descriptionMarkdown.String
-		// Convert markdown to HTML
 		var buf strings.Builder
 		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
 			log.Printf("Error converting description to HTML for last hike %s: %v", hike.Name, err)
-			// Send raw markdown in HTML field if conversion fails, or leave HTML field empty
-			hike.DescriptionHTML = hike.DescriptionMarkdown // Or consider leaving empty: hike.DescriptionHTML = ""
+			hike.DescriptionHTML = hike.DescriptionMarkdown
 		} else {
 			p := bluemonday.UGCPolicy()
 			hike.DescriptionHTML = p.Sanitize(buf.String())
@@ -1089,73 +1130,6 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(allHikes)
-}
-
-// ErrorResponse is a generic structure for JSON error responses.
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
-
-// writeJSONError sends a JSON-formatted error message.
-func writeJSONError(w http.ResponseWriter, message string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: message})
-}
-
-// getEndedHikesByLeaderHandler returns a list of ended hikes for a given leader.
-func getEndedHikesByLeaderHandler(w http.ResponseWriter, r *http.Request) {
-	leaderUUID := r.URL.Query().Get("leaderUUID")
-
-	if leaderUUID == "" {
-		writeJSONError(w, "leaderUUID query parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	rows, err := db.Query(`
-		SELECT name, organization, trailhead_name, trailhead_map_link, start_time, status, join_code, leader_code, photo_release, description
-		FROM hikes
-		WHERE leader_uuid = ? AND status = 'closed'
-		ORDER BY start_time DESC
-	`, leaderUUID)
-	if err != nil {
-		log.Printf("Error querying ended hikes for leader %s: %v", leaderUUID, err)
-		writeJSONError(w, "Error querying ended hikes", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	var endedHikes []Hike
-	for rows.Next() {
-		var h Hike
-		var descriptionMarkdown sql.NullString
-		var trailheadMapLink sql.NullString
-		err := rows.Scan(
-			&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.Status, &h.JoinCode, &h.LeaderCode, &h.PhotoRelease, &descriptionMarkdown,
-		)
-		if err != nil {
-			log.Printf("Error scanning ended hike for leader %s: %v", leaderUUID, err)
-			writeJSONError(w, "Error processing hike data", http.StatusInternalServerError)
-			return
-		}
-
-		if descriptionMarkdown.Valid {
-			h.DescriptionMarkdown = descriptionMarkdown.String
-		}
-		if trailheadMapLink.Valid {
-			h.TrailheadMapLink = trailheadMapLink.String
-		}
-		endedHikes = append(endedHikes, h)
-	}
-
-	if err = rows.Err(); err != nil {
-		log.Printf("Error iterating ended hikes for leader %s: %v", leaderUUID, err)
-		writeJSONError(w, "Error retrieving hike data", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(endedHikes)
 }
 
 // Given a query string, return a list of trailhead suggestions

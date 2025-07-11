@@ -645,12 +645,9 @@
         document.addEventListener("DOMContentLoaded", () => {
             const trailheadNameInput = document.getElementById("hike-trailheadName");
             const trailheadMapLinkInput = document.getElementById("hike-trailheadMapLink");
-            const hikeNameInput = document.getElementById("hike-name");
 
-            autocomplete(trailheadNameInput, trailheadMapLinkInput); // For trailheads
-            autocompleteHikeName(hikeNameInput); // For hike names
+            autocomplete(trailheadNameInput, trailheadMapLinkInput);
             addBlurEventListeners(trailheadNameInput, trailheadMapLinkInput);
-
 
             startTimeFlatpikr = flatpickr("#hike-startTime", {
                 enableTime: true,
@@ -1053,49 +1050,195 @@
         });
 
         // Add blur event listener to hike-name for fetching last description
-        document.getElementById('hike-name').addEventListener('blur', () => {
-            const hikeName = document.getElementById('hike-name').value;
-            const descriptionTextarea = document.getElementById('hike-descriptionMarkdown');
-            // currentUser.uuid should be populated from localStorage or generated on load
-            const leaderUUID = currentUser.uuid;
+        // This is being replaced by the new autocompleteHikeName logic
+        // document.getElementById('hike-name').addEventListener('blur', () => { ... });
 
-            if (hikeName && leaderUUID && descriptionTextarea.value.trim() === '') {
-                fetch(`/api/hike/last?hikeName=${encodeURIComponent(hikeName)}&leaderUUID=${encodeURIComponent(leaderUUID)}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            if (response.status === 404) return null; // Handle not found gracefully
-                            throw new Error(`HTTP error! Status: ${response.status}`);
+        // Autocomplete for Hike Name
+        function autocompleteHikeName(hikeNameInput) {
+            var currentFocus;
+            hikeNameInput.addEventListener("input", function (e) {
+                var a, b, i, val = this.value;
+                closeAllHikeNameLists(); // Custom close function for hike name suggestions
+                if (!val || val.length < 2) { // Only search if 2 or more characters are typed
+                    return false;
+                }
+                currentFocus = -1;
+                a = document.createElement("DIV");
+                a.setAttribute("id", this.id + "autocomplete-list-hike"); // Unique ID
+                a.setAttribute("class", "autocomplete-items");
+                this.parentNode.appendChild(a);
+
+                const leaderUUID = currentUser.uuid;
+                if (!leaderUUID) {
+                    console.error("Leader UUID not available for hike name suggestions.");
+                    return;
+                }
+
+                fetch(`/api/hike/last?hikeName=${encodeURIComponent(val)}&leaderUUID=${encodeURIComponent(leaderUUID)}&suggest=true`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            data.forEach(suggestedName => {
+                                b = document.createElement("DIV");
+                                const matchIndex = suggestedName.toLowerCase().indexOf(val.toLowerCase());
+                                if (matchIndex !== -1) {
+                                    b.innerHTML = suggestedName.substr(0, matchIndex);
+                                    b.innerHTML += "<strong>" + suggestedName.substr(matchIndex, val.length) + "</strong>";
+                                    b.innerHTML += suggestedName.substr(matchIndex + val.length);
+                                } else {
+                                    b.innerHTML = suggestedName;
+                                }
+                                b.innerHTML += '<input type="hidden" value="' + suggestedName + '">';
+                                b.addEventListener("click", function (e) {
+                                    const selectedName = this.getElementsByTagName("input")[0].value;
+                                    hikeNameInput.value = selectedName;
+                                    currentHike.name = selectedName; // Update currentHike
+                                    localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                                    closeAllHikeNameLists();
+                                    // Now fetch full details for the selected hike name
+                                    fetchFullHikeDetails(selectedName, leaderUUID);
+                                });
+                                a.appendChild(b);
+                            });
                         }
+                    })
+                    .catch(error => console.error('Error fetching hike name suggestions:', error));
+            });
 
-                        const contentType = response.headers.get("content-type");
-                        if (!contentType || !contentType.includes("application/json")) {
-                            // No JSON body (or empty response)
+            hikeNameInput.addEventListener("keydown", function (e) {
+                var x = document.getElementById(this.id + "autocomplete-list-hike");
+                if (x) x = x.getElementsByTagName("div");
+                if (e.keyCode == 40) { // Down
+                    currentFocus++;
+                    addActiveHikeName(x);
+                } else if (e.keyCode == 38) { // Up
+                    currentFocus--;
+                    addActiveHikeName(x);
+                } else if (e.keyCode == 13) {  // Enter
+                    e.preventDefault();
+                    if (currentFocus > -1) {
+                        if (x) x[currentFocus].click();
+                    } else {
+                        // If enter is pressed and no suggestion is active,
+                        // still try to fetch details based on current input value
+                        const leaderUUID = currentUser.uuid;
+                        if (hikeNameInput.value && leaderUUID) {
+                           fetchFullHikeDetails(hikeNameInput.value, leaderUUID);
+                        }
+                        closeAllHikeNameLists();
+                    }
+                }
+            });
+
+            function addActiveHikeName(x) {
+                if (!x) return false;
+                removeActiveHikeName(x);
+                if (currentFocus >= x.length) currentFocus = 0;
+                if (currentFocus < 0) currentFocus = (x.length - 1);
+                x[currentFocus].classList.add("autocomplete-active");
+            }
+
+            function removeActiveHikeName(x) {
+                for (const element of x) {
+                    element.classList.remove("autocomplete-active");
+                }
+            }
+
+            function closeAllHikeNameLists(elmnt) {
+                var x = document.getElementsByClassName("autocomplete-items"); // Re-check if class name conflicts
+                for (let i = 0; i < x.length; i++) {
+                     // Check if the list belongs to hike name input
+                    if (x[i].id.endsWith("autocomplete-list-hike")) {
+                        if (elmnt !== x[i] && elmnt !== hikeNameInput) {
+                            x[i].parentNode.removeChild(x[i]);
+                        }
+                    }
+                }
+            }
+             // Close lists when clicking elsewhere
+            document.addEventListener("click", function (e) {
+                // Pass e.target to differentiate from trailhead autocomplete
+                closeAllHikeNameLists(e.target);
+                // Call original closeAllLists for trailhead if it's still needed and distinct
+                // This assumes closeAllLists is specific to trailhead. If not, it needs adjustment.
+                // For now, assuming they are separate.
+                // closeAllLists(e.target); // This might interfere if not careful.
+            });
+        }
+
+        function fetchFullHikeDetails(hikeName, leaderUUID) {
+            const descriptionTextarea = document.getElementById('hike-descriptionMarkdown');
+            fetch(`/api/hike/last?hikeName=${encodeURIComponent(hikeName)}&leaderUUID=${encodeURIComponent(leaderUUID)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 404) { // Hike not found, clear fields
+                            descriptionTextarea.value = '';
+                            document.getElementById('hike-organization').value = '';
+                            document.getElementById('hike-trailheadName').value = '';
+                            document.getElementById('hike-trailheadMapLink').value = '';
+                            currentHike.descriptionMarkdown = '';
+                            currentHike.descriptionHTML = '';
+                            currentHike.trailheadName = '';
+                            currentHike.trailheadMapLink = '';
+                            currentHike.organization = '';
+                            // Keep currentHike.name as what user typed/selected
+                            localStorage.setItem('currentHike', JSON.stringify(currentHike));
                             return null;
                         }
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const contentType = response.headers.get("content-type");
+                     if (!contentType || !contentType.includes("application/json")) {
+                        return null; // Or handle as an error
+                    }
+                    return response.json();
+                })
+                .then(hike => {
+                    if (hike && Object.keys(hike).length > 0 && hike.name) { // Check if a valid hike object was returned
+                        descriptionTextarea.value = hike.descriptionMarkdown || '';
+                        document.getElementById('hike-organization').value = hike.organization || '';
+                        document.getElementById('hike-trailheadName').value = hike.trailheadName || '';
+                        document.getElementById('hike-trailheadMapLink').value = hike.trailheadMapLink || '';
 
-                        return response.json();
-                    })
-                    .then(hike => {
-                        if (hike && hike.descriptionMarkdown !== undefined) {
-                            descriptionTextarea.value = hike.descriptionMarkdown; // Use the variable
-                            document.getElementById('hike-organization').value = hike.organization;
-                            document.getElementById('hike-trailheadName').value = hike.trailheadName;
-                            document.getElementById('hike-trailheadMapLink').value = hike.trailheadMapLink;
-                            // Also update currentHike in case the user doesn't change it further
-                            currentHike.descriptionMarkdown = hike.descriptionMarkdown;
-                            currentHike.descriptionHTML = hike.descriptionHTML || '';
-                            currentHike.trailheadName = hike.trailheadName;
-                            currentHike.trailheadMapLink = hike.trailheadMapLink;
-                            currentHike.organization = hike.organization;
-                            localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching or processing last description:', error);
-                    });
-            }
+                        currentHike.descriptionMarkdown = hike.descriptionMarkdown || '';
+                        currentHike.descriptionHTML = hike.descriptionHTML || '';
+                        currentHike.trailheadName = hike.trailheadName || '';
+                        currentHike.trailheadMapLink = hike.trailheadMapLink || '';
+                        currentHike.organization = hike.organization || '';
+                        // currentHike.name is already set by selection/typing
+                        localStorage.setItem('currentHike', JSON.stringify(currentHike));
+                    } else if (hike === null || Object.keys(hike).length === 0) {
+                        // This case is handled by the 404 check now, but good for robustness
+                        // If API returns empty object for non-existent hike instead of 404.
+                         console.log("No details found for this hike name, fields cleared.");
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching or processing full hike details:', error);
+                    // Optionally clear fields on other errors too, or notify user
+                });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const trailheadNameInput = document.getElementById("hike-trailheadName");
+            const trailheadMapLinkInput = document.getElementById("hike-trailheadMapLink");
+            const hikeNameInput = document.getElementById("hike-name"); // Get hike name input
+
+            autocomplete(trailheadNameInput, trailheadMapLinkInput); // Existing trailhead autocomplete
+            autocompleteHikeName(hikeNameInput); // New hike name autocomplete
+
+            addBlurEventListeners(trailheadNameInput, trailheadMapLinkInput);
+
+            startTimeFlatpikr = flatpickr("#hike-startTime", {
+                enableTime: true,
+                altInput: true,
+                altFormat: "F j, Y at h:i K",
+                minDate: "today",
+                time_24hr: false
+            });
+            // Initialize the app
+            checkUserStatus();
         });
-
 
         function saveFieldChange(store, storeName, fieldID, fieldValue, idPrefix) {
             const prop = fieldID.replace(idPrefix, '');
@@ -1949,139 +2092,6 @@
             downloadCSV(csvContent, `hike_participants_${currentHike.joinCode}.csv`);
         }
 
-// Global focus tracker for hike name autocomplete
-let currentFocusHikeName = -1;
-
-// Helper functions for hike name autocomplete, moved to global scope
-function addActiveHikeName(x) {
-    if (!x || x.length === 0) return false;
-    removeActiveHikeName(x);
-    if (currentFocusHikeName >= x.length) currentFocusHikeName = 0;
-    if (currentFocusHikeName < 0) currentFocusHikeName = (x.length - 1);
-    x[currentFocusHikeName].classList.add("autocomplete-active");
-}
-
-function removeActiveHikeName(x) {
-    if (!x) return;
-    for (const element of x) {
-        element.classList.remove("autocomplete-active");
-    }
-}
-
-function closeAllHikeNameLists(elmnt) {
-    var x = document.getElementsByClassName("autocomplete-items");
-    const hikeNameInput = document.getElementById("hike-name"); // Get reference to the input
-    for (const element of x) {
-        if (element.id === hikeNameInput.id + "autocomplete-list-hike") { // Check specific ID
-            if (elmnt !== element && elmnt !== hikeNameInput) {
-                element.parentNode.removeChild(element);
-            }
-        }
-    }
-}
-
-        // Autocomplete function for hike name input
-        function autocompleteHikeName(hikeNameInput) {
-            // var currentFocusHikeName; // Now global
-            hikeNameInput.addEventListener("input", function(e) {
-                var a, b, i, val = this.value;
-                closeAllHikeNameLists(); // This is fine here if it's global
-                if (!val || val.length < 2) { // Min 2 chars to trigger search
-                    return false;
-                }
-                currentFocusHikeName = -1; // Reset focus for new list
-                a = document.createElement("DIV");
-                a.setAttribute("id", this.id + "autocomplete-list-hike");
-                a.setAttribute("class", "autocomplete-items");
-                this.parentNode.appendChild(a);
-
-                // Fetch ended hikes for the current user
-                fetch(`/api/hikes/ended?leaderUUID=${currentUser.uuid}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data && data.length > 0) {
-                            const filteredData = data.filter(hike => hike.name.toLowerCase().includes(val.toLowerCase()));
-                            filteredData.forEach(hike => {
-                                b = document.createElement("DIV");
-                                const matchIndex = hike.name.toLowerCase().indexOf(val.toLowerCase());
-                                if (matchIndex !== -1) {
-                                    b.innerHTML = hike.name.substr(0, matchIndex);
-                                    b.innerHTML += "<strong>" + hike.name.substr(matchIndex, val.length) + "</strong>";
-                                    b.innerHTML += hike.name.substr(matchIndex + val.length);
-                                } else {
-                                    b.innerHTML = hike.name; // Should not happen due to filter, but good fallback
-                                }
-                                // Store the full hike object data as a string attribute
-                                b.innerHTML += '<input type="hidden" value="' + escapeHTML(hike.name) + '" data-hikeinfo="' + escapeHTML(JSON.stringify(hike)) + '">';
-                                b.addEventListener("click", function(e) {
-                                    const selectedInput = this.getElementsByTagName("input")[0];
-                                    hikeNameInput.value = selectedInput.value; // Set hike name input
-
-                                    // Fetch last hike details to pre-fill other fields
-                                    fetch(`/api/hike/last?hikeName=${encodeURIComponent(selectedInput.value)}&leaderUUID=${encodeURIComponent(currentUser.uuid)}`)
-                                    .then(response => {
-                                        if (!response.ok) {
-                                            if (response.status === 404) return null;
-                                            throw new Error(`HTTP error! Status: ${response.status}`);
-                                        }
-                                        const contentType = response.headers.get("content-type");
-                                        if (!contentType || !contentType.includes("application/json")) {
-                                            return null;
-                                        }
-                                        return response.json();
-                                    })
-                                    .then(lastHikeDetails => {
-                                        if (lastHikeDetails && lastHikeDetails.name) { // Check if a valid hike object was returned
-                                            document.getElementById('hike-organization').value = lastHikeDetails.organization || '';
-                                            document.getElementById('hike-trailheadName').value = lastHikeDetails.trailheadName || '';
-                                            document.getElementById('hike-trailheadMapLink').value = lastHikeDetails.trailheadMapLink || '';
-                                            document.getElementById('hike-descriptionMarkdown').value = lastHikeDetails.descriptionMarkdown || '';
-
-                                            // Update currentHike object and save to localStorage
-                                            currentHike.name = lastHikeDetails.name;
-                                            currentHike.organization = lastHikeDetails.organization || '';
-                                            currentHike.trailheadName = lastHikeDetails.trailheadName || '';
-                                            currentHike.trailheadMapLink = lastHikeDetails.trailheadMapLink || '';
-                                            currentHike.descriptionMarkdown = lastHikeDetails.descriptionMarkdown || '';
-                                            // Note: startTime, photoRelease are not pre-filled from /last endpoint by design here.
-                                            // User should set these for the new hike.
-                                            localStorage.setItem('currentHike', JSON.stringify(currentHike));
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Error fetching or processing last hike details for pre-fill:', error);
-                                    });
-                                    closeAllHikeNameLists();
-                                });
-                                a.appendChild(b);
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error fetching ended hikes:", error);
-                    });
-            });
-
-            hikeNameInput.addEventListener("keydown", function(e) {
-                var x = document.getElementById(this.id + "autocomplete-list-hike");
-                if (x) x = x.getElementsByTagName("div");
-                if (e.keyCode == 40) { // Down
-                    currentFocusHikeName++; // Uses global currentFocusHikeName
-                    addActiveHikeName(x);   // Calls global helper
-                } else if (e.keyCode == 38) { // Up
-                    currentFocusHikeName--; // Uses global currentFocusHikeName
-                    addActiveHikeName(x);   // Calls global helper
-                } else if (e.keyCode == 13) { // Enter
-                    e.preventDefault();
-                    if (currentFocusHikeName > -1) { // Uses global currentFocusHikeName
-                        if (x && x[currentFocusHikeName]) x[currentFocusHikeName].click();
-                    }
-                }
-            });
-            // The helper functions (addActiveHikeName, removeActiveHikeName, closeAllHikeNameLists)
-            // are now defined in the global scope.
-        }
-
 
         // Autocomplete function for trailhead name input
         function autocomplete(trailheadNameInput, trailheadMapLinkInput) {
@@ -2164,8 +2174,7 @@ function closeAllHikeNameLists(elmnt) {
                 }
             }
             document.addEventListener("click", function (e) {
-                closeAllLists(e.target); // For trailhead lists
-                closeAllHikeNameLists(e.target); // For hike name lists
+                closeAllLists(e.target);
             });
         }
 
