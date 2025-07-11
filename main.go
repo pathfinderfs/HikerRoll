@@ -1115,14 +1115,13 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	// 1. Fetch from user's hike history if userUUID is provided
 	if userUUID != "" {
 		userHikeRows, err := db.Query(`
-			SELECT DISTINCT h.trailhead_name, h.trailhead_map_link, h.start_time
-			FROM hikes h
-			JOIN hike_users hu ON h.join_code = hu.hike_join_code
-			WHERE hu.user_uuid = ? AND REPLACE(h.trailhead_name, '''', '') LIKE ?
-			ORDER BY h.start_time DESC
+			SELECT DISTINCT trailhead_name, trailhead_map_link, start_time
+			FROM hikes
+			WHERE leader_uuid = ? AND REPLACE(trailhead_name, '''', '') LIKE ?
+			ORDER BY start_time DESC
 		`, userUUID, likePattern) // Use the cleaned likePattern
 		if err != nil {
-			http.Error(w, "Error querying user hike trailheads: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error querying user-led hike trailheads: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer userHikeRows.Close()

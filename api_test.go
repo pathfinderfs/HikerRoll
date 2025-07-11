@@ -1039,18 +1039,16 @@ func TestTrailheadSuggestions(t *testing.T) {
 	// Hike 1 by user - recent
 	_, err = db.Exec(`INSERT INTO hikes (name, trailhead_name, trailhead_map_link, leader_uuid, created_at, start_time, join_code, leader_code)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		"User Hike Recent", "Ka'au Crater User", "http://maps.google.com/user_kaau", testUserUUID, time.Now().Add(-1*time.Hour).Format("2006-01-02T15:04:05-07:00"), time.Now().Add(2*time.Hour), "joinRecentUserHike", "leadRecentUserHike")
+		"User Hike Recent", "Ka'au Crater User", "http://maps.google.com/user_kaau", testUserUUID, time.Now().Add(-1*time.Hour).Format("2006-01-02T15:04:05-07:00"), time.Now().Add(2*time.Hour), "joinRecentUserLedHike", "leadRecentUserLedHike")
 	require.NoError(t, err)
-	_, err = db.Exec("INSERT INTO hike_users (hike_join_code, user_uuid) VALUES (?,?)", "joinRecentUserHike", testUserUUID)
-	require.NoError(t, err)
+	// No need to insert into hike_users if we are testing trailheads from hikes LED by the user.
 
-	// Hike 2 by user - older
+	// Hike 2 by user - older, also led by testUserUUID
 	_, err = db.Exec(`INSERT INTO hikes (name, trailhead_name, trailhead_map_link, leader_uuid, created_at, start_time, join_code, leader_code)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		"User Hike Older", "Kamilo'iki User", "http://maps.google.com/user_kamiloiki", testUserUUID, time.Now().Add(-2*time.Hour).Format("2006-01-02T15:04:05-07:00"), time.Now().Add(1*time.Hour), "joinOlderUserHike", "leadOlderUserHike")
+		"User Hike Older", "Kamilo'iki User", "http://maps.google.com/user_kamiloiki", testUserUUID, time.Now().Add(-2*time.Hour).Format("2006-01-02T15:04:05-07:00"), time.Now().Add(1*time.Hour), "joinOlderUserLedHike", "leadOlderUserLedHike")
 	require.NoError(t, err)
-	_, err = db.Exec("INSERT INTO hike_users (hike_join_code, user_uuid) VALUES (?,?)", "joinOlderUserHike", testUserUUID)
-	require.NoError(t, err)
+	// No need to insert into hike_users for this test's purpose.
 
 	// Predefined "Ka'au Crater" also exists. The user one should take precedence.
 	// Predefined "Kamilo'iki" also exists.
@@ -1100,13 +1098,12 @@ func TestTrailheadSuggestions(t *testing.T) {
 
 
 	// If a user trailhead has the same name as a predefined one, the user's (most recent) should be used.
-	// Add a user hike with the exact name "Ka'au Crater" and a different map link. This one is more recent.
+	// Let's add a user hike (led by testUserUUID) with the exact name "Ka'au Crater" but a different map link.
 	_, err = db.Exec(`INSERT INTO hikes (name, trailhead_name, trailhead_map_link, leader_uuid, created_at, start_time, join_code, leader_code)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		"User Hike Exact Name", "Ka'au Crater", "http://maps.google.com/user_exact_kaau_override", testUserUUID, time.Now().Format("2006-01-02T15:04:05-07:00"), time.Now().Add(3*time.Hour), "joinExactUserHike", "leadExactUserHike")
+		"User Hike Exact Name", "Ka'au Crater", "http://maps.google.com/user_exact_kaau_override", testUserUUID, time.Now().Format("2006-01-02T15:04:05-07:00"), time.Now().Add(3*time.Hour), "joinExactUserLedHikeOverride", "leadExactUserLedHikeOverride")
 	require.NoError(t, err)
-	_, err = db.Exec("INSERT INTO hike_users (hike_join_code, user_uuid) VALUES (?,?)", "joinExactUserHike", testUserUUID)
-	require.NoError(t, err)
+	// No hike_users insertion needed for this specific test logic.
 
 	reqOverride, _ := http.NewRequest("GET", fmt.Sprintf("/api/trailhead?q=Ka'au Crater&userUUID=%s", testUserUUID), nil)
 	rrOverride := httptest.NewRecorder()
