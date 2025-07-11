@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -1183,6 +1184,11 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	if len(finalSuggestions) > 5 {
 		finalSuggestions = finalSuggestions[:5]
 	}
+
+	// Sort the final list alphabetically by trailhead name
+	sort.Slice(finalSuggestions, func(i, j int) bool {
+		return strings.ToLower(finalSuggestions[i].Name) < strings.ToLower(finalSuggestions[j].Name)
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(finalSuggestions)
