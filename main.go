@@ -1098,29 +1098,93 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 // Given a query string, return a list of trailhead suggestions
 func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
+	userUUID := r.URL.Query().Get("userUUID")
+
 	if query == "" {
 		json.NewEncoder(w).Encode([]Trailhead{})
 		return
 	}
 
-	rows, err := db.Query("SELECT name, map_link FROM trailheads WHERE REPLACE(name, '''', '') LIKE ? LIMIT 5", "%"+query+"%")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
+	suggestionsMap := make(map[string]Trailhead)
+	var orderedSuggestions []Trailhead
 
-	var suggestions []Trailhead
-	for rows.Next() {
-		var th Trailhead
-		if err := rows.Scan(&th.Name, &th.MapLink); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 1. Fetch from user's hike history if userUUID is provided
+	if userUUID != "" {
+		userHikeRows, err := db.Query(`
+			SELECT DISTINCT h.trailhead_name, h.trailhead_map_link, h.start_time
+			FROM hikes h
+			JOIN hike_users hu ON h.join_code = hu.hike_join_code
+			WHERE hu.user_uuid = ? AND REPLACE(h.trailhead_name, '''', '') LIKE ?
+			ORDER BY h.start_time DESC
+		`, userUUID, "%"+query+"%")
+		if err != nil {
+			http.Error(w, "Error querying user hike trailheads: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		suggestions = append(suggestions, th)
+		defer userHikeRows.Close()
+
+		for userHikeRows.Next() {
+			var th Trailhead
+			var startTime time.Time // Used for ordering, not directly in Trailhead struct
+			if err := userHikeRows.Scan(&th.Name, &th.MapLink, &startTime); err != nil {
+				http.Error(w, "Error scanning user hike trailhead: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if _, exists := suggestionsMap[th.Name]; !exists {
+				suggestionsMap[th.Name] = th
+				orderedSuggestions = append(orderedSuggestions, th)
+			}
+		}
+		if err = userHikeRows.Err(); err != nil {
+			http.Error(w, "Error iterating user hike trailheads: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
-	json.NewEncoder(w).Encode(suggestions)
+	// 2. Fetch from predefined trailheads table
+	// Only fetch if we still need more suggestions (e.g., less than 5)
+	if len(orderedSuggestions) < 5 {
+		stdTrailheadRows, err := db.Query(`
+			SELECT name, map_link
+			FROM trailheads
+			WHERE REPLACE(name, '''', '') LIKE ?
+			ORDER BY name
+			LIMIT ?
+		`, "%"+query+"%", 5) // Fetch up to 5, will filter later
+		if err != nil {
+			http.Error(w, "Error querying predefined trailheads: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer stdTrailheadRows.Close()
+
+		for stdTrailheadRows.Next() {
+			if len(orderedSuggestions) >= 5 {
+				break // Stop if we already have 5
+			}
+			var th Trailhead
+			if err := stdTrailheadRows.Scan(&th.Name, &th.MapLink); err != nil {
+				http.Error(w, "Error scanning predefined trailhead: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if _, exists := suggestionsMap[th.Name]; !exists {
+				suggestionsMap[th.Name] = th
+				orderedSuggestions = append(orderedSuggestions, th)
+			}
+		}
+		if err = stdTrailheadRows.Err(); err != nil {
+			http.Error(w, "Error iterating predefined trailheads: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Ensure we don't return more than 5 suggestions in total
+	finalSuggestions := orderedSuggestions
+	if len(finalSuggestions) > 5 {
+		finalSuggestions = finalSuggestions[:5]
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(finalSuggestions)
 }
 
 func generateSecureLinkCode() (string, error) {
