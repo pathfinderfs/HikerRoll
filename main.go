@@ -118,7 +118,7 @@ type Hike struct {
 	Organization        string    `json:"organization"`
 	TrailheadName       string    `json:"trailheadName"`
 	Leader              User      `json:"leader"`
-	TrailheadMapLink    string    `json:"trailheadMapLink,omitempty"`
+	TrailheadMapLink    string    `json:"trailheadMapLink"`
 	CreatedAt           time.Time `json:"-"` // don't send this field in JSON response
 	StartTime           time.Time `json:"startTime"`
 	Status              string    `json:"Status"`
@@ -146,40 +146,41 @@ var db *sql.DB
 func createTables() {
 	// Create tables if they don't exist
 	// Note to self: Foreign key declarations must be at the end of the table creation statement
+	// Because go initializes strings to "" we can use TEXT DEFAULT '' for all optional TEXT columns
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS trailheads (
 			name TEXT PRIMARY KEY,
-			map_link TEXT NOT NULL
+			map_link TEXT DEFAULT ''
 		);
 
 		CREATE TABLE IF NOT EXISTS users (
 			uuid TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
-			phone TEXT,
-			license_plate TEXT,
-			emergency_contact TEXT
+			phone TEXT NOT NULL,
+			license_plate TEXT DEFAULT '',
+			emergency_contact TEXT DEFAULT ''
 		);
 
 		CREATE TABLE IF NOT EXISTS hikes (
 			name TEXT NOT NULL,
-            organization TEXT,
-			trailhead_name TEXT,
+            organization TEXT DEFAULT '',
+			trailhead_name TEXT DEFAULT '',
+			trailhead_map_link TEXT DEFAULT '',
 			leader_uuid TEXT NOT NULL,
-			trailhead_map_link TEXT,
 			created_at DATETIME NOT NULL,
 			start_time DATETIME NOT NULL,
 			status TEXT DEFAULT 'open',
 			join_code TEXT PRIMARY KEY,
 			leader_code TEXT UNIQUE,
             photo_release BOOLEAN DEFAULT FALSE,
-            description TEXT,
+            description TEXT DEFAULT '',
 			FOREIGN KEY (leader_uuid) REFERENCES users(uuid)
 		);
 
 		CREATE TABLE IF NOT EXISTS hike_users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			hike_join_code TEXT,
-			user_uuid TEXT,
+			hike_join_code TEXT NOT NULL,
+			user_uuid TEXT NOT NULL,
 			status TEXT DEFAULT 'active',
 			joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (hike_join_code, user_uuid),
@@ -188,8 +189,8 @@ func createTables() {
 		);
 
 		CREATE TABLE IF NOT EXISTS waiver_signatures (
-			user_uuid TEXT,
-			hike_join_code TEXT,
+			user_uuid TEXT NOT NULL,
+			hike_join_code TEXT NOT NULL,
 			signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			user_agent TEXT NOT NULL,
 			ip_address TEXT NOT NULL,
@@ -270,7 +271,7 @@ type WaiverData struct {
 
 // generateWaiverText fetches hike details and generates the waiver text using a template.
 func generateWaiverText(joinCode string) (string, error) {
-	var leaderName, organization sql.NullString // Use sql.NullString for organization as it can be NULL
+	var leaderName, organization string
 	var photoRelease bool
 
 	err := db.QueryRow(`
@@ -288,8 +289,8 @@ func generateWaiverText(joinCode string) (string, error) {
 	}
 
 	data := WaiverData{
-		LeaderName:   leaderName.String,
-		Organization: organization.String,
+		LeaderName:   leaderName,
+		Organization: organization,
 		PhotoRelease: photoRelease,
 	}
 
@@ -365,14 +366,13 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Original logic for fetching last hike details (exact match)
 	var hike Hike
-	var descriptionMarkdown sql.NullString
 	err := db.QueryRow(`
 		SELECT name, organization, trailhead_name, trailhead_map_link, description
 		FROM hikes
 		WHERE name = ? AND leader_uuid = ?
 		ORDER BY created_at DESC, rowid DESC
 		LIMIT 1
-	`, hikeNameQuery, leaderUUID).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.TrailheadMapLink, &descriptionMarkdown)
+	`, hikeNameQuery, leaderUUID).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.TrailheadMapLink, &hike.DescriptionMarkdown)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -384,8 +384,7 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if descriptionMarkdown.Valid {
-		hike.DescriptionMarkdown = descriptionMarkdown.String
+	if hike.DescriptionMarkdown != "" {
 		var buf strings.Builder
 		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
 			log.Printf("Error converting description to HTML for last hike %s: %v", hike.Name, err)
@@ -487,19 +486,17 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Retrieve Hike record based on leaderCode if provided otherwise by joinCode
 	var hike Hike
-	var descriptionMarkdown sql.NullString // Use sql.NullString for description as it can be NULL
-	var trailheadMapLink sql.NullString
 	var err error
 	if leaderCode != "" {
 		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code, h.description
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &trailheadMapLink, &hike.StartTime, &hike.JoinCode, &descriptionMarkdown)
+		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.TrailheadMapLink, &hike.StartTime, &hike.JoinCode, &hike.DescriptionMarkdown)
 	} else {
 		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code, h.description
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 						   WHERE h.join_code = ? AND h.status = "open"
-		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &trailheadMapLink, &hike.StartTime, &hike.JoinCode, &descriptionMarkdown)
+		`, joinCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.TrailheadMapLink, &hike.StartTime, &hike.JoinCode, &hike.DescriptionMarkdown)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -510,8 +507,7 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if descriptionMarkdown.Valid {
-		hike.DescriptionMarkdown = descriptionMarkdown.String
+	if hike.DescriptionMarkdown != "" {
 		// Convert markdown to HTML
 		var buf strings.Builder
 		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
@@ -524,10 +520,6 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		hike.DescriptionMarkdown = ""
 		hike.DescriptionHTML = ""
-	}
-
-	if trailheadMapLink.Valid {
-		hike.TrailheadMapLink = trailheadMapLink.String
 	}
 
 	// Generate and add waiver text
@@ -658,8 +650,6 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// After successful update, fetch the updated hike details to return
 	var finalHike Hike
-	var descriptionMarkdown sql.NullString
-	var trailheadMapLink sql.NullString
 	// Fetch using the original leaderCodeFromPath, as that's the identifier used for update
 	// The leader_uuid in the table might have changed, so fetch based on leader_code.
 	err = db.QueryRow(`
@@ -671,8 +661,8 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 	`, leaderCodeFromPath).Scan(
 		&finalHike.Name, &finalHike.Organization, &finalHike.TrailheadName,
 		&finalHike.Leader.UUID, &finalHike.Leader.Name, &finalHike.Leader.Phone,
-		&trailheadMapLink, &finalHike.StartTime, &finalHike.JoinCode, &finalHike.LeaderCode,
-		&finalHike.PhotoRelease, &descriptionMarkdown, &finalHike.Status,
+		&finalHike.TrailheadMapLink, &finalHike.StartTime, &finalHike.JoinCode, &finalHike.LeaderCode,
+		&finalHike.PhotoRelease, &finalHike.DescriptionMarkdown, &finalHike.Status,
 	)
 
 	if err != nil {
@@ -681,8 +671,7 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if descriptionMarkdown.Valid {
-		finalHike.DescriptionMarkdown = descriptionMarkdown.String
+	if finalHike.DescriptionMarkdown != "" {
 		var buf strings.Builder
 		if goldmarkErr := goldmark.Convert([]byte(finalHike.DescriptionMarkdown), &buf); goldmarkErr != nil {
 			log.Printf("Error converting description to HTML for updated hike %s: %v", finalHike.JoinCode, goldmarkErr)
@@ -691,12 +680,6 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 			p := bluemonday.UGCPolicy()
 			finalHike.DescriptionHTML = p.Sanitize(buf.String())
 		}
-	} else {
-		finalHike.DescriptionMarkdown = ""
-		finalHike.DescriptionHTML = ""
-	}
-	if trailheadMapLink.Valid {
-		finalHike.TrailheadMapLink = trailheadMapLink.String
 	}
 
 	// Regenerate waiver text as leader or organization might have changed
@@ -727,11 +710,10 @@ func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed func
 
 	// Get hike
 	var hike Hike
-	var trailheadMapLink sql.NullString
 	err = db.QueryRow(`SELECT h.status, h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code
 					   FROM hikes AS h JOIN users AS u ON leader_uuid = uuid
 					   WHERE h.join_code = ?
-					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &trailheadMapLink, &hike.StartTime, &hike.JoinCode)
+					   `, joinCode).Scan(&hike.Status, &hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.TrailheadMapLink, &hike.StartTime, &hike.JoinCode)
 
 	// Check if the hike exists and is open
 	if err != nil {
@@ -1036,18 +1018,15 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var h Hike
-		var descriptionMarkdown sql.NullString
-		var trailheadMapLink sql.NullString
 		err := rows.Scan(
-			&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.JoinCode, &h.Status, &descriptionMarkdown,
+			&h.Name, &h.Organization, &h.TrailheadName, &h.TrailheadMapLink, &h.StartTime, &h.JoinCode, &h.Status, &h.DescriptionMarkdown,
 			&h.ParticipantId, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
 		)
 		if err != nil {
 			http.Error(w, "Error scanning RSVP hike: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if descriptionMarkdown.Valid {
-			h.DescriptionMarkdown = descriptionMarkdown.String
+		if h.DescriptionMarkdown != "" {
 			var buf strings.Builder
 			if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
 				p := bluemonday.UGCPolicy()
@@ -1056,9 +1035,6 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
 				h.DescriptionHTML = h.DescriptionMarkdown // Fallback
 			}
-		}
-		if trailheadMapLink.Valid {
-			h.TrailheadMapLink = trailheadMapLink.String
 		}
 		h.SourceType = "rsvp"
 		allHikes = append(allHikes, h)
@@ -1086,18 +1062,15 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var h Hike
-		var descriptionMarkdown sql.NullString
-		var trailheadMapLink sql.NullString
 		err := rows.Scan(
 			&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-			&trailheadMapLink, &h.StartTime, &h.Status, &h.LeaderCode, &descriptionMarkdown, // Added h.LeaderCode
+			&h.TrailheadMapLink, &h.StartTime, &h.Status, &h.LeaderCode, &h.DescriptionMarkdown, // Added h.LeaderCode
 		)
 		if err != nil {
 			http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if descriptionMarkdown.Valid {
-			h.DescriptionMarkdown = descriptionMarkdown.String
+		if h.DescriptionMarkdown != "" {
 			var buf strings.Builder
 			if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
 				p := bluemonday.UGCPolicy()
@@ -1106,9 +1079,6 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
 				h.DescriptionHTML = h.DescriptionMarkdown // Fallback
 			}
-		}
-		if trailheadMapLink.Valid {
-			h.TrailheadMapLink = trailheadMapLink.String
 		}
 		h.SourceType = "led_by_user" // New SourceType
 		allHikes = append(allHikes, h)
