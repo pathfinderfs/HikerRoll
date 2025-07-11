@@ -1066,7 +1066,7 @@ func TestTrailheadSuggestions(t *testing.T) {
 	assert.GreaterOrEqual(t, len(userSuggestions), 1, "Should get at least one suggestion for 'Ka' with userUUID")
 
 	foundUserKaau := false
-	// foundStdKaau := false // Unused variable
+	foundStdKaau := false
 	foundUserKamiloiki := false
 
 	// Check that user's "Ka'au Crater User" is present and potentially first (or at least before predefined if names clash)
