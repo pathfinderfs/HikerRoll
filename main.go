@@ -1105,8 +1105,12 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	suggestionsMap := make(map[string]Trailhead)
-	var orderedSuggestions []Trailhead
+	// Clean the query input in the same way the database fields are cleaned for comparison
+	cleanedQuery := strings.ReplaceAll(query, "'", "")
+	likePattern := "%" + cleanedQuery + "%"
+
+	suggestionsMap := make(map[string]Trailhead) // Stores unique suggestions by name
+	var orderedSuggestions []Trailhead          // Maintains order of addition, prioritizing user history
 
 	// 1. Fetch from user's hike history if userUUID is provided
 	if userUUID != "" {
@@ -1116,7 +1120,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 			JOIN hike_users hu ON h.join_code = hu.hike_join_code
 			WHERE hu.user_uuid = ? AND REPLACE(h.trailhead_name, '''', '') LIKE ?
 			ORDER BY h.start_time DESC
-		`, userUUID, "%"+query+"%")
+		`, userUUID, likePattern) // Use the cleaned likePattern
 		if err != nil {
 			http.Error(w, "Error querying user hike trailheads: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -1125,7 +1129,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 
 		for userHikeRows.Next() {
 			var th Trailhead
-			var startTime time.Time // Used for ordering, not directly in Trailhead struct
+			var startTime time.Time // Used for ordering
 			if err := userHikeRows.Scan(&th.Name, &th.MapLink, &startTime); err != nil {
 				http.Error(w, "Error scanning user hike trailhead: "+err.Error(), http.StatusInternalServerError)
 				return
@@ -1142,7 +1146,6 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Fetch from predefined trailheads table
-	// Only fetch if we still need more suggestions (e.g., less than 5)
 	if len(orderedSuggestions) < 5 {
 		stdTrailheadRows, err := db.Query(`
 			SELECT name, map_link
@@ -1150,7 +1153,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 			WHERE REPLACE(name, '''', '') LIKE ?
 			ORDER BY name
 			LIMIT ?
-		`, "%"+query+"%", 5) // Fetch up to 5, will filter later
+		`, likePattern, 5) // Use the cleaned likePattern, fetch up to 5, will filter later
 		if err != nil {
 			http.Error(w, "Error querying predefined trailheads: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -1159,7 +1162,7 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 
 		for stdTrailheadRows.Next() {
 			if len(orderedSuggestions) >= 5 {
-				break // Stop if we already have 5
+				break
 			}
 			var th Trailhead
 			if err := stdTrailheadRows.Scan(&th.Name, &th.MapLink); err != nil {
@@ -1177,7 +1180,6 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Ensure we don't return more than 5 suggestions in total
 	finalSuggestions := orderedSuggestions
 	if len(finalSuggestions) > 5 {
 		finalSuggestions = finalSuggestions[:5]
