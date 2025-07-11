@@ -325,14 +325,12 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "leaderUUID query parameter is required", http.StatusBadRequest)
 		return
 	}
+	if hikeNameQuery == "" {
+		http.Error(w, "hikeName query parameter is required when not requesting suggestions", http.StatusBadRequest)
+		return
+	}
 
 	if suggestParam == "true" {
-		if hikeNameQuery == "" {
-			// Return empty list if suggest is true but no hikeName query
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]string{})
-			return
-		}
 		// Logic for suggestions
 		rows, err := db.Query(`
 			SELECT DISTINCT name
@@ -366,11 +364,6 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Original logic for fetching last hike details (exact match)
-	if hikeNameQuery == "" {
-		http.Error(w, "hikeName query parameter is required when not requesting suggestions", http.StatusBadRequest)
-		return
-	}
-
 	var hike Hike
 	var descriptionMarkdown sql.NullString
 	err := db.QueryRow(`
