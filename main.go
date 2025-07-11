@@ -244,6 +244,7 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/hike/{leaderCode}", updateHikeHandler)
 	mux.HandleFunc("POST /api/hike", createHikeHandler)
 	mux.HandleFunc("GET /api/hike/last", getLastHikeHandler) // Return the last hike details for a given hikeName and leaderUUID
+	mux.HandleFunc("GET /api/hikes/ended", getEndedHikesByLeaderHandler) // New endpoint for ended hikes by leader
 	mux.HandleFunc("GET /api/hike", getHikesHandler)
 	mux.HandleFunc("GET /api/trailhead", trailheadSuggestionsHandler)
 }
@@ -1088,6 +1089,66 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(allHikes)
+}
+
+// getEndedHikesByLeaderHandler returns a list of ended hikes for a given leader.
+func getEndedHikesByLeaderHandler(w http.ResponseWriter, r *http.Request) {
+	leaderUUID := r.URL.Query().Get("leaderUUID")
+
+	if leaderUUID == "" {
+		http.Error(w, "leaderUUID query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	rows, err := db.Query(`
+		SELECT name, organization, trailhead_name, trailhead_map_link, start_time, status, join_code, leader_code, photo_release, description
+		FROM hikes
+		WHERE leader_uuid = ? AND status = 'closed'
+		ORDER BY start_time DESC
+	`, leaderUUID)
+	if err != nil {
+		http.Error(w, "Error querying ended hikes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var endedHikes []Hike
+	for rows.Next() {
+		var h Hike
+		var descriptionMarkdown sql.NullString
+		var trailheadMapLink sql.NullString
+		// Note: Leader details are not fetched here as we're filtering by leader_uuid already.
+		// The Hike struct's Leader field will be empty for these results, which is acceptable
+		// as this endpoint is for autocompletion data, not full display.
+		// If leader details were needed, the query and Scan would need adjustment.
+		err := rows.Scan(
+			&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.Status, &h.JoinCode, &h.LeaderCode, &h.PhotoRelease, &descriptionMarkdown,
+		)
+		if err != nil {
+			http.Error(w, "Error scanning ended hike: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if descriptionMarkdown.Valid {
+			h.DescriptionMarkdown = descriptionMarkdown.String
+			// HTML conversion is not strictly necessary for autocompletion data,
+			// but can be included if the client might use it directly.
+			// For now, let's keep it minimal. The full details will be fetched by /api/hike/last.
+		}
+		if trailheadMapLink.Valid {
+			h.TrailheadMapLink = trailheadMapLink.String
+		}
+		// Leader field in h will be its zero value (empty User struct)
+		endedHikes = append(endedHikes, h)
+	}
+
+	if err = rows.Err(); err != nil {
+		http.Error(w, "Error iterating ended hikes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(endedHikes)
 }
 
 // Given a query string, return a list of trailhead suggestions
