@@ -678,35 +678,6 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 	logAction(fmt.Sprintf("Hike updated: %s (LeaderCode: %s)", finalHike.Name, leaderCodeFromPath))
 }
 
-// This is the old endHikeHandler, which is now effectively part of a different workflow
-// or needs to be a separate endpoint if "closing" a hike is distinct from "updating" it.
-// For now, it's commented out. If "ending/closing" a hike is still needed as a distinct PUT operation,
-// it would need its own route and handler.
-/*
-func endHikeHandler(w http.ResponseWriter, r *http.Request) {
-	joinCode := r.PathValue("hikeId") // This was based on joinCode in path
-	leaderCode := r.URL.Query().Get("leaderCode")
-
-	_, err := db.Exec("UPDATE hikes SET status = 'closed' WHERE leader_code = ?", leaderCode)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Force all participants to finished (do we want this?)
-	_, err = db.Exec(`UPDATE hike_users SET status = 'finished'
-					  WHERE hike_join_code = ? AND (status = 'active' OR status = 'rsvp')
-					 `, joinCode)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	logAction(fmt.Sprintf("Hike closed"))
-}
-*/
-
 func rsvpToHikeHandler(w http.ResponseWriter, r *http.Request) { // Renamed function
 	joinCode := r.PathValue("hikeId")
 
@@ -999,23 +970,20 @@ func updateParticipantStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getHikesHandler returns hikes based on query parameters:
-// - latitude, longitude: nearby hikes
 // - userUUID: hikes user has RSVPd to
-// - leaderID: hikes led by the leader
 func getHikesHandler(w http.ResponseWriter, r *http.Request) {
-	// latitude := r.URL.Query().Get("latitude") // Removed
-	// longitude := r.URL.Query().Get("longitude") // Removed
 	userUUID := r.URL.Query().Get("userUUID")
-	// leaderID parameter is removed
+
+	if userUUID == "" {
+		http.Error(w, "Missing 'userUUID' parameter", http.StatusBadRequest)
+		return
+	}
 
 	var allHikes []Hike
 	// now := time.Now() // For time-based filtering - Removed as only user-specific hikes don't need this complex time window here
 
-	// Fetch by location logic removed
-
 	// Fetch by userUUID (RSVP'd hikes)
-	if userUUID != "" {
-		rows, err := db.Query(`
+	rows, err := db.Query(`
 			SELECT h.name, h.organization, h.trailhead_name, h.trailhead_map_link, h.start_time, h.join_code, h.status, h.description,
 			       hu.id AS participant_id, l.uuid AS leader_uuid, l.name AS leader_name, l.phone AS leader_phone
 			FROM hikes AS h
@@ -1025,53 +993,48 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			ORDER BY h.start_time DESC
 		`, userUUID)
 
-		if err != nil {
-			http.Error(w, "Error querying RSVP hikes: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
+	if err != nil {
+		http.Error(w, "Error querying RSVP hikes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
 
-		for rows.Next() {
-			var h Hike
-			var descriptionMarkdown sql.NullString
-			var trailheadMapLink sql.NullString
-			err := rows.Scan(
-				&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.JoinCode, &h.Status, &descriptionMarkdown,
-				&h.ParticipantId, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-			)
-			if err != nil {
-				http.Error(w, "Error scanning RSVP hike: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if descriptionMarkdown.Valid {
-				h.DescriptionMarkdown = descriptionMarkdown.String
-				var buf strings.Builder
-				if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
-					p := bluemonday.UGCPolicy()
-					h.DescriptionHTML = p.Sanitize(buf.String())
-				} else {
-					log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
-					h.DescriptionHTML = h.DescriptionMarkdown // Fallback
-				}
-			} else {
-				h.DescriptionMarkdown = ""
-				h.DescriptionHTML = ""
-			}
-			if trailheadMapLink.Valid {
-				h.TrailheadMapLink = trailheadMapLink.String
-			}
-			h.SourceType = "rsvp"
-			allHikes = append(allHikes, h)
-		}
-		if err = rows.Err(); err != nil {
-			http.Error(w, "Error iterating RSVP hikes: "+err.Error(), http.StatusInternalServerError)
+	for rows.Next() {
+		var h Hike
+		var descriptionMarkdown sql.NullString
+		var trailheadMapLink sql.NullString
+		err := rows.Scan(
+			&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.JoinCode, &h.Status, &descriptionMarkdown,
+			&h.ParticipantId, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
+		)
+		if err != nil {
+			http.Error(w, "Error scanning RSVP hike: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if descriptionMarkdown.Valid {
+			h.DescriptionMarkdown = descriptionMarkdown.String
+			var buf strings.Builder
+			if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
+				p := bluemonday.UGCPolicy()
+				h.DescriptionHTML = p.Sanitize(buf.String())
+			} else {
+				log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
+				h.DescriptionHTML = h.DescriptionMarkdown // Fallback
+			}
+		}
+		if trailheadMapLink.Valid {
+			h.TrailheadMapLink = trailheadMapLink.String
+		}
+		h.SourceType = "rsvp"
+		allHikes = append(allHikes, h)
+	}
+	if err = rows.Err(); err != nil {
+		http.Error(w, "Error iterating RSVP hikes: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// If userUUID is provided, also fetch hikes led by this user
-	if userUUID != "" {
-		rows, err := db.Query(`
+	rows, err = db.Query(`
 			SELECT h.join_code, h.name, h.organization, h.trailhead_name, u.uuid as leader_uuid, u.name AS leader_name, u.phone AS leader_phone,
 			       h.trailhead_map_link, h.start_time, h.status, h.leader_code, h.description
 			FROM hikes AS h
@@ -1080,48 +1043,44 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			ORDER BY h.start_time DESC
 		`, userUUID) // Query by userUUID for hikes they are leading
 
-		if err != nil {
-			http.Error(w, "Error querying hikes led by user: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
+	if err != nil {
+		http.Error(w, "Error querying hikes led by user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
 
-		for rows.Next() {
-			var h Hike
-			var descriptionMarkdown sql.NullString
-			var trailheadMapLink sql.NullString
-			err := rows.Scan(
-				&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
-				&trailheadMapLink, &h.StartTime, &h.Status, &h.LeaderCode, &descriptionMarkdown, // Added h.LeaderCode
-			)
-			if err != nil {
-				http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if descriptionMarkdown.Valid {
-				h.DescriptionMarkdown = descriptionMarkdown.String
-				var buf strings.Builder
-				if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
-					p := bluemonday.UGCPolicy()
-					h.DescriptionHTML = p.Sanitize(buf.String())
-				} else {
-					log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
-					h.DescriptionHTML = h.DescriptionMarkdown // Fallback
-				}
-			} else {
-				h.DescriptionMarkdown = ""
-				h.DescriptionHTML = ""
-			}
-			if trailheadMapLink.Valid {
-				h.TrailheadMapLink = trailheadMapLink.String
-			}
-			h.SourceType = "led_by_user" // New SourceType
-			allHikes = append(allHikes, h)
-		}
-		if err = rows.Err(); err != nil {
-			http.Error(w, "Error iterating hikes led by user: "+err.Error(), http.StatusInternalServerError)
+	for rows.Next() {
+		var h Hike
+		var descriptionMarkdown sql.NullString
+		var trailheadMapLink sql.NullString
+		err := rows.Scan(
+			&h.JoinCode, &h.Name, &h.Organization, &h.TrailheadName, &h.Leader.UUID, &h.Leader.Name, &h.Leader.Phone,
+			&trailheadMapLink, &h.StartTime, &h.Status, &h.LeaderCode, &descriptionMarkdown, // Added h.LeaderCode
+		)
+		if err != nil {
+			http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if descriptionMarkdown.Valid {
+			h.DescriptionMarkdown = descriptionMarkdown.String
+			var buf strings.Builder
+			if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
+				p := bluemonday.UGCPolicy()
+				h.DescriptionHTML = p.Sanitize(buf.String())
+			} else {
+				log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
+				h.DescriptionHTML = h.DescriptionMarkdown // Fallback
+			}
+		}
+		if trailheadMapLink.Valid {
+			h.TrailheadMapLink = trailheadMapLink.String
+		}
+		h.SourceType = "led_by_user" // New SourceType
+		allHikes = append(allHikes, h)
+	}
+	if err = rows.Err(); err != nil {
+		http.Error(w, "Error iterating hikes led by user: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Note: As per plan, if a hike matches multiple criteria, it will appear multiple times

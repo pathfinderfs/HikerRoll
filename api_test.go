@@ -31,9 +31,9 @@ func TestCreateHike(t *testing.T) {
 			Name:  "John Doe",
 			Phone: "1234567890",
 		},
-		TrailheadName:    "Aiea Loop (upper)",                                                   // Use an existing trailhead for map_link
-		TrailheadMapLink: "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Explicitly provide it
-		StartTime:        time.Now().Add(24 * time.Hour),
+		TrailheadName:       "Aiea Loop (upper)",                                                   // Use an existing trailhead for map_link
+		TrailheadMapLink:    "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Explicitly provide it
+		StartTime:           time.Now().Add(24 * time.Hour),
 		PhotoRelease:        false, // Default to false for this test
 		DescriptionMarkdown: "A beautiful test hike.",
 	}
@@ -127,7 +127,6 @@ func TestGetLastHike(t *testing.T) {
 		assert.Equal(t, "", hike.DescriptionHTML, "Should return empty HTML description when no prior hike exists")
 	}
 
-
 	// 2. Create a hike with a description
 	desc1 := "This is the first version of the description."
 	hike1 := Hike{
@@ -181,7 +180,6 @@ func TestGetLastHike(t *testing.T) {
 	assert.Equal(t, desc2, fetchedHike2.DescriptionMarkdown, "Should return the markdown description of the most recent hike (desc2)")
 	assert.NotEmpty(t, fetchedHike2.DescriptionHTML, "HTML description should be populated for the most recent hike")
 
-
 	// 6. Test case: Different hike name, same leader
 	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", "SomeOtherHikeName", leaderUUID), nil)
 	rr = httptest.NewRecorder()
@@ -191,7 +189,6 @@ func TestGetLastHike(t *testing.T) {
 	json.Unmarshal(rr.Body.Bytes(), &emptyHikeOtherName)
 	assert.Empty(t, emptyHikeOtherName.Name, "Hike object should be empty for non-existent hike name")
 
-
 	// 7. Test case: Same hike name, different leader
 	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?hikeName=%s&leaderUUID=%s", hikeName, "someOtherLeaderUUID"), nil)
 	rr = httptest.NewRecorder()
@@ -200,7 +197,6 @@ func TestGetLastHike(t *testing.T) {
 	var emptyHikeOtherLeader Hike
 	json.Unmarshal(rr.Body.Bytes(), &emptyHikeOtherLeader)
 	assert.Empty(t, emptyHikeOtherLeader.Name, "Hike object should be empty for non-existent leader")
-
 
 	// 8. Test case: Missing hikeName query parameter
 	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/hike/last?leaderUUID=%s", leaderUUID), nil)
@@ -565,8 +561,8 @@ func TestUpdateHike_ToEndHikeAndFinalizeParticipants(t *testing.T) {
 		StartTime:           hikeToClose.StartTime,
 		PhotoRelease:        hikeToClose.PhotoRelease,
 		DescriptionMarkdown: hikeToClose.DescriptionMarkdown,
-		Leader:              leader, // Current leader
-		Status:              "closed", // Explicitly closing the hike
+		Leader:              leader,                 // Current leader
+		Status:              "closed",               // Explicitly closing the hike
 		JoinCode:            hikeToClose.JoinCode,   // Not strictly needed in payload for PUT, but good for struct completeness
 		LeaderCode:          hikeToClose.LeaderCode, // Not strictly needed in payload for PUT
 	}
@@ -875,11 +871,7 @@ func TestGetHikes_NoParams(t *testing.T) {
 	mux := setupTestMux()
 	mux.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code, "Request failed: %s", rr.Body.String())
-	var hikes []Hike
-	err := json.Unmarshal(rr.Body.Bytes(), &hikes)
-	require.NoError(t, err, "Failed to unmarshal response: %s", rr.Body.String())
-	assert.Empty(t, hikes, "Should return an empty list when no parameters are provided")
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "Request failed: %s", rr.Body.String())
 }
 
 func TestHikeParticipants(t *testing.T) {
@@ -921,7 +913,7 @@ func TestUpdateHike(t *testing.T) {
 		Name:                "Updated Hike Name",
 		Organization:        "Updated Org",
 		TrailheadName:       "Diamond Head Crater (Le'ahi)", // Change trailhead
-		TrailheadMapLink:    "https://new.map.link",          // Custom map link
+		TrailheadMapLink:    "https://new.map.link",         // Custom map link
 		StartTime:           time.Now().Add(48 * time.Hour), // Change start time
 		PhotoRelease:        true,                           // Change photo release
 		DescriptionMarkdown: "Updated Description",
@@ -951,15 +943,15 @@ func TestUpdateHike(t *testing.T) {
 	assert.Equal(t, updatedHikeData.PhotoRelease, responseHike.PhotoRelease)
 	assert.Equal(t, updatedHikeData.DescriptionMarkdown, responseHike.DescriptionMarkdown)
 	assert.NotEmpty(t, responseHike.DescriptionHTML)
-	assert.Equal(t, initialLeader.UUID, responseHike.Leader.UUID) // Leader should be the same
-	assert.Equal(t, createdHike.JoinCode, responseHike.JoinCode)   // JoinCode should not change
-	assert.Equal(t, createdHike.LeaderCode, responseHike.LeaderCode) // LeaderCode should not change
+	assert.Equal(t, initialLeader.UUID, responseHike.Leader.UUID)                               // Leader should be the same
+	assert.Equal(t, createdHike.JoinCode, responseHike.JoinCode)                                // JoinCode should not change
+	assert.Equal(t, createdHike.LeaderCode, responseHike.LeaderCode)                            // LeaderCode should not change
 	assert.Equal(t, "open", responseHike.Status, "Hike status should remain open after update") // Status should not change
 
 	// 3. Test changing the leader
 	newLeader := User{UUID: "leader-update-new", Name: "New Leader", Phone: "4445556666"}
 	hikeDataWithNewLeader := updatedHikeData // Start with previously updated data
-	hikeDataWithNewLeader.Leader = newLeader  // Change the leader
+	hikeDataWithNewLeader.Leader = newLeader // Change the leader
 
 	updateWithNewLeaderBody, _ := json.Marshal(hikeDataWithNewLeader)
 	reqNewLeader, _ := http.NewRequest("PUT", fmt.Sprintf("/api/hike/%s", createdHike.LeaderCode), bytes.NewBuffer(updateWithNewLeaderBody))
@@ -1283,7 +1275,7 @@ func createTestHike(t *testing.T) Hike {
 		TrailheadName:       "Aiea Loop (upper)",                                                   // Use an existing trailhead
 		TrailheadMapLink:    "https://www.google.com/maps/search/?api=1&query=21.39880,-157.90022", // Provide link
 		StartTime:           time.Now(),
-		PhotoRelease:        false,                                  // Default
+		PhotoRelease:        false,                           // Default
 		DescriptionMarkdown: "Default test hike description", // Added default description
 	}
 	body, _ := json.Marshal(hike)
@@ -1324,7 +1316,7 @@ func createTestHikeWithOptionsAndStartTime(t *testing.T, leader User, hikeName s
 		TrailheadName:       trailheadName,
 		TrailheadMapLink:    mapLink, // Set the map link for the request
 		StartTime:           startTime,
-		PhotoRelease:        false,                                       // Default, can be overridden by specific test setups if needed by creating hike directly
+		PhotoRelease:        false,                                    // Default, can be overridden by specific test setups if needed by creating hike directly
 		DescriptionMarkdown: "Test hike " + hikeName + " description", // Default description based on name
 	}
 	body, err := json.Marshal(hike)
