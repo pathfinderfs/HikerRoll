@@ -1065,32 +1065,42 @@ func TestTrailheadSuggestions(t *testing.T) {
 
 	assert.GreaterOrEqual(t, len(userSuggestions), 1, "Should get at least one suggestion for 'Ka' with userUUID")
 
-	foundUserKaau := false
-	foundStdKaau := false
-	foundUserKamiloiki := false
+	foundUserKaauUser := false
+	foundStdKaauCrater := false
+	foundUserKamiloikiUser := false
 
-	// Check that user's "Ka'au Crater User" is present and potentially first (or at least before predefined if names clash)
-	// And that "Kamilo'iki User" is present.
-	// The exact order depends on the LIMIT and how many other "Ka" trailheads exist.
-	// We are primarily interested in whether the user's specific trailheads appear and if they are prioritized in case of a name clash.
+	// Check that user's specific trailheads ("Ka'au Crater User", "Kamilo'iki User") appear.
+	// Also check if the standard "Ka'au Crater" appears if not overridden.
 	for _, s := range userSuggestions {
 		if s.Name == "Ka'au Crater User" {
-			foundUserKaau = true
-			assert.Equal(t, "http://maps.google.com/user_kaau", s.MapLink, "User's Ka'au Crater map link is incorrect")
-		}
-		if s.Name == "Ka'au Crater" && s.MapLink != "http://maps.google.com/user_kaau" { // Predefined one
-			foundStdKaau = true
+			foundUserKaauUser = true
+			assert.Equal(t, "http://maps.google.com/user_kaau", s.MapLink, "User's 'Ka'au Crater User' map link is incorrect")
+		} else if s.Name == "Ka'au Crater" { // This is the predefined one
+			foundStdKaauCrater = true
+			// We expect its original map link if no user override with this exact name exists OR if the user override was not fetched due to query/limit
+			// This part of the test is before adding an exact name override by the user.
+			var predefinedKaauMapLink string
+			for _, pth := range predefinedTrailheads {
+				if pth.Name == "Ka'au Crater" {
+					predefinedKaauMapLink = pth.MapLink
+					break
+				}
+			}
+			assert.Equal(t, predefinedKaauMapLink, s.MapLink, "Standard 'Ka'au Crater' map link is incorrect or overridden prematurely.")
 		}
 		if s.Name == "Kamilo'iki User" {
-			foundUserKamiloiki = true
-			assert.Equal(t, "http://maps.google.com/user_kamiloiki", s.MapLink, "User's Kamilo'iki map link is incorrect")
+			foundUserKamiloikiUser = true
+			assert.Equal(t, "http://maps.google.com/user_kamiloiki", s.MapLink, "User's 'Kamilo'iki User' map link is incorrect")
 		}
 	}
-	assert.True(t, foundUserKaau, "User's 'Ka'au Crater User' trailhead should be in suggestions")
-	assert.True(t, foundUserKamiloiki, "User's 'Kamilo'iki User' trailhead should be in suggestions")
+	assert.True(t, foundUserKaauUser, "User's 'Ka'au Crater User' trailhead should be in suggestions")
+	assert.True(t, foundUserKamiloikiUser, "User's 'Kamilo'iki User' trailhead should be in suggestions")
+	// Standard Ka'au Crater should also be found at this stage as there's no user hike named exactly "Ka'au Crater" yet.
+	assert.True(t, foundStdKaauCrater, "Standard 'Ka'au Crater' should be suggested when no user override exists for that exact name and query matches.")
+
 
 	// If a user trailhead has the same name as a predefined one, the user's (most recent) should be used.
-	// Let's add a user hike with the exact name "Ka'au Crater" but a different map link.
+	// Add a user hike with the exact name "Ka'au Crater" and a different map link. This one is more recent.
 	_, err = db.Exec(`INSERT INTO hikes (name, trailhead_name, trailhead_map_link, leader_uuid, created_at, start_time, join_code, leader_code)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		"User Hike Exact Name", "Ka'au Crater", "http://maps.google.com/user_exact_kaau_override", testUserUUID, time.Now().Format("2006-01-02T15:04:05-07:00"), time.Now().Add(3*time.Hour), "joinExactUserHike", "leadExactUserHike")
