@@ -188,17 +188,19 @@
             position: absolute;
             border: 1px solid #d4d4d4;
             border-bottom: none;
-            border-top: none;
-            z-index: 99;
+            /* border-top: none; */ /* Removed to allow custom top border */
+            border-top: 1px solid #ccc; /* Added for more visible top border */
+            z-index: 100; /* Increased z-index */
             top: 100%;
             left: 0;
             right: 0;
+            box-shadow: 0px 2px 4px rgba(0,0,0,0.1); /* Added box-shadow */
         }
 
         .autocomplete-items div {
             padding: 10px;
             cursor: pointer;
-            background-color: #fff;
+            background-color: #f9f9f9; /* Changed background color */
             border-bottom: 1px solid #d4d4d4;
         }
 
