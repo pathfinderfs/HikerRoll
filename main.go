@@ -1091,12 +1091,24 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(allHikes)
 }
 
+// ErrorResponse is a generic structure for JSON error responses.
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+// writeJSONError sends a JSON-formatted error message.
+func writeJSONError(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(ErrorResponse{Error: message})
+}
+
 // getEndedHikesByLeaderHandler returns a list of ended hikes for a given leader.
 func getEndedHikesByLeaderHandler(w http.ResponseWriter, r *http.Request) {
 	leaderUUID := r.URL.Query().Get("leaderUUID")
 
 	if leaderUUID == "" {
-		http.Error(w, "leaderUUID query parameter is required", http.StatusBadRequest)
+		writeJSONError(w, "leaderUUID query parameter is required", http.StatusBadRequest)
 		return
 	}
 
@@ -1107,7 +1119,8 @@ func getEndedHikesByLeaderHandler(w http.ResponseWriter, r *http.Request) {
 		ORDER BY start_time DESC
 	`, leaderUUID)
 	if err != nil {
-		http.Error(w, "Error querying ended hikes: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("Error querying ended hikes for leader %s: %v", leaderUUID, err)
+		writeJSONError(w, "Error querying ended hikes", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -1117,33 +1130,27 @@ func getEndedHikesByLeaderHandler(w http.ResponseWriter, r *http.Request) {
 		var h Hike
 		var descriptionMarkdown sql.NullString
 		var trailheadMapLink sql.NullString
-		// Note: Leader details are not fetched here as we're filtering by leader_uuid already.
-		// The Hike struct's Leader field will be empty for these results, which is acceptable
-		// as this endpoint is for autocompletion data, not full display.
-		// If leader details were needed, the query and Scan would need adjustment.
 		err := rows.Scan(
 			&h.Name, &h.Organization, &h.TrailheadName, &trailheadMapLink, &h.StartTime, &h.Status, &h.JoinCode, &h.LeaderCode, &h.PhotoRelease, &descriptionMarkdown,
 		)
 		if err != nil {
-			http.Error(w, "Error scanning ended hike: "+err.Error(), http.StatusInternalServerError)
+			log.Printf("Error scanning ended hike for leader %s: %v", leaderUUID, err)
+			writeJSONError(w, "Error processing hike data", http.StatusInternalServerError)
 			return
 		}
 
 		if descriptionMarkdown.Valid {
 			h.DescriptionMarkdown = descriptionMarkdown.String
-			// HTML conversion is not strictly necessary for autocompletion data,
-			// but can be included if the client might use it directly.
-			// For now, let's keep it minimal. The full details will be fetched by /api/hike/last.
 		}
 		if trailheadMapLink.Valid {
 			h.TrailheadMapLink = trailheadMapLink.String
 		}
-		// Leader field in h will be its zero value (empty User struct)
 		endedHikes = append(endedHikes, h)
 	}
 
 	if err = rows.Err(); err != nil {
-		http.Error(w, "Error iterating ended hikes: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("Error iterating ended hikes for leader %s: %v", leaderUUID, err)
+		writeJSONError(w, "Error retrieving hike data", http.StatusInternalServerError)
 		return
 	}
 

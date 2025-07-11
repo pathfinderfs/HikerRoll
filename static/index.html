@@ -1949,16 +1949,47 @@
             downloadCSV(csvContent, `hike_participants_${currentHike.joinCode}.csv`);
         }
 
+// Global focus tracker for hike name autocomplete
+let currentFocusHikeName = -1;
+
+// Helper functions for hike name autocomplete, moved to global scope
+function addActiveHikeName(x) {
+    if (!x || x.length === 0) return false;
+    removeActiveHikeName(x);
+    if (currentFocusHikeName >= x.length) currentFocusHikeName = 0;
+    if (currentFocusHikeName < 0) currentFocusHikeName = (x.length - 1);
+    x[currentFocusHikeName].classList.add("autocomplete-active");
+}
+
+function removeActiveHikeName(x) {
+    if (!x) return;
+    for (const element of x) {
+        element.classList.remove("autocomplete-active");
+    }
+}
+
+function closeAllHikeNameLists(elmnt) {
+    var x = document.getElementsByClassName("autocomplete-items");
+    const hikeNameInput = document.getElementById("hike-name"); // Get reference to the input
+    for (const element of x) {
+        if (element.id === hikeNameInput.id + "autocomplete-list-hike") { // Check specific ID
+            if (elmnt !== element && elmnt !== hikeNameInput) {
+                element.parentNode.removeChild(element);
+            }
+        }
+    }
+}
+
         // Autocomplete function for hike name input
         function autocompleteHikeName(hikeNameInput) {
-            var currentFocusHikeName;
+            // var currentFocusHikeName; // Now global
             hikeNameInput.addEventListener("input", function(e) {
                 var a, b, i, val = this.value;
-                closeAllHikeNameLists();
+                closeAllHikeNameLists(); // This is fine here if it's global
                 if (!val || val.length < 2) { // Min 2 chars to trigger search
                     return false;
                 }
-                currentFocusHikeName = -1;
+                currentFocusHikeName = -1; // Reset focus for new list
                 a = document.createElement("DIV");
                 a.setAttribute("id", this.id + "autocomplete-list-hike");
                 a.setAttribute("class", "autocomplete-items");
@@ -2035,51 +2066,20 @@
                 var x = document.getElementById(this.id + "autocomplete-list-hike");
                 if (x) x = x.getElementsByTagName("div");
                 if (e.keyCode == 40) { // Down
-                    currentFocusHikeName++;
-                    addActiveHikeName(x);
+                    currentFocusHikeName++; // Uses global currentFocusHikeName
+                    addActiveHikeName(x);   // Calls global helper
                 } else if (e.keyCode == 38) { // Up
-                    currentFocusHikeName--;
-                    addActiveHikeName(x);
+                    currentFocusHikeName--; // Uses global currentFocusHikeName
+                    addActiveHikeName(x);   // Calls global helper
                 } else if (e.keyCode == 13) { // Enter
                     e.preventDefault();
-                    if (currentFocusHikeName > -1) {
-                        if (x) x[currentFocusHikeName].click();
+                    if (currentFocusHikeName > -1) { // Uses global currentFocusHikeName
+                        if (x && x[currentFocusHikeName]) x[currentFocusHikeName].click();
                     }
                 }
             });
-
-            function addActiveHikeName(x) {
-                if (!x) return false;
-                removeActiveHikeName(x);
-                if (currentFocusHikeName >= x.length) currentFocusHikeName = 0;
-                if (currentFocusHikeName < 0) currentFocusHikeName = (x.length - 1);
-                if (x.length > 0) x[currentFocusHikeName].classList.add("autocomplete-active");
-            }
-
-            function removeActiveHikeName(x) {
-                for (const element of x) {
-                    element.classList.remove("autocomplete-active");
-                }
-            }
-
-            function closeAllHikeNameLists(elmnt) {
-                var x = document.getElementsByClassName("autocomplete-items"); // Re-query to include both types
-                for (const element of x) {
-                    // Close only if it's a hike name list OR if elmnt is not part of any autocomplete
-                    if (element.id.endsWith("autocomplete-list-hike")) {
-                         if (elmnt !== element && elmnt !== hikeNameInput) {
-                            element.parentNode.removeChild(element);
-                        }
-                    }
-                }
-            }
-            // Add a more general click listener to close any autocomplete list
-            // The existing one for trailheads might conflict or be redundant.
-            // Let's refine the closeAllLists logic or ensure they don't interfere.
-            // For now, the specific closeAllHikeNameLists should work for hike names.
-            // The original document.addEventListener("click", function (e) { closeAllLists(e.target); });
-            // might need to be smarter or we ensure IDs are unique.
-            // The current approach is to have separate close functions.
+            // The helper functions (addActiveHikeName, removeActiveHikeName, closeAllHikeNameLists)
+            // are now defined in the global scope.
         }
 
 
