@@ -131,6 +131,24 @@ type Hike struct {
 	WaiverText          string    `json:"waiverText,omitempty"`
 }
 
+// populateDescriptionHTML converts markdown to HTML and sanitizes it.
+// It updates the DescriptionHTML field of the Hike struct.
+func populateDescriptionHTML(hike *Hike) {
+	if hike.DescriptionMarkdown != "" {
+		var buf strings.Builder
+		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
+			log.Printf("Error converting description to HTML for hike %s: %v", hike.Name, err)
+			// Fallback to using markdown as HTML, or consider setting an error message
+			hike.DescriptionHTML = hike.DescriptionMarkdown
+		} else {
+			p := bluemonday.UGCPolicy()
+			hike.DescriptionHTML = p.Sanitize(buf.String())
+		}
+	} else {
+		hike.DescriptionHTML = ""
+	}
+}
+
 // Keep in sync with participants table schema
 type Participant struct {
 	Id       int64     `json:"id"`
@@ -384,16 +402,7 @@ func getLastHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if hike.DescriptionMarkdown != "" {
-		var buf strings.Builder
-		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
-			log.Printf("Error converting description to HTML for last hike %s: %v", hike.Name, err)
-			hike.DescriptionHTML = hike.DescriptionMarkdown
-		} else {
-			p := bluemonday.UGCPolicy()
-			hike.DescriptionHTML = p.Sanitize(buf.String())
-		}
-	}
+	populateDescriptionHTML(&hike)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(hike)
@@ -451,19 +460,7 @@ func createHikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Populate DescriptionHTML for the response
-	if hike.DescriptionMarkdown != "" {
-		var buf strings.Builder
-		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
-			log.Printf("Error converting description to HTML for new hike %s: %v", hike.JoinCode, err)
-			// In case of error, DescriptionHTML might be empty or fallback to markdown
-			hike.DescriptionHTML = hike.DescriptionMarkdown
-		} else {
-			p := bluemonday.UGCPolicy()
-			hike.DescriptionHTML = p.Sanitize(buf.String())
-		}
-	} else {
-		hike.DescriptionHTML = ""
-	}
+	populateDescriptionHTML(&hike)
 
 	// Generate and add waiver text
 	waiverText, err := generateWaiverText(hike.JoinCode)
@@ -507,20 +504,7 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if hike.DescriptionMarkdown != "" {
-		// Convert markdown to HTML
-		var buf strings.Builder
-		if err := goldmark.Convert([]byte(hike.DescriptionMarkdown), &buf); err != nil {
-			log.Printf("Error converting description to HTML for hike %s: %v", hike.JoinCode, err)
-			hike.DescriptionHTML = hike.DescriptionMarkdown // Fallback or leave empty
-		} else {
-			p := bluemonday.UGCPolicy()
-			hike.DescriptionHTML = p.Sanitize(buf.String())
-		}
-	} else {
-		hike.DescriptionMarkdown = ""
-		hike.DescriptionHTML = ""
-	}
+	populateDescriptionHTML(&hike)
 
 	// Generate and add waiver text
 	waiverText, err := generateWaiverText(hike.JoinCode)
@@ -671,16 +655,7 @@ func updateHikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if finalHike.DescriptionMarkdown != "" {
-		var buf strings.Builder
-		if goldmarkErr := goldmark.Convert([]byte(finalHike.DescriptionMarkdown), &buf); goldmarkErr != nil {
-			log.Printf("Error converting description to HTML for updated hike %s: %v", finalHike.JoinCode, goldmarkErr)
-			finalHike.DescriptionHTML = finalHike.DescriptionMarkdown // Fallback
-		} else {
-			p := bluemonday.UGCPolicy()
-			finalHike.DescriptionHTML = p.Sanitize(buf.String())
-		}
-	}
+	populateDescriptionHTML(&finalHike)
 
 	// Regenerate waiver text as leader or organization might have changed
 	waiverText, waiverErr := generateWaiverText(finalHike.JoinCode)
@@ -1026,16 +1001,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error scanning RSVP hike: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if h.DescriptionMarkdown != "" {
-			var buf strings.Builder
-			if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
-				p := bluemonday.UGCPolicy()
-				h.DescriptionHTML = p.Sanitize(buf.String())
-			} else {
-				log.Printf("Error converting description to HTML for rsvp hike %s: %v", h.JoinCode, err)
-				h.DescriptionHTML = h.DescriptionMarkdown // Fallback
-			}
-		}
+		populateDescriptionHTML(&h)
 		h.SourceType = "rsvp"
 		allHikes = append(allHikes, h)
 	}
@@ -1070,16 +1036,7 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error scanning hike led by user: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if h.DescriptionMarkdown != "" {
-			var buf strings.Builder
-			if err := goldmark.Convert([]byte(h.DescriptionMarkdown), &buf); err == nil {
-				p := bluemonday.UGCPolicy()
-				h.DescriptionHTML = p.Sanitize(buf.String())
-			} else {
-				log.Printf("Error converting description to HTML for led_by_user hike %s: %v", h.JoinCode, err)
-				h.DescriptionHTML = h.DescriptionMarkdown // Fallback
-			}
-		}
+		populateDescriptionHTML(&h)
 		h.SourceType = "led_by_user" // New SourceType
 		allHikes = append(allHikes, h)
 	}
