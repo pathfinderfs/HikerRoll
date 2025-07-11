@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -1055,29 +1056,99 @@ func getHikesHandler(w http.ResponseWriter, r *http.Request) {
 // Given a query string, return a list of trailhead suggestions
 func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
+	userUUID := r.URL.Query().Get("userUUID")
+
 	if query == "" {
 		json.NewEncoder(w).Encode([]Trailhead{})
 		return
 	}
 
-	rows, err := db.Query("SELECT name, map_link FROM trailheads WHERE REPLACE(name, '''', '') LIKE ? LIMIT 5", "%"+query+"%")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
+	// Clean the query input in the same way the database fields are cleaned for comparison
+	cleanedQuery := strings.ReplaceAll(query, "'", "")
+	likePattern := "%" + cleanedQuery + "%"
 
-	var suggestions []Trailhead
-	for rows.Next() {
-		var th Trailhead
-		if err := rows.Scan(&th.Name, &th.MapLink); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	suggestionsMap := make(map[string]Trailhead) // Stores unique suggestions by name
+	var orderedSuggestions []Trailhead          // Maintains order of addition, prioritizing user history
+
+	// 1. Fetch from user's hike history if userUUID is provided
+	if userUUID != "" {
+		userHikeRows, err := db.Query(`
+			SELECT DISTINCT trailhead_name, trailhead_map_link, start_time
+			FROM hikes
+			WHERE leader_uuid = ? AND REPLACE(trailhead_name, '''', '') LIKE ?
+			ORDER BY start_time DESC
+		`, userUUID, likePattern) // Use the cleaned likePattern
+		if err != nil {
+			http.Error(w, "Error querying user-led hike trailheads: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		suggestions = append(suggestions, th)
+		defer userHikeRows.Close()
+
+		for userHikeRows.Next() {
+			var th Trailhead
+			var startTime time.Time // Used for ordering
+			if err := userHikeRows.Scan(&th.Name, &th.MapLink, &startTime); err != nil {
+				http.Error(w, "Error scanning user hike trailhead: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if _, exists := suggestionsMap[th.Name]; !exists {
+				suggestionsMap[th.Name] = th
+				orderedSuggestions = append(orderedSuggestions, th)
+			}
+		}
+		if err = userHikeRows.Err(); err != nil {
+			http.Error(w, "Error iterating user hike trailheads: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
-	json.NewEncoder(w).Encode(suggestions)
+	// 2. Fetch from predefined trailheads table
+	if len(orderedSuggestions) < 5 {
+		stdTrailheadRows, err := db.Query(`
+			SELECT name, map_link
+			FROM trailheads
+			WHERE REPLACE(name, '''', '') LIKE ?
+			ORDER BY name
+			LIMIT ?
+		`, likePattern, 5) // Use the cleaned likePattern, fetch up to 5, will filter later
+		if err != nil {
+			http.Error(w, "Error querying predefined trailheads: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer stdTrailheadRows.Close()
+
+		for stdTrailheadRows.Next() {
+			if len(orderedSuggestions) >= 5 {
+				break
+			}
+			var th Trailhead
+			if err := stdTrailheadRows.Scan(&th.Name, &th.MapLink); err != nil {
+				http.Error(w, "Error scanning predefined trailhead: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if _, exists := suggestionsMap[th.Name]; !exists {
+				suggestionsMap[th.Name] = th
+				orderedSuggestions = append(orderedSuggestions, th)
+			}
+		}
+		if err = stdTrailheadRows.Err(); err != nil {
+			http.Error(w, "Error iterating predefined trailheads: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	finalSuggestions := orderedSuggestions
+	if len(finalSuggestions) > 5 {
+		finalSuggestions = finalSuggestions[:5]
+	}
+
+	// Sort the final list alphabetically by trailhead name
+	sort.Slice(finalSuggestions, func(i, j int) bool {
+		return strings.ToLower(finalSuggestions[i].Name) < strings.ToLower(finalSuggestions[j].Name)
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(finalSuggestions)
 }
 
 func generateSecureLinkCode() (string, error) {

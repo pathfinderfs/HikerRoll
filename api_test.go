@@ -1029,6 +1029,123 @@ func TestTrailheadSuggestions(t *testing.T) {
 		assert.NotEmpty(t, s.MapLink, "Suggestion MapLink should not be empty")
 		assert.Contains(t, s.MapLink, "https://", "MapLink is not a link")
 	}
+
+	// Test with userUUID
+	// 1. Create a user and a hike for them
+	testUserUUID := "test-user-trailhead-suggestions"
+	_, err := db.Exec("INSERT OR IGNORE INTO users (uuid, name, phone) VALUES (?, ?, ?)", testUserUUID, "Test User TH", "1112223333")
+	require.NoError(t, err)
+
+	// Hike 1 by user - recent
+	_, err = db.Exec(`INSERT INTO hikes (name, trailhead_name, trailhead_map_link, leader_uuid, created_at, start_time, join_code, leader_code)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"User Hike Recent", "Ka'au Crater User", "http://maps.google.com/user_kaau", testUserUUID, time.Now().Add(-1*time.Hour).Format("2006-01-02T15:04:05-07:00"), time.Now().Add(2*time.Hour), "joinRecentUserLedHike", "leadRecentUserLedHike")
+	require.NoError(t, err)
+	// No need to insert into hike_users if we are testing trailheads from hikes LED by the user.
+
+	// Hike 2 by user - older, also led by testUserUUID
+	_, err = db.Exec(`INSERT INTO hikes (name, trailhead_name, trailhead_map_link, leader_uuid, created_at, start_time, join_code, leader_code)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"User Hike Older", "Kamilo'iki User", "http://maps.google.com/user_kamiloiki", testUserUUID, time.Now().Add(-2*time.Hour).Format("2006-01-02T15:04:05-07:00"), time.Now().Add(1*time.Hour), "joinOlderUserLedHike", "leadOlderUserLedHike")
+	require.NoError(t, err)
+	// No need to insert into hike_users for this test's purpose.
+
+	// Predefined "Ka'au Crater" also exists. The user one should take precedence.
+	// Predefined "Kamilo'iki" also exists.
+
+	// Scenario 1: Query matches user history and predefined, user history should be prioritized
+	reqUser, _ := http.NewRequest("GET", fmt.Sprintf("/api/trailhead?q=Ka&userUUID=%s", testUserUUID), nil)
+	rrUser := httptest.NewRecorder()
+	mux.ServeHTTP(rrUser, reqUser)
+	assert.Equal(t, http.StatusOK, rrUser.Code)
+	var userSuggestions []Trailhead
+	json.Unmarshal(rrUser.Body.Bytes(), &userSuggestions)
+
+	assert.GreaterOrEqual(t, len(userSuggestions), 1, "Should get at least one suggestion for 'Ka' with userUUID")
+
+	foundUserKaauUser := false
+	foundStdKaauCrater := false
+	foundUserKamiloikiUser := false
+
+	// Check that user's specific trailheads ("Ka'au Crater User", "Kamilo'iki User") appear.
+	// Also check if the standard "Ka'au Crater" appears if not overridden.
+	for _, s := range userSuggestions {
+		if s.Name == "Ka'au Crater User" {
+			foundUserKaauUser = true
+			assert.Equal(t, "http://maps.google.com/user_kaau", s.MapLink, "User's 'Ka'au Crater User' map link is incorrect")
+		} else if s.Name == "Ka'au Crater" { // This is the predefined one
+			foundStdKaauCrater = true
+			// We expect its original map link if no user override with this exact name exists OR if the user override was not fetched due to query/limit
+			// This part of the test is before adding an exact name override by the user.
+			var predefinedKaauMapLink string
+			for _, pth := range predefinedTrailheads {
+				if pth.Name == "Ka'au Crater" {
+					predefinedKaauMapLink = pth.MapLink
+					break
+				}
+			}
+			assert.Equal(t, predefinedKaauMapLink, s.MapLink, "Standard 'Ka'au Crater' map link is incorrect or overridden prematurely.")
+		}
+		if s.Name == "Kamilo'iki User" {
+			foundUserKamiloikiUser = true
+			assert.Equal(t, "http://maps.google.com/user_kamiloiki", s.MapLink, "User's 'Kamilo'iki User' map link is incorrect")
+		}
+	}
+	assert.True(t, foundUserKaauUser, "User's 'Ka'au Crater User' trailhead should be in suggestions")
+	assert.True(t, foundUserKamiloikiUser, "User's 'Kamilo'iki User' trailhead should be in suggestions")
+	// Standard Ka'au Crater should also be found at this stage as there's no user hike named exactly "Ka'au Crater" yet.
+	assert.True(t, foundStdKaauCrater, "Standard 'Ka'au Crater' should be suggested when no user override exists for that exact name and query matches.")
+
+
+	// If a user trailhead has the same name as a predefined one, the user's (most recent) should be used.
+	// Let's add a user hike (led by testUserUUID) with the exact name "Ka'au Crater" but a different map link.
+	_, err = db.Exec(`INSERT INTO hikes (name, trailhead_name, trailhead_map_link, leader_uuid, created_at, start_time, join_code, leader_code)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"User Hike Exact Name", "Ka'au Crater", "http://maps.google.com/user_exact_kaau_override", testUserUUID, time.Now().Format("2006-01-02T15:04:05-07:00"), time.Now().Add(3*time.Hour), "joinExactUserLedHikeOverride", "leadExactUserLedHikeOverride")
+	require.NoError(t, err)
+	// No hike_users insertion needed for this specific test logic.
+
+	reqOverride, _ := http.NewRequest("GET", fmt.Sprintf("/api/trailhead?q=Ka'au Crater&userUUID=%s", testUserUUID), nil)
+	rrOverride := httptest.NewRecorder()
+	mux.ServeHTTP(rrOverride, reqOverride)
+	assert.Equal(t, http.StatusOK, rrOverride.Code)
+	var overrideSuggestions []Trailhead
+	json.Unmarshal(rrOverride.Body.Bytes(), &overrideSuggestions)
+
+	require.GreaterOrEqual(t, len(overrideSuggestions), 1, "Should get at least one suggestion for exact match 'Ka'au Crater'")
+	assert.Equal(t, "Ka'au Crater", overrideSuggestions[0].Name)
+	assert.Equal(t, "http://maps.google.com/user_exact_kaau_override", overrideSuggestions[0].MapLink, "User's specific map link for 'Ka'au Crater' should override predefined.")
+
+	// Ensure limit is respected
+	assert.LessOrEqual(t, len(overrideSuggestions), 5, "Should not return more than 5 suggestions")
+
+	// Scenario 2: Query matches only predefined trailheads
+	reqNoUserHistoryMatch, _ := http.NewRequest("GET", fmt.Sprintf("/api/trailhead?q=Makiki Valley Loop&userUUID=%s", testUserUUID), nil)
+	rrNoUserHistoryMatch := httptest.NewRecorder()
+	mux.ServeHTTP(rrNoUserHistoryMatch, reqNoUserHistoryMatch)
+	assert.Equal(t, http.StatusOK, rrNoUserHistoryMatch.Code)
+	var noUserMatchSuggestions []Trailhead
+	json.Unmarshal(rrNoUserHistoryMatch.Body.Bytes(), &noUserMatchSuggestions)
+	assert.GreaterOrEqual(t, len(noUserMatchSuggestions), 1, "Should get suggestions from predefined if no user history matches")
+	assert.Equal(t, "Makiki Valley Loop (Nature Center)", noUserMatchSuggestions[0].Name)
+
+	// Scenario 3: No userUUID provided, should be same as original test
+	reqNoUUID, _ := http.NewRequest("GET", "/api/trailhead?q=Ka", nil)
+	rrNoUUID := httptest.NewRecorder()
+	mux.ServeHTTP(rrNoUUID, reqNoUUID)
+	assert.Equal(t, http.StatusOK, rrNoUUID.Code)
+	var noUUIDSuggestions []Trailhead
+	json.Unmarshal(rrNoUUID.Body.Bytes(), &noUUIDSuggestions)
+	assert.Equal(t, len(suggestions), len(noUUIDSuggestions), "Suggestions without userUUID should match original test count")
+
+	// Cleanup test data (optional if using in-memory DB that's reset, but good practice for file-based)
+	// This is complex due to potential cascading or foreign key constraints.
+	// For :memory: db, it's usually fine. If using a file db for tests, more robust cleanup might be needed.
+	// Example cleanup, might need adjustment based on actual FKs and dependencies:
+	db.Exec("DELETE FROM hike_users WHERE user_uuid = ?", testUserUUID)
+	db.Exec("DELETE FROM hikes WHERE leader_uuid = ?", testUserUUID)
+	db.Exec("DELETE FROM users WHERE uuid = ?", testUserUUID)
+
 }
 
 func TestGetHikeByCode(t *testing.T) {

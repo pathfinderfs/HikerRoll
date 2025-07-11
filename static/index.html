@@ -2108,7 +2108,12 @@
                 a.setAttribute("class", "autocomplete-items");
                 this.parentNode.appendChild(a);
 
-                fetch(`/api/trailhead?q=${val}`)
+                let apiUrl = `/api/trailhead?q=${val}`;
+                if (currentUser && currentUser.uuid) {
+                    apiUrl += `&userUUID=${currentUser.uuid}`;
+                }
+
+                fetch(apiUrl)
                     .then(response => response.json())
                     .then(data => {
                         if (data && data.length > 0) {
