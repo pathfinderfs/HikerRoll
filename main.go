@@ -1073,10 +1073,17 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 	// 1. Fetch from user's hike history if userUUID is provided
 	if userUUID != "" {
 		userHikeRows, err := db.Query(`
-			SELECT DISTINCT trailhead_name, trailhead_map_link, start_time
-			FROM hikes
-			WHERE leader_uuid = ? AND REPLACE(trailhead_name, '''', '') LIKE ?
-			ORDER BY start_time DESC
+			SELECT trailhead_name, trailhead_map_link
+			FROM (
+				SELECT
+					trailhead_name,
+					trailhead_map_link,
+					ROW_NUMBER() OVER(PARTITION BY trailhead_name ORDER BY created_at DESC) as rn
+				FROM hikes
+				WHERE leader_uuid = ? AND REPLACE(trailhead_name, '''', '') LIKE ?
+			) sub
+			WHERE sub.rn = 1
+			ORDER BY trailhead_name ASC
 		`, userUUID, likePattern) // Use the cleaned likePattern
 		if err != nil {
 			http.Error(w, "Error querying user-led hike trailheads: "+err.Error(), http.StatusInternalServerError)
@@ -1086,8 +1093,9 @@ func trailheadSuggestionsHandler(w http.ResponseWriter, r *http.Request) {
 
 		for userHikeRows.Next() {
 			var th Trailhead
-			var startTime time.Time // Used for ordering
-			if err := userHikeRows.Scan(&th.Name, &th.MapLink, &startTime); err != nil {
+			// startTime is no longer fetched or used from this query for ordering user suggestions here,
+			// as recency is handled by the ROW_NUMBER() and created_at in the SQL.
+			if err := userHikeRows.Scan(&th.Name, &th.MapLink); err != nil {
 				http.Error(w, "Error scanning user hike trailhead: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
