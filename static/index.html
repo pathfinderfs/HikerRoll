@@ -706,7 +706,6 @@
                     })
                     .then(hike => {
                         currentHike = hike; // Update with latest details
-                        currentHike.leaderCode = currentHike.leaderCode || leaderCodeFromURL || currentHike.leaderCode; // Ensure leaderCode is persisted
                         localStorage.setItem('currentHike', JSON.stringify(currentHike));
                         showHikeLeaderPage();
                     }).catch(err => {

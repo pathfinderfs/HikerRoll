@@ -486,10 +486,10 @@ func getHikeHandler(w http.ResponseWriter, r *http.Request) {
 	var hike Hike
 	var err error
 	if leaderCode != "" {
-		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code, h.description
+		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code, h.leader_code, h.description
 		                   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
 		                   WHERE h.leader_code = ? AND h.status = "open"
-		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.TrailheadMapLink, &hike.StartTime, &hike.JoinCode, &hike.DescriptionMarkdown)
+		`, leaderCode).Scan(&hike.Name, &hike.Organization, &hike.TrailheadName, &hike.Leader.Name, &hike.Leader.Phone, &hike.TrailheadMapLink, &hike.StartTime, &hike.JoinCode, &hike.LeaderCode, &hike.DescriptionMarkdown)
 	} else {
 		err = db.QueryRow(`SELECT h.name, h.organization, h.trailhead_name, u.name, u.phone, h.trailhead_map_link, h.start_time, h.join_code, h.description
 						   FROM hikes As h JOIN users AS u ON leader_uuid = uuid
