@@ -188,19 +188,24 @@
             position: absolute;
             border: 1px solid #d4d4d4;
             border-bottom: none;
-            /* border-top: none; */ /* Removed to allow custom top border */
-            border-top: 1px solid #ccc; /* Added for more visible top border */
-            z-index: 100; /* Increased z-index */
+            /* border-top: none; */
+            /* Removed to allow custom top border */
+            border-top: 1px solid #ccc;
+            /* Added for more visible top border */
+            z-index: 100;
+            /* Increased z-index */
             top: 100%;
             left: 0;
             right: 0;
-            box-shadow: 0px 2px 4px rgba(0,0,0,0.1); /* Added box-shadow */
+            box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+            /* Added box-shadow */
         }
 
         .autocomplete-items div {
             padding: 10px;
             cursor: pointer;
-            background-color: #f9f9f9; /* Changed background color */
+            background-color: #f9f9f9;
+            /* Changed background color */
             border-bottom: 1px solid #d4d4d4;
         }
 
@@ -1127,7 +1132,7 @@
                         // still try to fetch details based on current input value
                         const leaderUUID = currentUser.uuid;
                         if (hikeNameInput.value && leaderUUID) {
-                           fetchFullHikeDetails(hikeNameInput.value, leaderUUID);
+                            fetchFullHikeDetails(hikeNameInput.value, leaderUUID);
                         }
                         closeAllHikeNameLists();
                     }
@@ -1150,16 +1155,16 @@
 
             function closeAllHikeNameLists(elmnt) {
                 var x = document.getElementsByClassName("autocomplete-items"); // Re-check if class name conflicts
-                for (let i = 0; i < x.length; i++) {
-                     // Check if the list belongs to hike name input
-                    if (x[i].id.endsWith("autocomplete-list-hike")) {
-                        if (elmnt !== x[i] && elmnt !== hikeNameInput) {
-                            x[i].parentNode.removeChild(x[i]);
+                for (const element of x) {
+                    // Check if the list belongs to hike name input
+                    if (element.id.endsWith("autocomplete-list-hike")) {
+                        if (elmnt !== element && elmnt !== hikeNameInput) {
+                            element.parentNode.removeChild(element);
                         }
                     }
                 }
             }
-             // Close lists when clicking elsewhere
+            // Close lists when clicking elsewhere
             document.addEventListener("click", function (e) {
                 // Pass e.target to differentiate from trailhead autocomplete
                 closeAllHikeNameLists(e.target);
@@ -1192,7 +1197,7 @@
                         throw new Error(`HTTP error! Status: ${response.status}`);
                     }
                     const contentType = response.headers.get("content-type");
-                     if (!contentType || !contentType.includes("application/json")) {
+                    if (!contentType || !contentType.includes("application/json")) {
                         return null; // Or handle as an error
                     }
                     return response.json();
@@ -1214,7 +1219,7 @@
                     } else if (hike === null || Object.keys(hike).length === 0) {
                         // This case is handled by the 404 check now, but good for robustness
                         // If API returns empty object for non-existent hike instead of 404.
-                         console.log("No details found for this hike name, fields cleared.");
+                        console.log("No details found for this hike name, fields cleared.");
                     }
                 })
                 .catch(error => {
