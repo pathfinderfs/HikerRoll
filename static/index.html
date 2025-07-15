@@ -544,6 +544,7 @@
             <p>Change Leader Link: <a id="hike-leader-link" onclick="copyToClipboard(event)">Press to copy</a></span>
             </p>
             <h3>Participant List</h3>
+            <a id="sms-all-participants" href="#"></a>
             <p id="last-refresh"></p>
             <div class="button-group">
                 <button class="button-refresh" onclick="refreshParticipants()">🔄 Refresh</button>
@@ -1888,6 +1889,19 @@
                     allParticipants = participants || [];
                     renderParticipants();
                     document.getElementById('last-refresh').textContent = `Last refreshed: ${new Date().toLocaleTimeString()}`;
+
+                    const phoneNumbers = allParticipants
+                        .map(p => p.user.phone)
+                        .filter(phone => phone) // Filter out any empty phone numbers
+                        .join(',');
+                    const smsLink = document.getElementById('sms-all-participants');
+                    if (phoneNumbers) {
+                        smsLink.href = `sms:${phoneNumbers}`;
+                        smsLink.textContent = `SMS All Participants`;
+                        smsLink.style.display = 'inline-block'; // or 'block'
+                    } else {
+                        smsLink.style.display = 'none';
+                    }
                 });
         }
 
