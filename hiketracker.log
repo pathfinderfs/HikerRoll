@@ -1,0 +1,67 @@
+2025/07/18 07:32:28 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:32:00Z
+2025/07/18 07:32:29 Participant RSVPd to hike: E2E Participant (Hike Join Code: DscFMbap_fubsk0PXBvwtQ==), Waiver Signed
+2025/07/18 07:32:29 Participant status updated: Id: 1, Leader Code: DscFMbap_fubsk0PXBvwtQ==, New Status: active
+2025/07/18 07:32:29 Error parsing date: parsing time "2025-07-18T07:32:29Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:32:31 Participant status updated: Id: 1, Leader Code: DscFMbap_fubsk0PXBvwtQ==, New Status: finished
+2025/07/18 07:32:32 Error parsing date: parsing time "2025-07-18T07:32:29Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:32:34 Hike DscFMbap_fubsk0PXBvwtQ== participants set to finished.
+2025/07/18 07:32:34 Hike updated: E2E Test Hike (LeaderCode: MCPZDrtU_3MDhKPoWpbApQ==)
+2025/07/18 07:32:36 Hike created: E2E Redirect Test Hike by E2E Leader, starting at 2025-07-19T07:32:00Z
+2025/07/18 07:32:37 Participant RSVPd to hike: E2E Participant (Hike Join Code: r9MABDMd0dvWxo3YFXGQcg==), Waiver Signed
+2025/07/18 07:33:37 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:33:00Z
+2025/07/18 07:33:38 Participant RSVPd to hike: E2E Participant (Hike Join Code: 2orzhcu2ZNgX9zjF-MZ2kA==), Waiver Signed
+2025/07/18 07:33:38 Participant status updated: Id: 1, Leader Code: 2orzhcu2ZNgX9zjF-MZ2kA==, New Status: active
+2025/07/18 07:33:38 Error parsing date: parsing time "2025-07-18T07:33:38Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:34:08 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:34:00Z
+2025/07/18 07:34:09 Participant RSVPd to hike: E2E Participant (Hike Join Code: Ido_VjcXJOoq6WHmAjQa1w==), Waiver Signed
+2025/07/18 07:34:09 Participant status updated: Id: 1, Leader Code: Ido_VjcXJOoq6WHmAjQa1w==, New Status: active
+2025/07/18 07:35:03 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:35:00Z
+2025/07/18 07:35:03 Participant RSVPd to hike: E2E Participant (Hike Join Code: E3xzZ_-wBevsQRpoY2HeBg==), Waiver Signed
+2025/07/18 07:35:04 Participant status updated: Id: 1, Leader Code: E3xzZ_-wBevsQRpoY2HeBg==, New Status: active
+2025/07/18 07:35:04 Error parsing date: parsing time "2025-07-18T07:35:03Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:35:33 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:35:00Z
+2025/07/18 07:35:34 Participant RSVPd to hike: E2E Participant (Hike Join Code: qdbKuw4M4pVQwW2qyKV-fw==), Waiver Signed
+2025/07/18 07:35:34 Participant status updated: Id: 1, Leader Code: qdbKuw4M4pVQwW2qyKV-fw==, New Status: active
+2025/07/18 07:35:34 Error parsing date: parsing time "2025-07-18T07:35:34Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:36:04 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:36:00Z
+2025/07/18 07:36:05 Participant RSVPd to hike: E2E Participant (Hike Join Code: dr6UayolEDjOa2qEX-82uA==), Waiver Signed
+2025/07/18 07:36:05 Participant status updated: Id: 1, Leader Code: dr6UayolEDjOa2qEX-82uA==, New Status: active
+2025/07/18 07:36:05 Error parsing date: parsing time "2025-07-18T07:36:05Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:36:36 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:36:00Z
+2025/07/18 07:36:37 Participant RSVPd to hike: E2E Participant (Hike Join Code: Cw82rBBkKv8hwyVEQ7JfaA==), Waiver Signed
+2025/07/18 07:36:37 Participant status updated: Id: 1, Leader Code: Cw82rBBkKv8hwyVEQ7JfaA==, New Status: active
+2025/07/18 07:36:37 Error parsing date: parsing time "2025-07-18T07:36:37Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:37:16 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:37:00Z
+2025/07/18 07:37:17 Participant RSVPd to hike: E2E Participant (Hike Join Code: UQzRoucw282F9CSvyKmT6g==), Waiver Signed
+2025/07/18 07:37:17 Participant status updated: Id: 1, Leader Code: UQzRoucw282F9CSvyKmT6g==, New Status: active
+2025/07/18 07:37:17 Error parsing date: parsing time "2025-07-18T07:37:17Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:37:41 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:37:00Z
+2025/07/18 07:37:42 Participant RSVPd to hike: E2E Participant (Hike Join Code: 2goIiortc5T-xYUQF-fVdA==), Waiver Signed
+2025/07/18 07:37:42 Participant status updated: Id: 1, Leader Code: 2goIiortc5T-xYUQF-fVdA==, New Status: active
+2025/07/18 07:37:43 Error parsing date: parsing time "2025-07-18T07:37:42Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:14 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:38:00Z
+2025/07/18 07:38:15 Participant RSVPd to hike: E2E Participant (Hike Join Code: lngQFfl1MwT6no6Dz9WuDQ==), Waiver Signed
+2025/07/18 07:38:15 Participant status updated: Id: 1, Leader Code: lngQFfl1MwT6no6Dz9WuDQ==, New Status: active
+2025/07/18 07:38:15 Error parsing date: parsing time "2025-07-18T07:38:15Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:44 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:38:00Z
+2025/07/18 07:38:44 Participant RSVPd to hike: E2E Participant (Hike Join Code: yd_LvspXmNJIq0CRNlVPYw==), Waiver Signed
+2025/07/18 07:38:44 Participant status updated: Id: 1, Leader Code: yd_LvspXmNJIq0CRNlVPYw==, New Status: active
+2025/07/18 07:38:45 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:47 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:49 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:51 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:53 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:55 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:57 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:38:59 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:39:01 Error parsing date: parsing time "2025-07-18T07:38:44Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:39:02 Hike yd_LvspXmNJIq0CRNlVPYw== participants set to finished.
+2025/07/18 07:39:02 Hike updated: E2E Test Hike (LeaderCode: EwY0pnKfTzqUXt1M-G1sgA==)
+2025/07/18 07:39:04 Hike created: E2E Redirect Test Hike by E2E Leader, starting at 2025-07-19T07:39:00Z
+2025/07/18 07:39:04 Participant RSVPd to hike: E2E Participant (Hike Join Code: X5J91sP8DRJDK1bDrvwXpw==), Waiver Signed
+2025/07/18 07:39:41 Hike created: E2E Test Hike by E2E Leader, starting at 2025-07-19T07:39:00Z
+2025/07/18 07:39:42 Participant RSVPd to hike: E2E Participant (Hike Join Code: -gVK3Obo-maA8CQDfrosHg==), Waiver Signed
+2025/07/18 07:39:42 Participant status updated: Id: 1, Leader Code: -gVK3Obo-maA8CQDfrosHg==, New Status: active
+2025/07/18 07:39:43 Error parsing date: parsing time "2025-07-18T07:39:42Z" as "2006-01-02T15:04:05-07:00": cannot parse "Z" as "-07:00"
+2025/07/18 07:39:45 Hike -gVK3Obo-maA8CQDfrosHg== participants set to finished.
+2025/07/18 07:39:45 Hike updated: E2E Test Hike (LeaderCode: 7tSkRu_B1UMZCwGLbANU6A==)

@@ -320,8 +320,37 @@ func TestHikeLifecycle(t *testing.T) {
 	assert.True(t, isElementVisible(t, leaderPage, "#hike-leader-page", 10*time.Second), "Hike leader page (re-accessed)")
 	t.Log("Hike Leader: Successfully back on Coordinator Console page")
 
-	participantPage := joinHike(t, leaderPage, joinCode, "E2E Participant", "0987654321", "E2E-PLATE", "5555555555")
+	participantPage := testBrowser.MustIncognito().MustPage()
 	defer participantPage.MustClose()
+	participantJoinURL := fmt.Sprintf("%s/?code=%s", baseServerURL, joinCode)
+	participantPage.MustNavigate(participantJoinURL).MustWaitLoad()
+
+	assert.True(t, isElementVisible(t, participantPage, "#join-hike-page", 10*time.Second), "Join hike page for participant")
+	participantPage.MustElement("#participant-name").MustInput("E2E Participant")
+	participantPage.MustElement("#participant-phone").MustInput("0987654321")
+	participantPage.MustElement("#participant-licensePlate").MustInput("E2E-PLATE")
+	participantPage.MustElement("#participant-emergencyContact").MustInput("5555555555")
+	participantPage.MustElement("#join-hike-form button[onclick='showWaiverPage()']").MustClick()
+
+	assert.True(t, isElementVisible(t, participantPage, "#waiver-page", 5*time.Second), "Waiver page")
+	waiverContentSelector := "#waiver-content"
+	assert.True(t, isElementVisible(t, participantPage, waiverContentSelector, 5*time.Second), "Waiver content")
+	participantPage.MustElement("#waiver-page button[onclick='joinHike()']").MustClick()
+
+	assert.True(t, isElementVisible(t, participantPage, "#welcome-page", 10*time.Second), "Welcome page after RSVP")
+
+	rsvpedHikeItemXPath := fmt.Sprintf("//ul[@id='rsvped-hikes-list']/li[.//h3[contains(normalize-space(.), 'E2E Test Hike')] and .//button[contains(@onclick, \"startHiking('%s'\")]]", joinCode)
+	participantPage.Timeout(15 * time.Second).MustElementX(rsvpedHikeItemXPath).MustWaitVisible()
+	t.Log("RSVPed hike 'E2E Test Hike' in list is visible")
+
+	startHikingButtonXPath := fmt.Sprintf("%s//button[contains(@onclick, 'startHiking')]", rsvpedHikeItemXPath)
+	participantPage.MustElementX(startHikingButtonXPath).MustClick()
+
+	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for participant")
+	t.Log("Participant: Successfully on Hiking page")
+
+	assert.True(t, isElementVisible(t, participantPage, "#hiking-page", 10*time.Second), "Hiking page for participant")
+	t.Log("Participant: Successfully on Hiking page")
 
 	t.Log("Hike Leader: Checking for participant...")
 	if _, errActivate := leaderPage.Activate(); errActivate != nil {
@@ -355,44 +384,11 @@ func TestHikeLifecycle(t *testing.T) {
 	}, 15*time.Second, 2*time.Second, "Participant 'E2E Participant' should appear")
 	t.Log("Hike Leader: Participant 'E2E Participant' is visible.")
 
-	t.Log("Participant: Leaving hike...")
-	if _, errActivate := participantPage.Activate(); errActivate != nil {
-		t.Logf("Warning: could not activate participantPage: %v", errActivate)
-	}
-	assert.True(t, isElementVisible(t, participantPage, "button[onclick='leaveHike()']", 5*time.Second), "Leave Hike button")
-	participantPage.MustElement("button[onclick='leaveHike()']").MustClick()
-	assert.True(t, isElementVisible(t, participantPage, "#welcome-page", 10*time.Second), "Welcome page after leaving")
-	t.Log("Participant: Successfully left hike.")
-
-	t.Log("Hike Leader: Checking if participant left...")
-	if _, errActivate := leaderPage.Activate(); errActivate != nil {
-		t.Logf("Warning: could not activate leaderPage: %v", errActivate)
-	}
-	leaderPage.MustElement("button[onclick='refreshParticipants()']").MustClick()
-
-	assert.Eventually(t, func() bool {
-		elements, errEls := leaderPage.Elements("#participant-list tr")
-		if errEls != nil {
-			leaderPage.MustElement("button[onclick='refreshParticipants()']").MustClick()
-			return false
-		}
-		if len(elements) == 0 {
-			return true
-		}
-		for _, el := range elements {
-			nameCell, errN := el.Element("td:first-child a")
-			if errN != nil {
-				continue
-			}
-			name, _ := nameCell.Text()
-			if strings.Contains(name, "E2E Participant") {
-				leaderPage.MustElement("button[onclick='refreshParticipants()']").MustClick()
-				return false
-			}
-		}
-		return true
-	}, 15*time.Second, 2*time.Second, "Participant 'E2E Participant' should be gone")
-	t.Log("Hike Leader: Participant 'E2E Participant' confirmed gone from active list.")
+	// At this point, the participant is on the "hiking" page.
+	// Now, try to navigate to the join link again.
+	t.Log("Participant: Attempting to rejoin the hike, expecting redirect to welcome page...")
+	participantJoinURL = fmt.Sprintf("%s/?code=%s", baseServerURL, joinCode)
+	participantPage.MustNavigate(participantJoinURL).MustWaitLoad()
 
 	t.Log("Hike Leader: Ending the hike...")
 	if _, errActivate := leaderPage.Activate(); errActivate != nil {

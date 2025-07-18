@@ -687,7 +687,24 @@
                 return;
             } else if (joinCodeFromURL && !leaderCodeFromURL) {
                 // Scenario: Participant joining with a join code link
-                showJoinHikePage(joinCodeFromURL);
+                // First, check if user has already RSVP'd to this hike
+                fetch(`/api/hike?userUUID=${currentUser.uuid}`)
+                    .then(response => response.json())
+                    .then(hikes => {
+                        const hasRSVPd = hikes.some(hike => hike.joinCode === joinCodeFromURL && hike.sourceType === 'rsvp');
+                        if (hasRSVPd) {
+                            // User has already RSVP'd, show welcome page instead of join page
+                            showWelcomePage();
+                        } else {
+                            // User has not RSVP'd, proceed to join page
+                            showJoinHikePage(joinCodeFromURL);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking user RSVP status:', error);
+                        // Fallback to join page on error
+                        showJoinHikePage(joinCodeFromURL);
+                    });
                 return;
             } else if (currentHike.leaderCode && currentHike.joinCode && !joinCodeFromURL && !leaderCodeFromURL) {
                 // Scenario: Existing leader session from localStorage, no new URL parameters
