@@ -650,25 +650,6 @@
             return `${dayName}, ${monthName} ${dayOfMonth}, ${hoursStr}:${minutes} ${ampm}`;
         }
 
-        // Initialize autocomplete and flatpickr on page load
-        document.addEventListener("DOMContentLoaded", () => {
-            const trailheadNameInput = document.getElementById("hike-trailheadName");
-            const trailheadMapLinkInput = document.getElementById("hike-trailheadMapLink");
-
-            autocomplete(trailheadNameInput, trailheadMapLinkInput);
-            addBlurEventListeners(trailheadNameInput, trailheadMapLinkInput);
-
-            startTimeFlatpikr = flatpickr("#hike-startTime", {
-                enableTime: true,
-                altInput: true,
-                altFormat: "F j, Y at h:i K",
-                minDate: "today",
-                time_24hr: false
-            });
-            // Initialize the app
-            checkUserStatus();
-        });
-
         function checkUserStatus() {
             const urlParams = new URLSearchParams(window.location.search);
             const joinCodeFromURL = urlParams.get('code');
