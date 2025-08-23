@@ -890,13 +890,11 @@ func getHikeParticipantsHandler(w http.ResponseWriter, r *http.Request) {
 		FROM
 		  hike_users hu
 		  JOIN users u ON hu.user_uuid = u.uuid
-          JOIN waiver_signatures ws
-            ON
-              hu.user_uuid = ws.user_uuid AND
-              hu.hike_join_code = (SELECT join_code FROM hikes WHERE leader_code =?)
+          LEFT JOIN waiver_signatures ws
+            ON hu.user_uuid = ws.user_uuid AND hu.hike_join_code = ws.hike_join_code
 		WHERE
 		  hu.hike_join_code = (SELECT join_code FROM hikes WHERE leader_code = ?)`,
-		leaderCode, leaderCode)
+		leaderCode)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

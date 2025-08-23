@@ -1880,7 +1880,7 @@
         }
 
         function refreshParticipants() {
-            fetch(`/api/hike/${currentHike.joinCode}/participant?leaderCode=${currentHike.leaderCode}`)
+            return fetch(`/api/hike/${currentHike.joinCode}/participant?leaderCode=${currentHike.leaderCode}`)
                 .then(response => response.json())
                 .then(participants => {
                     allParticipants = participants || [];
@@ -2089,13 +2089,14 @@
         }
 
         function downloadParticipantList() {
-            refreshParticipants();
-            if (allParticipants.length === 0) {
-                alert("No participants to download.");
-                return;
-            }
-            const csvContent = generateParticipantCSV();
-            downloadCSV(csvContent, `hike_participants_${currentHike.joinCode}.csv`);
+            refreshParticipants().then(() => {
+                if (allParticipants.length === 0) {
+                    alert("No participants to download.");
+                    return;
+                }
+                const csvContent = generateParticipantCSV();
+                downloadCSV(csvContent, `hike_participants_${currentHike.joinCode}.csv`);
+            });
         }
 
 
